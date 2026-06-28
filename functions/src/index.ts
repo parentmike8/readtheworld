@@ -77,6 +77,7 @@ const MAX_FCM_TOKENS_PER_SEND = 500;
 const FEATURE_FLAG_CACHE_MS = 60 * 1000;
 const APP_URL = "https://app.readtheworld.today";
 const MARKETING_URL = "https://readtheworld.today";
+const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 
 class ShortCodeCollisionError extends Error {}
@@ -1687,7 +1688,11 @@ export const createInvite = onCall(async (request) => {
     createdBy: uid,
     createInviteDoc: true,
   });
-  return { code, url: `https://rtw.codes/${code}` };
+  return {
+    code,
+    url: `${SHARE_URL}/${code}`,
+    shortUrl: `https://rtw.codes/${code}`,
+  };
 });
 
 export const createShareLink = onCall(async (request) => {
@@ -1700,7 +1705,11 @@ export const createShareLink = onCall(async (request) => {
     targetId: questionId,
     createdBy: uid,
   });
-  return { code, url: `https://rtw.codes/${code}` };
+  return {
+    code,
+    url: `${SHARE_URL}/${code}`,
+    shortUrl: `https://rtw.codes/${code}`,
+  };
 });
 
 export const acceptInvite = onCall(async (request) => {

@@ -24,6 +24,7 @@
 - Friend rows hydrate from `users/{uid}/friends`; answer-visibility toggles and friend removal run through callables so reciprocal friendship state stays consistent and direct client writes remain blocked.
 - Short-link and invite metadata are server-owned. Clients request share/invite links through callables; Firestore rules block direct client writes to `links` and `invites`.
   Invite links expire after 90 days; result links expire after 30 days and can only be created or resolved when the target result exists and `questions/{questionId}.status == "closed"`.
+  App-created share URLs point to `readtheworld.today/share/{code}` so crawlers receive server-rendered Open Graph metadata and a generated question image; that page sends people back through `rtw.codes/{code}` so the existing app-link resolver and counters still run.
   The `rtw.codes` resolver increments open counters only for valid, unexpired, currently revealable links.
   Installed-app Universal/App Links that open directly to `rtw.codes/{code}` are handled by the Flutter `/:code` route, which calls `resolveShortCode` and forwards to the invite or reveal surface.
 - Account data clearing runs through `clearMyData`, which resets scoring state, removes private answer/history/category/friend data, removes reciprocal friend rows, adjusts unscored live counters, and clears server-owned short-link/invite metadata tied to the user.

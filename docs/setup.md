@@ -54,6 +54,7 @@ Current project targets:
 - `readtheworld.today`: Firebase App Hosting backend for the Next.js marketing/admin app.
 - `admin.readtheworld.today`: same Next.js App Hosting backend, routed to `/admin` by `apps/web/src/proxy.ts`.
 - `app.readtheworld.today`: Flutter web app on Firebase Hosting.
+- `readtheworld.today/share/{code}`: social preview page for app-created share links. It renders Open Graph/Twitter metadata with a generated question image, then forwards people through `rtw.codes/{code}`.
 - `rtw.codes`: first-party short links and app links. Do not use Firebase Dynamic Links. Invite links currently expire after 90 days; result links expire after 30 days and only resolve while the target question is officially closed.
 - `readtheworld.co`: 301 redirect to `https://readtheworld.today`.
 
