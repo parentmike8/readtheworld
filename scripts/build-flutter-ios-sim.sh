@@ -12,7 +12,4 @@ while IFS= read -r arg; do
 done < <(rtw_flutter_dart_define_args)
 
 cd "$ROOT_DIR/apps/app"
-flutter build web --release "${dart_define_args[@]}" "$@"
-
-cd "$ROOT_DIR"
-node scripts/copy-flutter-web-static.mjs
+flutter build ios --simulator --debug "${dart_define_args[@]}" "$@"

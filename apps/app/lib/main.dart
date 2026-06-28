@@ -38,66 +38,101 @@ Future<AppBootstrap> _configureFirebase() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    final settings = await _configureFirebaseServices();
+  } catch (error) {
+    debugPrint('Firebase Core initialization failed: $error');
+    return const AppBootstrap();
+  }
+
+  final settings = await _configureFirebaseServices();
+  try {
     if (FirebaseAuth.instance.currentUser == null) {
       await FirebaseAuth.instance.signInAnonymously();
     }
-    return AppBootstrap(firebaseReady: true, settings: settings);
-  } catch (_) {
-    return const AppBootstrap();
+  } catch (error) {
+    debugPrint('Anonymous Firebase Auth sign-in failed: $error');
   }
+  return AppBootstrap(firebaseReady: true, settings: settings);
 }
 
 Future<AppSettings> _configureFirebaseServices() async {
   const recaptchaSiteKey = String.fromEnvironment(
     'RTW_RECAPTCHA_ENTERPRISE_SITE_KEY',
   );
-  if (kIsWeb && recaptchaSiteKey.isEmpty) {
-    debugPrint(
-      'Firebase App Check skipped: RTW_RECAPTCHA_ENTERPRISE_SITE_KEY missing.',
-    );
-  } else {
-    await FirebaseAppCheck.instance.activate(
-      providerWeb: kDebugMode
-          ? WebDebugProvider()
-          : ReCaptchaEnterpriseProvider(recaptchaSiteKey),
-      providerAndroid: kDebugMode
-          ? const AndroidDebugProvider()
-          : const AndroidPlayIntegrityProvider(),
-      providerApple: kDebugMode
-          ? const AppleDebugProvider()
-          : const AppleAppAttestWithDeviceCheckFallbackProvider(),
-    );
+  try {
+    if (kIsWeb && recaptchaSiteKey.isEmpty) {
+      debugPrint(
+        'Firebase App Check skipped: RTW_RECAPTCHA_ENTERPRISE_SITE_KEY missing.',
+      );
+    } else {
+      await FirebaseAppCheck.instance.activate(
+        providerWeb: kDebugMode
+            ? WebDebugProvider()
+            : ReCaptchaEnterpriseProvider(recaptchaSiteKey),
+        providerAndroid: kDebugMode
+            ? const AndroidDebugProvider()
+            : const AndroidPlayIntegrityProvider(),
+        providerApple: kDebugMode
+            ? const AppleDebugProvider()
+            : const AppleAppAttestWithDeviceCheckFallbackProvider(),
+      );
+    }
+  } catch (error) {
+    debugPrint('Firebase App Check setup skipped: $error');
   }
 
-  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode);
-  await FirebasePerformance.instance.setPerformanceCollectionEnabled(
-    !kDebugMode,
-  );
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
-    !kDebugMode,
-  );
+  try {
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode);
+  } catch (error) {
+    debugPrint('Firebase Analytics setup skipped: $error');
+  }
 
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  try {
+    await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+      !kDebugMode,
+    );
+  } catch (error) {
+    debugPrint('Firebase Performance setup skipped: $error');
+  }
 
-  final remoteConfig = FirebaseRemoteConfig.instance;
-  await remoteConfig.setConfigSettings(
-    RemoteConfigSettings(
-      fetchTimeout: const Duration(seconds: 10),
-      minimumFetchInterval: kDebugMode
-          ? const Duration(minutes: 1)
-          : const Duration(hours: 1),
-    ),
-  );
-  await remoteConfig.setDefaults(AppSettings.remoteConfigDefaults);
-  await remoteConfig.fetchAndActivate();
-  final settings = AppSettings.fromRemoteConfig(remoteConfig);
+  if (!kIsWeb) {
+    try {
+      await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+        !kDebugMode,
+      );
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    } catch (error) {
+      debugPrint('Firebase Crashlytics setup skipped: $error');
+    }
+  }
 
-  await FirebaseMessaging.instance.setAutoInitEnabled(true);
+  AppSettings settings = AppSettings.defaults;
+  try {
+    final remoteConfig = FirebaseRemoteConfig.instance;
+    await remoteConfig.setConfigSettings(
+      RemoteConfigSettings(
+        fetchTimeout: const Duration(seconds: 10),
+        minimumFetchInterval: kDebugMode
+            ? const Duration(minutes: 1)
+            : const Duration(hours: 1),
+      ),
+    );
+    await remoteConfig.setDefaults(AppSettings.remoteConfigDefaults);
+    await remoteConfig.fetchAndActivate();
+    settings = AppSettings.fromRemoteConfig(remoteConfig);
+  } catch (error) {
+    debugPrint('Firebase Remote Config setup skipped: $error');
+  }
+
+  try {
+    await FirebaseMessaging.instance.setAutoInitEnabled(true);
+  } catch (error) {
+    debugPrint('Firebase Messaging setup skipped: $error');
+  }
   return settings;
 }
 
@@ -164,6 +199,7 @@ Page<void> _rtwPage(
 final rtwRouterProvider = Provider<GoRouter>((ref) {
   final firebaseReady = ref.watch(firebaseReadyProvider);
   final appSettings = ref.watch(appSettingsProvider);
+  final controller = ref.watch(rtwControllerProvider);
   final browserPath = Uri.base.path;
   final isAppPath = [
     '/auth',
@@ -185,7 +221,15 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ]
         : const <NavigatorObserver>[],
+    refreshListenable: controller,
     redirect: (_, state) {
+      final user = firebaseReady ? FirebaseAuth.instance.currentUser : null;
+      if (state.uri.path == '/onboarding' &&
+          user != null &&
+          !user.isAnonymous &&
+          controller.hasCompletedDemographics) {
+        return '/today';
+      }
       if (!appSettings.partyMode && state.uri.path == '/party') {
         return '/history';
       }

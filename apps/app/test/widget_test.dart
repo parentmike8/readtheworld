@@ -10,15 +10,20 @@ import 'package:read_the_world/models.dart';
 import 'package:read_the_world/scoring.dart';
 import 'package:read_the_world/screens.dart';
 
+import 'fixtures/demo_data.dart';
+
 Widget _testApp({
   required String initialLocation,
   required List<RouteBase> routes,
   AppSettings appSettings = AppSettings.defaults,
+  bool useDemoController = true,
 }) {
   return ProviderScope(
     overrides: [
       firebaseReadyProvider.overrideWithValue(false),
       appSettingsProvider.overrideWithValue(appSettings),
+      if (useDemoController)
+        rtwControllerProvider.overrideWith((_) => _demoController()),
       rtwRouterProvider.overrideWithValue(
         GoRouter(
           initialLocation: initialLocation,
@@ -41,6 +46,62 @@ Widget _testApp({
     ],
     child: const ReadTheWorldApp(),
   );
+}
+
+RtwController _demoController() {
+  final controller = _FixtureRtwController()
+    ..today = todayQuestion
+    ..liveCount = todayQuestion.totalAnswers
+    ..displayName = 'Alex'
+    ..email = 'alex@email.com'
+    ..readScore = 1840
+    ..officialQuestionsAnswered = 142
+    ..readScorePercentileLabel = 'Top 6% worldwide'
+    ..currentStreak = 7
+    ..history = buildDemoHistory()
+    ..friends = List.of(demoFriends)
+    ..categoryInsights = List.of(demoCategoryInsights)
+    ..lastError = null;
+  return controller;
+}
+
+class _FixtureRtwController extends RtwController {
+  _FixtureRtwController() : super(firebaseReady: false);
+
+  @override
+  Future<void> lockPrediction() async {
+    if (selectedOptionId == null) return;
+    lockedToday = true;
+    lastError = null;
+    notifyListeners();
+  }
+
+  @override
+  Future<String> createResultShareUrl(String questionId) async {
+    return 'https://rtw.codes/demo';
+  }
+
+  @override
+  Future<String> createInviteUrl() async {
+    return 'https://rtw.codes/demo';
+  }
+
+  @override
+  Future<bool> acceptInvite(String code) async {
+    final hasInviteFriend = friends.any(
+      (friend) => friend.name == 'New reader',
+    );
+    if (!hasInviteFriend) {
+      friends = [...friends, const FriendRow(name: 'New reader', score: 1500)];
+    }
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<String?> resolveShortCodeRoute(String code) async {
+    return '/invite/${Uri.encodeComponent(code.trim().toUpperCase())}';
+  }
 }
 
 List<RouteBase> _demoRoutes() {
@@ -197,7 +258,7 @@ void main() {
   test(
     'Controller saves practice answers without changing official score state',
     () async {
-      final controller = RtwController(firebaseReady: false);
+      final controller = _demoController();
       final skipped = controller.history.firstWhere(
         (entry) => entry.status == HistoryStatus.skipped,
       );
@@ -520,6 +581,7 @@ void main() {
       ProviderScope(
         overrides: [
           firebaseReadyProvider.overrideWithValue(false),
+          rtwControllerProvider.overrideWith((_) => _demoController()),
           rtwRouterProvider.overrideWithValue(
             GoRouter(
               initialLocation: '/invite/ABCD123',

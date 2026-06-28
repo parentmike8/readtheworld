@@ -1,4 +1,4 @@
-import 'models.dart';
+import 'package:read_the_world/models.dart';
 
 const yesNo = [
   RtwOption(id: 'yes', label: 'Yes'),

@@ -1,24 +1,18 @@
 "use client";
 
 import { FirebaseError, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import {
+  collection,
+  doc,
+  getFirestore,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-const leaders = [
-  ["1", "You", "1,840"],
-  ["2", "Dana K.", "1,792"],
-  ["3", "Marcus R.", "1,710"],
-  ["4", "Priya S.", "1,655"],
-];
-
-const samples = [
-  ["TECHNOLOGY", "Should AI-generated content always be labelled?"],
-  ["MONEY", "Would you take a 20% pay cut for a four-day week?"],
-  ["SCIENCE", "Is there intelligent life elsewhere in the universe?"],
-  ["CULTURE", "Are physical books better than e-books?"],
-  ["PHILOSOPHY", "Is it ever okay to lie to protect someone's feelings?"],
-  ["RELATIONSHIPS", "Should you stay friends with an ex?"],
-];
 
 const faqs = [
   [
@@ -46,6 +40,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+type LiveQuestion = {
+  id: string;
+  category: string;
+  prompt: string;
+  options: Array<{ id: string; label: string }>;
+};
+
+type PublicQuestion = Pick<LiveQuestion, "id" | "category" | "prompt">;
+
 function hasFirebaseConfig() {
   return Object.values(firebaseConfig).every(Boolean);
 }
@@ -62,7 +65,7 @@ function predictionWord(value: number) {
 
 export default function Home() {
   const [step, setStep] = useState<"answer" | "predict" | "gate">("answer");
-  const [answer, setAnswer] = useState<"Yes" | "No" | null>(null);
+  const [answer, setAnswer] = useState<string | null>(null);
   const [prediction, setPrediction] = useState(50);
   const [dragging, setDragging] = useState(false);
   const [email, setEmail] = useState("");
@@ -72,20 +75,72 @@ export default function Home() {
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState<"" | "gate" | "footer">("");
   const [openFaq, setOpenFaq] = useState(0);
-  const [liveCount, setLiveCount] = useState(184927);
+  const [liveQuestion, setLiveQuestion] = useState<LiveQuestion | null>(null);
+  const [recentQuestions, setRecentQuestions] = useState<PublicQuestion[]>([]);
+  const [liveCount, setLiveCount] = useState(0);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const app = useMemo<FirebaseApp | null>(() => {
     if (!hasFirebaseConfig()) return null;
     return getApps()[0] ?? initializeApp(firebaseConfig);
   }, []);
+  const firestore = useMemo(() => (app ? getFirestore(app) : null), [app]);
   const functions = useMemo(() => (app ? getFunctions(app, "us-central1") : null), [app]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      setLiveCount((value) => value + Math.floor(Math.random() * 7) + 1);
-    }, 1500);
-    return () => window.clearInterval(interval);
-  }, []);
+    if (!firestore) return undefined;
+    const liveQuery = query(collection(firestore, "questions"), where("status", "==", "live"), limit(1));
+    return onSnapshot(liveQuery, (snapshot) => {
+      const first = snapshot.docs[0];
+      if (!first) {
+        setLiveQuestion(null);
+        setLiveCount(0);
+        return;
+      }
+      const data = first.data();
+      const options = Array.isArray(data.options)
+        ? data.options
+            .map((option) => ({
+              id: String(option?.id ?? ""),
+              label: String(option?.label ?? ""),
+            }))
+            .filter((option) => option.id && option.label)
+        : [];
+      setLiveQuestion({
+        id: first.id,
+        category: String(data.category ?? "Today"),
+        prompt: String(data.prompt ?? "Loading today's question..."),
+        options,
+      });
+    });
+  }, [firestore]);
+
+  useEffect(() => {
+    if (!firestore) return undefined;
+    const recentQuery = query(
+      collection(firestore, "dailyResults"),
+      where("status", "==", "closed"),
+      orderBy("closedAt", "desc"),
+      limit(6),
+    );
+    return onSnapshot(recentQuery, (snapshot) => {
+      setRecentQuestions(snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          category: String(data.category ?? "Daily read"),
+          prompt: String(data.prompt ?? ""),
+        };
+      }).filter((question) => question.prompt.length > 0));
+    });
+  }, [firestore]);
+
+  useEffect(() => {
+    if (!firestore || !liveQuestion) return undefined;
+    return onSnapshot(doc(firestore, "questionCounters", liveQuestion.id), (snapshot) => {
+      const total = Number(snapshot.data()?.total ?? 0);
+      setLiveCount(Number.isFinite(total) ? total : 0);
+    });
+  }, [firestore, liveQuestion]);
 
   const predictPrompt = useMemo(
     () => `What share of people also answered "${answer ?? "Yes"}"?`,
@@ -100,7 +155,7 @@ export default function Home() {
     setPrediction(Math.max(0, Math.min(100, next)));
   }
 
-  function pick(next: "Yes" | "No") {
+  function pick(next: string) {
     setAnswer(next);
     setStep("predict");
     setSubmitted(false);
@@ -176,39 +231,28 @@ export default function Home() {
             One shared question a day. Answer for yourself, then predict how the
             world will answer. The sharper your read, the higher your score.
           </p>
-          <div className="lpStats" aria-label="Product stats">
-            <div>
-              <strong className="serif">2.4M</strong>
-              <span>Answers / day</span>
-            </div>
-            <div>
-              <strong className="serif">190</strong>
-              <span>Countries</span>
-            </div>
-            <div>
-              <strong className="serif">11</strong>
-              <span>Categories</span>
-            </div>
-          </div>
         </div>
 
         <div className="liveCardColumn">
-          <section className="liveCard" aria-label="Live sample question">
+          <section className="liveCard" aria-label="Live question">
             <div className="questionTop">
-              <span>Today &middot; Philosophy</span>
+              <span>Today{liveQuestion ? ` · ${liveQuestion.category}` : ""}</span>
               <span className="liveDot"><i />Live</span>
             </div>
-            <h2 className="serif">Would you want to know the exact date you&apos;ll die?</h2>
+            <h2 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h2>
 
             {step === "answer" ? (
               <div className="answerStep">
                 <p>First, where do you stand?</p>
-                <button className={answer === "Yes" ? "selected" : ""} onClick={() => pick("Yes")}>
-                  Yes
-                </button>
-                <button className={answer === "No" ? "selected" : ""} onClick={() => pick("No")}>
-                  No
-                </button>
+                {(liveQuestion?.options ?? []).map((option) => (
+                  <button
+                    key={option.id}
+                    className={answer === option.label ? "selected" : ""}
+                    onClick={() => pick(option.label)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             ) : null}
 
@@ -292,7 +336,9 @@ export default function Home() {
               </div>
             ) : null}
           </section>
-          <div className="liveCount">{liveCount.toLocaleString()} people have answered today</div>
+          {liveQuestion ? (
+            <div className="liveCount">{liveCount.toLocaleString()} people have answered today</div>
+          ) : null}
         </div>
       </section>
 
@@ -337,14 +383,22 @@ export default function Home() {
           </p>
         </div>
         <div className="leaderboard">
-          <div className="leaderHead">Friends leaderboard</div>
-          {leaders.map(([rank, name, score], index) => (
-            <div key={rank} className={index === 0 ? "me" : ""}>
-              <span>{rank}</span>
-              <strong>{name}</strong>
-              <b className="serif">{score}</b>
-            </div>
-          ))}
+          <div className="leaderHead">Live in the app</div>
+          <div className="me">
+            <span>01</span>
+            <strong>Read Score</strong>
+            <b className="serif">--</b>
+          </div>
+          <div>
+            <span>02</span>
+            <strong>Daily streak</strong>
+            <b className="serif">--</b>
+          </div>
+          <div>
+            <span>03</span>
+            <strong>Friends leaderboard</strong>
+            <b className="serif">--</b>
+          </div>
         </div>
       </section>
 
@@ -360,12 +414,11 @@ export default function Home() {
             </p>
           </div>
           <div className="partyCard">
-            <div className="eyebrow onDark">Culture</div>
-            <h3 className="serif">Is it rude to keep your phone on the table at dinner?</h3>
+            <div className="eyebrow onDark">{liveQuestion?.category ?? "Live question"}</div>
+            <h3 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h3>
             <div className="partyResult">
-              <span className="yesFill" />
-              <b>YES 62%</b>
-              <em>NO</em>
+              <b>{liveQuestion?.options[0]?.label ?? "Answer"}</b>
+              <em>{liveQuestion?.options[1]?.label ?? "Predict"}</em>
             </div>
           </div>
         </div>
@@ -377,12 +430,17 @@ export default function Home() {
           <h2 className="serif">Questions worth arguing about.</h2>
         </div>
         <div className="sampleGrid">
-          {samples.map(([category, question]) => (
-            <article key={question}>
-              <div className="eyebrow clay">{category}</div>
-              <h3 className="serif">{question}</h3>
+          {recentQuestions.length > 0 ? recentQuestions.map((question) => (
+            <article key={question.id}>
+              <div className="eyebrow clay">{question.category}</div>
+              <h3 className="serif">{question.prompt}</h3>
             </article>
-          ))}
+          )) : (
+            <article>
+              <div className="eyebrow clay">Live archive</div>
+              <h3 className="serif">Loading recent questions...</h3>
+            </article>
+          )}
         </div>
       </section>
 

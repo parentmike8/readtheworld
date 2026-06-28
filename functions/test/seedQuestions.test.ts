@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysToDailyKey,
+  buildProductionQuestionSeed,
   buildSeedQuestionSchedule,
   easternMidnightUtcForDailyKey,
+  seedQuestions,
 } from "../src/seedQuestions";
 
 describe("Initial seed question schedule", () => {
   it("builds launch-relative question IDs and daily windows", () => {
     const schedule = buildSeedQuestionSchedule({ startDailyKey: "2026-06-28" });
 
-    expect(schedule).toHaveLength(7);
+    expect(schedule).toHaveLength(seedQuestions.length);
     expect(schedule[0]).toMatchObject({
       id: "2026-06-28-philosophy-death-date",
       status: "live",
@@ -56,5 +58,40 @@ describe("Initial seed question schedule", () => {
       .toThrow(/YYYY-MM-DD/);
     expect(() => buildSeedQuestionSchedule({ startDailyKey: "2026-02-30" }))
       .toThrow(/valid calendar date/);
+  });
+
+  it("builds production seed data with closed history, a live today, and future questions", () => {
+    const schedule = buildProductionQuestionSeed({
+      todayDailyKey: "2026-06-28",
+      historyDays: 60,
+      futureDays: 30,
+    });
+
+    expect(schedule).toHaveLength(91);
+    expect(schedule[0]).toMatchObject({
+      dailyKey: "2026-04-29",
+      status: "closed",
+    });
+    expect(schedule[0].result).toMatchObject({
+      countedTowardScore: true,
+    });
+    expect(schedule[0].result?.totalAnswers).toBeGreaterThanOrEqual(850);
+    expect(
+      Object.values(schedule[0].result?.optionPcts ?? {}).reduce(
+        (sum, value) => sum + value,
+        0,
+      ),
+    ).toBe(100);
+
+    const live = schedule.filter((question) => question.status === "live");
+    expect(live).toHaveLength(1);
+    expect(live[0].dailyKey).toBe("2026-06-28");
+    expect(live[0].result).toBeUndefined();
+
+    expect(schedule.at(-1)).toMatchObject({
+      dailyKey: "2026-07-28",
+      status: "scheduled",
+    });
+    expect(schedule.at(-1)?.result).toBeUndefined();
   });
 });

@@ -14,11 +14,6 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
-    function questionIsClosed(questionId) {
-      return exists(/databases/$(database)/documents/questions/$(questionId)) &&
-        get(/databases/$(database)/documents/questions/$(questionId)).data.status == "closed";
-    }
-
     function clientProfileKeys() {
       return [
         "displayName",
@@ -73,11 +68,17 @@ service cloud.firestore {
     }
 
     match /dailyResults/{questionId} {
-      allow read: if isAdmin() || questionIsClosed(questionId);
+      allow read: if isAdmin() || resource.data.status == "closed";
       allow write: if isAdmin();
     }
 
-    match /questionCounters/{questionId}/{document=**} {
+    match /questionCounters/{questionId} {
+      allow read: if isAdmin() ||
+        get(/databases/$(database)/documents/questions/$(questionId)).data.status in ["live", "closed"];
+      allow write: if isAdmin();
+    }
+
+    match /questionCounters/{questionId}/shards/{shardId} {
       allow read, write: if isAdmin();
     }
 

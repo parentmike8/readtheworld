@@ -64,14 +64,36 @@ describe("questions and hidden results", () => {
     await assertFails(getDoc(doc(anonDb(), "questions/draft-question")));
   });
 
-  it("keeps daily results hidden until the question is closed", async () => {
-    await seed("questions/live-question", { status: "live" });
-    await seed("questions/closed-question", { status: "closed" });
-    await seed("dailyResults/live-question", { optionPcts: { yes: 55 } });
-    await seed("dailyResults/closed-question", { optionPcts: { yes: 45 } });
+  it("keeps daily results hidden until the server marks the result closed", async () => {
+    await seed("dailyResults/live-question", {
+      status: "live",
+      optionPcts: { yes: 55 },
+    });
+    await seed("dailyResults/closed-question", {
+      status: "closed",
+      optionPcts: { yes: 45 },
+    });
 
     await assertFails(getDoc(doc(anonDb(), "dailyResults/live-question")));
     await assertSucceeds(getDoc(doc(anonDb(), "dailyResults/closed-question")));
+  });
+
+  it("allows public reads of live answer totals without exposing counter shards", async () => {
+    await seed("questions/live-question", { status: "live", prompt: "Live" });
+    await seed("questionCounters/live-question", {
+      questionId: "live-question",
+      total: 12,
+    });
+    await seed("questionCounters/live-question/shards/00", {
+      total: 12,
+      options: { yes: 8, no: 4 },
+    });
+
+    await assertSucceeds(getDoc(doc(anonDb(), "questionCounters/live-question")));
+    await assertFails(getDoc(doc(anonDb(), "questionCounters/live-question/shards/00")));
+    await assertSucceeds(
+      getDoc(doc(authedDb("admin", { admin: true }), "questionCounters/live-question/shards/00")),
+    );
   });
 });
 

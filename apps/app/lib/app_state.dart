@@ -8,7 +8,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import 'demo_data.dart';
 import 'firestore_mappers.dart';
 import 'models.dart';
 import 'scoring.dart';
@@ -18,34 +17,33 @@ const _googleIosClientId = String.fromEnvironment('RTW_GOOGLE_IOS_CLIENT_ID');
 
 class RtwController extends ChangeNotifier {
   RtwController({required this.firebaseReady}) {
-    history = buildDemoHistory();
-    friends = List.of(demoFriends);
-    categoryInsights = List.of(demoCategoryInsights);
     if (firebaseReady) {
       _hydrateFromFirebase();
+    } else {
+      lastError = 'Live data is unavailable. Firebase did not initialize.';
     }
   }
 
   final bool firebaseReady;
-  RtwQuestion today = todayQuestion;
+  RtwQuestion today = _emptyTodayQuestion;
 
   String? selectedOptionId;
   int prediction = 50;
   bool lockedToday = false;
   bool submitting = false;
   String? lastError;
-  int liveCount = todayQuestion.totalAnswers;
-  String displayName = 'Alex';
-  String email = 'alex@email.com';
+  int liveCount = 0;
+  String displayName = 'Reader';
+  String email = '';
   bool dailyReminder = true;
   int avatarIndex = 0;
   DateTime? birthdate;
   String? gender;
   String? country;
-  int readScore = 1840;
-  int officialQuestionsAnswered = 142;
-  String readScorePercentileLabel = 'Top 6% worldwide';
-  int currentStreak = 7;
+  int readScore = 1500;
+  int officialQuestionsAnswered = 0;
+  String readScorePercentileLabel = 'Unranked worldwide';
+  int currentStreak = 0;
   String historyCategory = 'All';
   int partyIndex = 0;
   bool partyReveal = false;
@@ -53,14 +51,15 @@ class RtwController extends ChangeNotifier {
   String? partyAnswer;
   int partyPrediction = 50;
   String? selectedRevealQuestionId;
-  late List<HistoryEntry> history;
-  late List<FriendRow> friends;
-  late List<CategoryInsight> categoryInsights;
+  List<HistoryEntry> history = const [];
+  List<FriendRow> friends = const [];
+  List<CategoryInsight> categoryInsights = const [];
   Timer? _liveTimer;
   Timer? _profileWriteDebounce;
   Future<void>? _googleSignInInitialization;
   StreamSubscription<User?>? _authSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _liveQuestionSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _todayCounterSub;
   final List<StreamSubscription<dynamic>> _userSubscriptions = [];
   final Map<String, Map<String, dynamic>> _answerCache = {};
   final Map<String, Map<String, dynamic>> _scoreHistoryCache = {};
@@ -79,6 +78,9 @@ class RtwController extends ChangeNotifier {
     'GLOBAL EVENTS',
     'AUTOMOTIVE',
   ];
+
+  bool get hasTodayQuestion => today.id.isNotEmpty;
+  bool get hasHistory => history.isNotEmpty;
 
   List<String> get categories {
     final present = history.map((entry) => entry.question.category).toSet();
@@ -111,6 +113,7 @@ class RtwController extends ChangeNotifier {
   String get countryDisplay => _nonEmptyString(country) ?? 'Canada';
 
   HistoryEntry get revealEntry {
+    if (history.isEmpty) return _emptyHistoryEntry;
     final selectedId = selectedRevealQuestionId;
     if (selectedId != null) {
       for (final entry in history) {
@@ -177,9 +180,10 @@ class RtwController extends ChangeNotifier {
             final nextToday = questionFromFirestore(doc.id, doc.data());
             final isNewQuestion = nextToday.id != today.id;
             today = nextToday;
-            liveCount = isNewQuestion
-                ? nextToday.totalAnswers
-                : liveCount.clamp(nextToday.totalAnswers, 1 << 31).toInt();
+            if (isNewQuestion || liveCount < nextToday.totalAnswers) {
+              liveCount = nextToday.totalAnswers;
+            }
+            _bindQuestionCounter(nextToday.id);
             if (isNewQuestion && !_answerCache.containsKey(nextToday.id)) {
               selectedOptionId = null;
               prediction = 50;
@@ -195,29 +199,52 @@ class RtwController extends ChangeNotifier {
           },
         );
 
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSub = FirebaseAuth.instance.userChanges().listen((user) {
       _bindUser(user);
     });
+  }
+
+  void _bindQuestionCounter(String questionId) {
+    _todayCounterSub?.cancel();
+    _todayCounterSub = FirebaseFirestore.instance
+        .collection('questionCounters')
+        .doc(questionId)
+        .snapshots()
+        .listen((snapshot) {
+          final total = _intValue(snapshot.data()?['total']);
+          liveCount = total > 0 ? total : today.totalAnswers;
+          notifyListeners();
+        }, onError: _handleReadError);
   }
 
   void _bindUser(User? user) {
     final uid = user?.uid;
     final authDisplayName = user?.displayName;
     final authEmail = user?.email;
-    if (_boundUid == uid) return;
+    if (_boundUid == uid) {
+      if (user != null) {
+        _applyAuthUserDefaults(user, resetScoring: false);
+        _scheduleAuthProfileWrite(user);
+      }
+      return;
+    }
     _clearUserSubscriptions();
     _boundUid = uid;
     _answerCache.clear();
     _scoreHistoryCache.clear();
     _resultCache.clear();
-    if (uid == null) return;
+    if (user == null) return;
+    _applyAuthUserDefaults(user);
 
     final firestore = FirebaseFirestore.instance;
-    final userRef = firestore.collection('users').doc(uid);
+    final userRef = firestore.collection('users').doc(user.uid);
     _userSubscriptions.add(
       userRef.snapshots().listen((snapshot) {
         final data = snapshot.data();
-        if (data == null) return;
+        if (data == null) {
+          _scheduleAuthProfileWrite(user);
+          return;
+        }
         displayName =
             _nonEmptyString(data['displayName']) ??
             authDisplayName ??
@@ -243,7 +270,7 @@ class RtwController extends ChangeNotifier {
         readScorePercentileLabel = scorePercentileLabel(
           data['readScorePercentile'] as num?,
         );
-        _syncSelfFriendRow(uid);
+        _syncSelfFriendRow(user.uid);
         notifyListeners();
       }, onError: _handleReadError),
     );
@@ -274,6 +301,7 @@ class RtwController extends ChangeNotifier {
     _userSubscriptions.add(
       firestore
           .collection('dailyResults')
+          .where('status', isEqualTo: 'closed')
           .orderBy('closedAt', descending: true)
           .limit(90)
           .snapshots()
@@ -324,8 +352,11 @@ class RtwController extends ChangeNotifier {
         final rows = snapshot.docs
             .where((doc) => doc.data()['status'] != 'removed')
             .map(
-              (doc) =>
-                  friendFromLeaderboardRow(doc.id, doc.data(), currentUid: uid),
+              (doc) => friendFromLeaderboardRow(
+                doc.id,
+                doc.data(),
+                currentUid: user.uid,
+              ),
             )
             .toList();
         friends = [
@@ -335,6 +366,80 @@ class RtwController extends ChangeNotifier {
         notifyListeners();
       }, onError: _handleReadError),
     );
+  }
+
+  void _applyAuthUserDefaults(User user, {bool resetScoring = true}) {
+    displayName =
+        _nonEmptyString(user.displayName) ??
+        _displayNameFromEmail(user.email) ??
+        'Reader';
+    email = _nonEmptyString(user.email) ?? '';
+    dailyReminder = true;
+    avatarIndex = 0;
+    birthdate = null;
+    gender = null;
+    country = null;
+    if (resetScoring) {
+      readScore = 1500;
+      officialQuestionsAnswered = 0;
+      readScorePercentileLabel = 'Unranked worldwide';
+      currentStreak = 0;
+      categoryInsights = const [];
+      friends = [FriendRow(uid: user.uid, name: 'You', score: 1500, me: true)];
+      selectedOptionId = null;
+      prediction = 50;
+      lockedToday = false;
+      _stopLiveTimer();
+    }
+    notifyListeners();
+  }
+
+  void _scheduleAuthProfileWrite(User user) {
+    if (!firebaseReady || FirebaseAuth.instance.currentUser?.uid != user.uid) {
+      return;
+    }
+    unawaited(_writeInitialUserProfile(user));
+  }
+
+  Future<void> _writeInitialUserProfile(User user) async {
+    final uid = user.uid;
+    final displayName =
+        _nonEmptyString(user.displayName) ??
+        _displayNameFromEmail(user.email) ??
+        'Reader';
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      final snapshot = await userRef.get();
+      final data = snapshot.data();
+      final exists = snapshot.exists;
+      await userRef.set({
+        if (!exists || _nonEmptyString(data?['displayName']) == null)
+          'displayName': displayName,
+        if (!exists || _nonEmptyString(data?['email']) == null)
+          'email': _nonEmptyString(user.email),
+        if (!exists || _nonEmptyString(data?['avatarColor']) == null)
+          'avatarColor': _avatarColorName(avatarIndex),
+        if (!exists || data?['dailyReminder'] is! bool)
+          'dailyReminder': dailyReminder,
+        if (!exists) 'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+    }
+  }
+
+  bool get hasCompletedDemographics =>
+      birthdate != null &&
+      _nonEmptyString(gender) != null &&
+      _nonEmptyString(country) != null;
+
+  bool _hasCompletedDemographicsMap(Map<String, Object?>? demographics) {
+    if (demographics == null) return false;
+    return _parseBirthdate(demographics['birthdate']) != null &&
+        _nonEmptyString(demographics['gender']) != null &&
+        _nonEmptyString(demographics['country']) != null;
   }
 
   void _syncSelfFriendRow(String uid) {
@@ -438,8 +543,9 @@ class RtwController extends ChangeNotifier {
       return false;
     }
     if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
       notifyListeners();
-      return true;
+      return false;
     }
     try {
       final auth = FirebaseAuth.instance;
@@ -478,6 +584,28 @@ class RtwController extends ChangeNotifier {
     }
   }
 
+  Future<String> postAuthRoute() async {
+    if (!firebaseReady) {
+      return hasCompletedDemographics ? '/today' : '/onboarding';
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return '/auth';
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final demographics = _stringKeyedMap(snapshot.data()?['demographics']);
+      return _hasCompletedDemographicsMap(demographics)
+          ? '/today'
+          : '/onboarding';
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return hasCompletedDemographics ? '/today' : '/onboarding';
+    }
+  }
+
   Future<bool> authenticateWithGoogle() {
     if (!kIsWeb) return _authenticateWithNativeGoogle();
     final provider = GoogleAuthProvider()
@@ -507,8 +635,9 @@ class RtwController extends ChangeNotifier {
   Future<bool> _authenticateWithNativeGoogle() async {
     lastError = null;
     if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
       notifyListeners();
-      return true;
+      return false;
     }
     try {
       await _ensureGoogleSignInInitialized();
@@ -578,8 +707,9 @@ class RtwController extends ChangeNotifier {
   Future<bool> _authenticateWithProvider(AuthProvider provider) async {
     lastError = null;
     if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
       notifyListeners();
-      return true;
+      return false;
     }
     try {
       final auth = FirebaseAuth.instance;
@@ -686,6 +816,9 @@ class RtwController extends ChangeNotifier {
     lastError = null;
     notifyListeners();
     try {
+      if (!firebaseReady) {
+        throw StateError('Live data is unavailable.');
+      }
       if (firebaseReady) {
         final callable = FirebaseFunctions.instanceFor(
           region: 'us-central1',
@@ -715,10 +848,6 @@ class RtwController extends ChangeNotifier {
       _startLiveTimer();
     } catch (error) {
       lastError = error.toString();
-      if (!firebaseReady) {
-        lockedToday = true;
-        _startLiveTimer();
-      }
     } finally {
       submitting = false;
       notifyListeners();
@@ -1027,35 +1156,43 @@ class RtwController extends ChangeNotifier {
 
   Future<String> createResultShareUrl(String questionId) async {
     unawaited(_logEvent('share_result', {'question_id': questionId}));
-    if (!firebaseReady) return 'https://rtw.codes/demo';
+    if (!firebaseReady) {
+      lastError = 'Live sharing is unavailable.';
+      notifyListeners();
+      return '';
+    }
     try {
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
       ).httpsCallable('createShareLink');
       final result = await callable.call({'questionId': questionId});
       final data = Map<String, dynamic>.from(result.data as Map);
-      return data['url']?.toString() ?? 'https://rtw.codes/demo';
+      return data['url']?.toString() ?? '';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
-      return 'https://rtw.codes/demo';
+      return '';
     }
   }
 
   Future<String> createInviteUrl() async {
     unawaited(_logEvent('invite_friend'));
-    if (!firebaseReady) return 'https://rtw.codes/demo';
+    if (!firebaseReady) {
+      lastError = 'Live invites are unavailable.';
+      notifyListeners();
+      return '';
+    }
     try {
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
       ).httpsCallable('createInvite');
       final result = await callable.call();
       final data = Map<String, dynamic>.from(result.data as Map);
-      return data['url']?.toString() ?? 'https://rtw.codes/demo';
+      return data['url']?.toString() ?? '';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
-      return 'https://rtw.codes/demo';
+      return '';
     }
   }
 
@@ -1068,21 +1205,13 @@ class RtwController extends ChangeNotifier {
       return false;
     }
     try {
-      if (firebaseReady) {
-        final callable = FirebaseFunctions.instanceFor(
-          region: 'us-central1',
-        ).httpsCallable('acceptInvite');
-        await callable.call({'code': normalizedCode});
+      if (!firebaseReady) {
+        throw StateError('Live invites are unavailable.');
       }
-      final hasInviteFriend = friends.any(
-        (friend) => friend.name == 'New reader',
-      );
-      if (!hasInviteFriend) {
-        friends = [
-          ...friends,
-          const FriendRow(name: 'New reader', score: 1500),
-        ];
-      }
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('acceptInvite');
+      await callable.call({'code': normalizedCode});
       unawaited(_logEvent('join_friend_group', {'code': normalizedCode}));
       notifyListeners();
       return true;
@@ -1101,9 +1230,7 @@ class RtwController extends ChangeNotifier {
       notifyListeners();
       return null;
     }
-    if (!firebaseReady) {
-      return '/invite/${Uri.encodeComponent(normalizedCode)}';
-    }
+    if (!firebaseReady) return null;
     try {
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
@@ -1136,11 +1263,12 @@ class RtwController extends ChangeNotifier {
     try {
       if (firebaseReady) {
         await FirebaseAuth.instance.signOut();
+        await FirebaseAuth.instance.signInAnonymously();
       }
       _clearUserSubscriptions();
       _boundUid = null;
-      displayName = 'Alex';
-      email = 'alex@email.com';
+      displayName = 'Reader';
+      email = '';
       dailyReminder = true;
       avatarIndex = 0;
       birthdate = null;
@@ -1184,10 +1312,8 @@ class RtwController extends ChangeNotifier {
   }
 
   void _startLiveTimer() {
-    _liveTimer ??= Timer.periodic(const Duration(milliseconds: 900), (_) {
-      liveCount += 3;
-      notifyListeners();
-    });
+    // Live counts come from question counter shards. Keep this as a no-op for
+    // older call sites that mark a question locked.
   }
 
   void _stopLiveTimer() {
@@ -1237,18 +1363,8 @@ class RtwController extends ChangeNotifier {
     _answerCache.clear();
     _scoreHistoryCache.clear();
     _stopLiveTimer();
-    if (_resultCache.isEmpty) {
-      history = buildDemoHistory()
-          .map(
-            (entry) => HistoryEntry(
-              question: entry.question,
-              status: HistoryStatus.skipped,
-            ),
-          )
-          .toList();
-    } else {
-      _rebuildHistoryFromCache();
-    }
+    history = const [];
+    if (_resultCache.isNotEmpty) _rebuildHistoryFromCache();
     categoryInsights = const [];
     friends = const [FriendRow(name: 'You', score: 1500, me: true)];
   }
@@ -1265,6 +1381,7 @@ class RtwController extends ChangeNotifier {
     _profileWriteDebounce?.cancel();
     _authSub?.cancel();
     _liveQuestionSub?.cancel();
+    _todayCounterSub?.cancel();
     _clearUserSubscriptions();
     _stopLiveTimer();
     super.dispose();
@@ -1275,6 +1392,46 @@ String? _nonEmptyString(Object? value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+const _emptyOptions = [
+  RtwOption(id: 'yes', label: 'Yes'),
+  RtwOption(id: 'no', label: 'No'),
+];
+
+const _emptyTodayQuestion = RtwQuestion(
+  id: '',
+  dailyKey: '',
+  dateLabel: '',
+  category: '',
+  prompt: '',
+  options: _emptyOptions,
+  worldShares: {},
+);
+
+const _emptyHistoryEntry = HistoryEntry(
+  question: _emptyTodayQuestion,
+  status: HistoryStatus.skipped,
+);
+
+String? _displayNameFromEmail(String? value) {
+  final email = _nonEmptyString(value);
+  if (email == null) return null;
+  final localPart = email.split('@').first.trim();
+  if (localPart.isEmpty) return null;
+  final cleaned = localPart
+      .replaceAll(RegExp(r'[._+-]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (cleaned.isEmpty) return null;
+  return cleaned
+      .split(' ')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
 }
 
 Map<String, dynamic>? _stringKeyedMap(Object? value) {

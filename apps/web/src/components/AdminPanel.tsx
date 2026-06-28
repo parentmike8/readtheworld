@@ -393,6 +393,17 @@ const sampleQuestions: AdminQuestion[] = [
   },
 ];
 
+const emptyAdminQuestion: AdminQuestion = {
+  id: "",
+  prompt: "No question is loaded yet.",
+  category: "DAILY READ",
+  status: "",
+  dailyKey: "",
+  publishAt: "",
+  closeAt: "",
+  options: [],
+};
+
 const categoryColors: Record<string, string> = {
   TECHNOLOGY: "#3E5BA0",
   SOCIETY: "#B06A47",
@@ -421,13 +432,13 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const [questionEditorOpen, setQuestionEditorOpen] = useState(false);
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [activeQuestionId, setActiveQuestionId] = useState("");
-  const [questionId, setQuestionId] = useState("2026-07-03-technology-ai-medical-advice");
-  const [prompt, setPrompt] = useState("Do you trust AI to give medical advice?");
-  const [category, setCategory] = useState("TECHNOLOGY");
+  const [questionId, setQuestionId] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [category, setCategory] = useState("");
   const [status, setStatus] = useState("draft");
-  const [dailyKey, setDailyKey] = useState("2026-07-03");
-  const [publishAt, setPublishAt] = useState("2026-07-03T00:00:00-04:00");
-  const [closeAt, setCloseAt] = useState("2026-07-04T00:00:00-04:00");
+  const [dailyKey, setDailyKey] = useState("");
+  const [publishAt, setPublishAt] = useState("");
+  const [closeAt, setCloseAt] = useState("");
   const [options, setOptions] = useState<QuestionOption[]>([
     { id: "yes", label: "Yes" },
     { id: "no", label: "No" },
@@ -454,17 +465,18 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const functions = app ? getFunctions(app, "us-central1") : null;
   const adminUnlocked = state === "authorized" || devAdminPreview;
   const overviewQuestions = overview?.questions ?? [];
-  const rows = questions.length > 0 ? questions : overviewQuestions.length > 0 ? overviewQuestions : sampleQuestions;
-  const scheduleRows = questions.length > 0 ? rows : calendarPreviewQuestions(rows);
+  const liveRows = questions.length > 0 ? questions : overviewQuestions;
+  const rows = liveRows.length > 0 ? liveRows : devAdminPreview ? sampleQuestions : [];
+  const scheduleRows = devAdminPreview && questions.length === 0 ? calendarPreviewQuestions(rows) : rows;
   const liveQuestion =
-    rows.find((question) => question.status === "live") ?? rows[0] ?? sampleQuestions[0];
+    rows.find((question) => question.status === "live") ?? rows[0] ?? emptyAdminQuestion;
   const nextQuestion =
-    rows.find((question) => question.status === "scheduled") ?? sampleQuestions[1];
+    rows.find((question) => question.status === "scheduled") ?? (devAdminPreview ? sampleQuestions[1] : emptyAdminQuestion);
   const focusedResult = overview?.focusResult ?? overview?.results[0] ?? null;
   const resultsQuestion = focusedResult ? resultAsQuestion(focusedResult) : liveQuestion;
   const liveDonut = donutForQuestion(liveQuestion, overview);
   const resultDonut = focusedResult ? donutForResult(focusedResult) : liveDonut;
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "Alex Rivera";
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "Admin";
   const displayInitial = displayName.trim().slice(0, 1).toUpperCase() || "A";
 
   const loadOverview = useCallback(async (focusQuestionId?: string) => {
@@ -722,6 +734,10 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       return renderAccessGate();
     }
 
+    if (!devAdminPreview && !overview) {
+      return renderLiveDataGate();
+    }
+
     switch (activeView) {
       case "schedule":
         return renderSchedule();
@@ -739,6 +755,27 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       default:
         return renderToday();
     }
+  }
+
+  function renderLiveDataGate() {
+    return (
+      <div className="adminDesignPanel adminGate">
+        <div>
+          <div className="adminKicker">Live data</div>
+          <h1 className="adminSerif">
+            {loadingOverview || checkingClaims ? "Loading admin data." : "Admin data is not available."}
+          </h1>
+          <p>
+            {message || "The admin portal is waiting for the production Firebase overview response."}
+          </p>
+        </div>
+        <div className="adminLoginGrid">
+          <button className="adminBlueButton" disabled={loadingOverview} onClick={() => loadOverview(activeQuestionId)}>
+            {loadingOverview ? "Loading..." : "Refresh live data"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   function renderAccessGate() {
@@ -790,12 +827,12 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       <>
         <div className="adminViewHead">
           <div>
-            <div className="adminKicker adminLiveKicker">Live now · {longDate(liveQuestion.dailyKey) ?? "Thursday, June 25, 2026"}</div>
+            <div className="adminKicker adminLiveKicker">Live now · {longDate(liveQuestion.dailyKey) ?? "Today"}</div>
             <h1 className="adminSerif">Today at a glance</h1>
           </div>
           <div className="adminRevealClock">
             <span>Reveal in</span>
-            <strong>{devAdminPreview ? "6h 24m" : timeUntil(liveQuestion.closeAt) ?? "6h 24m"}</strong>
+            <strong>{devAdminPreview ? "6h 24m" : timeUntil(liveQuestion.closeAt) ?? "--"}</strong>
           </div>
         </div>
 
@@ -823,30 +860,30 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
         <div className="adminMetricGrid">
           <MetricCard
             label="Answers today"
-            value={formatCount(metrics?.answersToday, "1,640")}
-            detail={`${formatPercentOf(metrics?.answersToday, metrics?.activeUsers, "87%")} of active users`}
+            value={formatCount(metrics?.answersToday, devAdminPreview ? "1,640" : "0")}
+            detail={`${formatPercentOf(metrics?.answersToday, metrics?.activeUsers, devAdminPreview ? "87%" : "0%")} of active users`}
           />
           <MetricCard
             label="Predictions locked"
-            value={formatCount(metrics?.predictionsLocked, "1,512")}
-            detail={focusedResult?.avgPredictedShare == null ? "Avg guess 64%" : `Avg guess ${focusedResult.avgPredictedShare}%`}
+            value={formatCount(metrics?.predictionsLocked, devAdminPreview ? "1,512" : "0")}
+            detail={focusedResult?.avgPredictedShare == null ? "Avg guess --" : `Avg guess ${focusedResult.avgPredictedShare}%`}
           />
           <MetricCard
             label="Daily active"
-            value={formatCount(metrics?.activeUsers, "1,892")}
-            detail={devAdminPreview || metrics == null ? "+3.4% vs yesterday" : `${formatCount(metrics.leaderboardRows, "1,203")} ranked readers`}
+            value={formatCount(metrics?.activeUsers, devAdminPreview ? "1,892" : "0")}
+            detail={devAdminPreview || metrics == null ? "+3.4% vs yesterday" : `${formatCount(metrics.leaderboardRows)} ranked readers`}
           />
           <MetricCard
             label="New users"
-            value={formatCount(metrics?.newUsers7d, "47")}
-            detail={`${formatCount(metrics?.totalUsers, "3,247")} total`}
+            value={formatCount(metrics?.newUsers7d, devAdminPreview ? "47" : "0")}
+            detail={`${formatCount(metrics?.totalUsers, devAdminPreview ? "3,247" : "0")} total`}
           />
         </div>
 
         <div className="adminTodayLower">
           <section className="adminDesignPanel">
             <PanelHeader label="Answers through the day" meta={dailyActivity.length > 0 ? `${dailyActivity.length} recent closes` : "00:00 → now"} />
-            <Sparkline values={dailyActivity.map((item) => item.value)} />
+            <Sparkline preview={devAdminPreview} values={dailyActivity.map((item) => item.value)} />
           </section>
           <section className="adminNextCard">
             <div className="adminKicker">Up next · Tomorrow</div>
@@ -871,7 +908,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <p>Assign one question to each day. Gaps are flagged in red.</p>
           </div>
           <div className="adminToolbar">
-            <button>‹ June 2026 ›</button>
+            <button>Current schedule</button>
               <button className="adminBlueButton" onClick={() => {
               startNewQuestion();
               setActiveView("library");
@@ -894,10 +931,10 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
                   return <div className="adminCalendarSpacer" key={`blank-${index}`} />;
                 }
                 const item = questionForDay(scheduleRows, day);
-                const needsQuestion = day >= 28;
+                const needsQuestion = devAdminPreview ? day >= 28 : !item;
                 return (
                   <button
-                    className={day === 25 ? "live" : needsQuestion ? "needsQuestion" : ""}
+                    className={item?.status === "live" ? "live" : needsQuestion ? "needsQuestion" : ""}
                     key={day}
                     onClick={() => item && applyQuestion(item)}
                   >
@@ -974,7 +1011,10 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
               <span>{question.prompt}</span>
               <span><CategoryDot category={question.category} /> {displayCategory(question.category)}</span>
               <em data-status={question.status}>{displayStatus(question.status)}</em>
-              <span>{questionWorldPct(question, overview) ?? previewLibraryWorldPct(question) ?? (question.status === "closed" || question.status === "live" ? `${68 - index * 3}%` : "--")}</span>
+              <span>
+                {questionWorldPct(question, overview) ??
+                  (devAdminPreview ? previewLibraryWorldPct(question) ?? (question.status === "closed" || question.status === "live" ? `${68 - index * 3}%` : "--") : "--")}
+              </span>
             </button>
           ))}
         </section>
@@ -988,7 +1028,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     const bars = normalizedBars(overview?.dailyActivity.map((item) => item.value));
     const categoryRows: Array<[string, number]> = overview?.categoryRows.length
       ? overview.categoryRows.map((row) => [displayCategory(row.category), row.value] as [string, number])
-      : [
+      : devAdminPreview ? [
         ["Technology", 92],
         ["Society", 88],
         ["Culture", 81],
@@ -997,10 +1037,10 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
         ["Science", 71],
         ["Health", 64],
         ["Ethics", 58],
-      ];
+      ] : [];
     const retentionRows: Array<[string, number]> = overview?.retentionRows.length
       ? overview.retentionRows.map((row) => [row.label, row.value] as [string, number])
-      : [["D1", 62], ["D3", 48], ["D7", 38], ["D14", 30], ["D30", 24]];
+      : devAdminPreview ? [["D1", 62], ["D3", 48], ["D7", 38], ["D14", 30], ["D30", 24]] : [];
     return (
       <>
         <div className="adminViewHead">
@@ -1015,21 +1055,22 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           </div>
         </div>
         <div className="adminMetricGrid adminAnalyticsMetrics">
-          <MetricCard label="Avg daily active" value={formatCount(metrics?.activeUsers, "1,540")} detail={devAdminPreview ? "+18% MoM" : `${formatCount(metrics?.totalUsers, "3,247")} total readers`} />
-          <MetricCard label="D7 retention" value={formatPercentValue(retentionRows.find(([label]) => label === "D7")?.[1], "38%")} detail={devAdminPreview ? "+2.1 pts" : "Streak proxy"} />
-          <MetricCard label="Avg streak" value={metrics ? `${metrics.avgStreak.toFixed(1)} days` : "9.4 days"} detail={`${formatCount(metrics?.activeStreaks, "1,203")} active streaks`} />
+          <MetricCard label="Avg daily active" value={formatCount(metrics?.activeUsers, devAdminPreview ? "1,540" : "0")} detail={devAdminPreview ? "+18% MoM" : `${formatCount(metrics?.totalUsers)} total readers`} />
+          <MetricCard label="D7 retention" value={formatPercentValue(retentionRows.find(([label]) => label === "D7")?.[1], devAdminPreview ? "38%" : "0%")} detail={devAdminPreview ? "+2.1 pts" : "Streak proxy"} />
+          <MetricCard label="Avg streak" value={metrics ? `${metrics.avgStreak.toFixed(1)} days` : "0.0 days"} detail={`${formatCount(metrics?.activeStreaks, devAdminPreview ? "1,203" : "0")} active streaks`} />
           <MetricCard
             label={overview ? "Push tokens" : "Party rounds"}
-            value={formatCount(metrics?.notificationTokens, "612")}
-            detail={overview ? `${formatCount(metrics?.waitlistSignups, "0")} waitlist signups` : "+44% MoM"}
+            value={formatCount(metrics?.notificationTokens, devAdminPreview ? "612" : "0")}
+            detail={overview ? `${formatCount(metrics?.waitlistSignups, "0")} waitlist signups` : devAdminPreview ? "+44% MoM" : "0 waitlist signups"}
           />
         </div>
         <section className="adminDesignPanel">
-          <PanelHeader label="Daily active users" meta={overview ? `${formatCount(metrics?.activeUsers)} current active` : "820 -> 1,892"} />
+          <PanelHeader label="Daily active users" meta={overview ? `${formatCount(metrics?.activeUsers)} current active` : devAdminPreview ? "820 -> 1,892" : "No activity loaded"} />
           <div className="adminBarChart">
             {bars.map((height, index) => (
               <span key={index} style={{ height: `${height}%` }} />
             ))}
+            {bars.length === 0 ? <em>No activity yet.</em> : null}
           </div>
         </section>
         <div className="adminTwoCols">
@@ -1061,13 +1102,13 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     const accuracyRows = accuracyBucketRows(focusedResult);
     const ageRows: Array<[string, number]> = overview?.audience.age.length
       ? overview.audience.age.map((row) => [row.label, row.value] as [string, number])
-      : [["18-24", 75], ["25-34", 70], ["35-44", 66], ["45-54", 59], ["55+", 52]];
+      : devAdminPreview ? [["18-24", 75], ["25-34", 70], ["35-44", 66], ["45-54", 59], ["55+", 52]] : [];
     const genderRows: Array<[string, number]> = overview?.audience.gender.length
       ? overview.audience.gender.map((row) => [row.label, row.value] as [string, number])
-      : [["Women", 64], ["Men", 73], ["Non-binary", 70]];
+      : devAdminPreview ? [["Women", 64], ["Men", 73], ["Non-binary", 70]] : [];
     const countryRows: Array<[string, number]> = overview?.audience.country.length
       ? overview.audience.country.map((row) => [row.label, row.value] as [string, number])
-      : [["United States", 69], ["United Kingd...", 66], ["Canada", 67], ["Australia", 71], ["Germany", 63]];
+      : devAdminPreview ? [["United States", 69], ["United Kingd...", 66], ["Canada", 67], ["Australia", 71], ["Germany", 63]] : [];
     return (
       <>
         <div className="adminViewHead">
@@ -1095,9 +1136,9 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
                 ))}
               </div>
               <div className="adminResultStats">
-                <span>Avg guess <strong>{focusedResult?.avgPredictedShare ?? 64}%</strong></span>
-                <span>Median Read Score <strong>{focusedResult?.medianReadAccuracy ?? 73}/100</strong></span>
-                <span>Nailed it (90+) <strong>{focusedResult?.highAccuracyPct ?? 21}%</strong></span>
+                <span>Avg guess <strong>{focusedResult?.avgPredictedShare ?? "--"}%</strong></span>
+                <span>Median Read Score <strong>{focusedResult?.medianReadAccuracy ?? "--"}/100</strong></span>
+                <span>Nailed it (90+) <strong>{focusedResult?.highAccuracyPct ?? "--"}%</strong></span>
               </div>
             </div>
           </div>
@@ -1178,23 +1219,19 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <span>Delivered</span>
             <span>Open rate</span>
           </div>
-          {[
-            ["The reveal is in — see how you did", "Today 00:01", "3,180", "54%"],
-            ["Today's question is live 🌍", "Yesterday", "3,166", "61%"],
-            ["Your streak ends in 3 hours", "Jun 23", "402", "72%"],
-            ["We miss your read — come back", "Jun 21", "861", "19%"],
-          ].map((row) => (
-            <div className="adminTableRow" key={row[0]}>
-              {row.map((cell) => <span key={cell}>{cell}</span>)}
-            </div>
-          ))}
+          <div className="adminTableRow">
+            <span>No broadcast history loaded yet.</span>
+            <span>--</span>
+            <span>--</span>
+            <span>--</span>
+          </div>
         </section>
       </>
     );
   }
 
   function renderSettings() {
-    const flags = featureFlags.length > 0 ? featureFlags : sampleFeatureFlags;
+    const flags = featureFlags.length > 0 ? featureFlags : devAdminPreview ? sampleFeatureFlags : [];
     return (
       <>
         <div className="adminViewHead">
@@ -1223,13 +1260,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
               />
             </div>
           ))}
-          <div className="adminSettingRow">
-            <div>
-              <strong>User-suggested questions</strong>
-              <span>Let users submit questions for review</span>
-            </div>
-            <span className="adminToggle" />
-          </div>
+          {flags.length === 0 ? <p>No feature flags loaded yet.</p> : null}
         </section>
         <section className="adminSettingsList">
           <PanelHeader label="Timing" />
@@ -1442,9 +1473,9 @@ type DonutProps = {
 function ResultDonut({ value, label, segments }: DonutProps) {
   const safeValue = clampPercent(value);
   const first = segments[0] ?? { label: "Yes", value: safeValue };
-  const second = segments[1] ?? { label: "No", value: 100 - safeValue };
+  const second = segments[1] ?? { label: "--", value: 0 };
   return (
-    <div className="adminDonut" aria-label="68 percent said yes">
+    <div className="adminDonut" aria-label={`${safeValue} percent ${label.toLowerCase()}`}>
       <div style={{ background: `conic-gradient(var(--clay) 0 ${safeValue}%, #ded8ca ${safeValue}% 100%)` }}>
         <div className="adminDonutInner">
           <strong>{safeValue}%</strong>
@@ -1456,10 +1487,17 @@ function ResultDonut({ value, label, segments }: DonutProps) {
   );
 }
 
-function Sparkline({ values }: { values: number[] }) {
+function Sparkline({ values, preview = false }: { values: number[]; preview?: boolean }) {
   const pathValues = values.length >= 2
     ? values
-    : [40, 220, 520, 760, 980, 1140, 1280, 1410, 1520, 1600, 1640];
+    : preview ? [40, 220, 520, 760, 980, 1140, 1280, 1410, 1520, 1600, 1640] : [];
+  if (pathValues.length < 2) {
+    return (
+      <div className="adminLineChart" aria-hidden="true">
+        <svg viewBox="0 0 520 120" preserveAspectRatio="none" />
+      </div>
+    );
+  }
   const max = values.length >= 2 ? Math.max(...pathValues, 1) : 1700;
   const points = pathValues.map((value, index) => {
     const x = pathValues.length === 1 ? 0 : (index / (pathValues.length - 1)) * 520;
@@ -1563,7 +1601,7 @@ function WaitlistPanel({
           <div role="row" key={entry.id}>
             <span>{entry.email}</span>
             <span>{entry.source || "landing"}</span>
-            <span>{entry.answer ? `${entry.answer} · ${entry.predictedShare ?? "--"}%` : "No sample read"}</span>
+            <span>{entry.answer ? `${entry.answer} · ${entry.predictedShare ?? "--"}%` : "No read captured"}</span>
             <span>{shortDate(entry.latestAt)}</span>
           </div>
         ))}
@@ -1581,6 +1619,7 @@ function questionForDay(rows: AdminQuestion[], day: number) {
 }
 
 function calendarPreviewQuestions(rows: AdminQuestion[]) {
+  if (rows.length === 0) return [];
   const scheduledRows = rows.filter((question) => question.dailyKey);
   const generated = Array.from({ length: 27 }, (_, index) => {
     const day = index + 1;
@@ -1852,29 +1891,26 @@ function donutFromOptions(options: QuestionOption[], pcts: Record<string, number
       label: displayCategory(label),
       value: numberValue(value),
     }));
-  const fallback = [
-    { label: "Yes", value: 68 },
-    { label: "No", value: 32 },
-  ];
-  const displaySegments = segments.length > 0 ? segments : fallback;
-  const first = displaySegments[0];
+  const displaySegments = segments.length > 0
+    ? segments
+    : options.slice(0, 2).map((option) => ({ label: option.label, value: 0 }));
+  const first = displaySegments[0] ?? { label: "No data", value: 0 };
   return {
     value: clampPercent(first.value),
-    label: `Said ${first.label.toLowerCase()}`,
+    label: segments.length > 0 ? `Said ${first.label.toLowerCase()}` : "No result yet",
     segments: displaySegments.slice(0, 2),
   };
 }
 
 function accuracyBucketRows(result: AdminResultSummary | null): Array<[string, number]> {
   const fallback: Array<[string, number]> = [["0-20", 4], ["21-40", 9], ["41-60", 21], ["61-80", 38], ["81-100", 28]];
-  if (!result) return fallback;
+  if (!result) return fallback.map(([label]) => [label, 0]);
   const rows = fallback.map(([label]) => [label, clampPercent(result.accuracyBuckets[label] ?? 0)] as [string, number]);
-  return rows.some(([, value]) => value > 0) ? rows : fallback;
+  return rows.some(([, value]) => value > 0) ? rows : fallback.map(([label]) => [label, 0]);
 }
 
 function normalizedBars(values: number[] | undefined): number[] {
-  const fallback = Array.from({ length: 30 }, (_, index) => 42 + index * 1.5 + (index % 4) * 3);
-  if (!values || values.length === 0) return fallback;
+  if (!values || values.length === 0) return [];
   const max = Math.max(...values, 1);
   return values.map((value) => Math.max(8, Math.round((value / max) * 100)));
 }
@@ -1920,9 +1956,9 @@ function formatPercentOf(part: number | null | undefined, total: number | null |
 }
 
 function audienceCount(audience: BroadcastAudience, metrics: AdminMetricSummary | undefined) {
-  if (audience === "all") return formatCount(metrics?.totalUsers, "3,247");
-  if (audience === "streak_at_risk") return formatCount(metrics?.activeStreaks, "410");
-  return formatCount(metrics?.notificationTokens, "880");
+  if (audience === "all") return formatCount(metrics?.totalUsers);
+  if (audience === "streak_at_risk") return formatCount(metrics?.activeStreaks);
+  return formatCount(metrics?.notificationTokens);
 }
 
 function nullableString(value: unknown) {

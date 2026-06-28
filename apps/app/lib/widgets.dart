@@ -533,7 +533,6 @@ class _TopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compactNav = MediaQuery.sizeOf(context).width < 1100;
     return Container(
       height: 66,
       padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -572,25 +571,6 @@ class _TopNav extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!compactNav) ...[
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: RtwColors.clay,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  '7-DAY STREAK',
-                  style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    fontSize: 11,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(width: 20),
-              ],
               InkWell(
                 customBorder: const CircleBorder(),
                 onTap: navigationLocked ? null : () => context.go('/account'),
@@ -603,7 +583,7 @@ class _TopNav extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: const Text(
-                    'A',
+                    'R',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,

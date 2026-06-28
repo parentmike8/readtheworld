@@ -434,9 +434,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (authBusy) return;
     setState(() => authBusy = true);
     final ok = await action();
+    final route = ok
+        ? await ref.read(rtwControllerProvider).postAuthRoute()
+        : null;
     if (!mounted) return;
     setState(() => authBusy = false);
-    if (ok) context.go('/onboarding');
+    if (route != null) context.go(route);
   }
 
   @override
@@ -640,16 +643,8 @@ class _AuthBrandPanel extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 30),
-          if (creating)
-            Row(
-              children: const [
-                _AuthMetric(value: '2.4M', label: 'ANSWERS / DAY'),
-                SizedBox(width: 28),
-                _AuthMetric(value: '190', label: 'COUNTRIES'),
-              ],
-            )
-          else ...[
+          if (!creating) ...[
+            const SizedBox(height: 30),
             const _AuthMiniSpectrum(),
             SizedBox(
               width: 300,
@@ -722,37 +717,6 @@ class _AuthMiniSpectrum extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AuthMetric extends StatelessWidget {
-  const _AuthMetric({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-            color: RtwColors.paper,
-            fontSize: 26,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall!.copyWith(
-            color: const Color(0xFF8E887C),
-            fontSize: 9,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1566,6 +1530,15 @@ class TodayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(rtwControllerProvider);
+    if (!controller.hasTodayQuestion) {
+      return _LiveDataEmptyState(
+        location: '/today',
+        title: "Loading today's question.",
+        body:
+            controller.lastError ??
+            'Read the World is fetching the live question.',
+      );
+    }
     final isWide = MediaQuery.sizeOf(context).width >= 820;
     return AppScaffold(
       location: '/today',
@@ -1625,6 +1598,66 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _LiveDataEmptyState extends StatelessWidget {
+  const _LiveDataEmptyState({
+    required this.location,
+    required this.title,
+    required this.body,
+    this.actionLabel,
+    this.onAction,
+    this.showBottomNav = true,
+  });
+
+  final String location;
+  final String title;
+  final String body;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool showBottomNav;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 820;
+    return AppScaffold(
+      location: location,
+      maxWidth: 560,
+      showBottomNav: showBottomNav,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          isWide ? 92 : _screenTopPadding(context, 92),
+          24,
+          34,
+        ),
+        children: [
+          const Eyebrow('Live data'),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineLarge!.copyWith(fontSize: 34, height: 1.1),
+          ),
+          const SizedBox(height: 12),
+          Text(body, style: Theme.of(context).textTheme.bodyMedium),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: RtwButton(
+                label: actionLabel!,
+                fullWidth: false,
+                compact: true,
+                onPressed: onAction,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1726,6 +1759,16 @@ class PredictScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(rtwControllerProvider);
+    if (!controller.hasTodayQuestion || controller.selectedOptionId == null) {
+      return _LiveDataEmptyState(
+        location: '/today/predict',
+        title: 'Choose an answer first.',
+        body: 'The prediction step unlocks after a live answer is selected.',
+        actionLabel: "Back to today's question",
+        onAction: () => context.go('/today'),
+        showBottomNav: false,
+      );
+    }
     final isWide = MediaQuery.sizeOf(context).width >= 820;
     return AppScaffold(
       location: '/today/predict',
@@ -1856,6 +1899,15 @@ class LockedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(rtwControllerProvider);
+    if (!controller.hasTodayQuestion || controller.selectedOptionId == null) {
+      return _LiveDataEmptyState(
+        location: '/today/locked',
+        title: 'No locked answer yet.',
+        body: 'Lock a prediction on the live question to see this state.',
+        actionLabel: "Back to today's question",
+        onAction: () => context.go('/today'),
+      );
+    }
     final selectedLabel = controller.selectedLabel.isEmpty
         ? 'No'
         : controller.selectedLabel;
@@ -2039,20 +2091,6 @@ class LockedScreen extends ConsumerWidget {
                       onPressed: () => context.go('/history'),
                     ),
                   ],
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: isWide ? Alignment.centerLeft : Alignment.center,
-                    child: TextButton(
-                      onPressed: () {
-                        ref.read(rtwControllerProvider).restartToday();
-                        context.go('/today');
-                      },
-                      child: Text(
-                        'RESTART DEMO',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -2098,6 +2136,16 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
   Widget build(BuildContext context) {
     final controller = ref.watch(rtwControllerProvider);
     final settings = ref.watch(appSettingsProvider);
+    if (!controller.hasHistory) {
+      return _LiveDataEmptyState(
+        location: '/reveal',
+        title: 'No revealed results yet.',
+        body: 'Closed live questions will appear here after the daily reveal.',
+        actionLabel: 'View history',
+        onAction: () => context.go('/history'),
+        showBottomNav: false,
+      );
+    }
     final entry = controller.revealEntryFor(widget.questionId);
     final selected = entry.selectedOptionId ?? 'yes';
     final world = entry.question.worldShareFor(selected);
@@ -2284,33 +2332,13 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
                   ],
                 ),
               ),
-              if (settings.friends) ...[
+              if (settings.friends &&
+                  controller.friends.any((friend) => !friend.me)) ...[
                 const SizedBox(height: 24),
                 const Eyebrow('Among your friends'),
                 const SizedBox(height: 10),
-                RtwCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      const _RevealFriendRow(
-                        name: 'Dana K.',
-                        answer: 'Yes',
-                        accuracy: 92,
-                        shared: true,
-                      ),
-                      const Divider(height: 1, color: RtwColors.border),
-                      const _RevealFriendRow(
-                        name: 'Marcus R.',
-                        answer: 'private',
-                        accuracy: 76,
-                        shared: false,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 9),
                 Text(
-                  "You see a friend's answer only if they've shared it with you.",
+                  'Friend answer comparisons appear here after friends share answers for this question.',
                   style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                     fontSize: 12,
                     color: RtwColors.faint,
@@ -2332,6 +2360,7 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
                         .read(rtwControllerProvider)
                         .createResultShareUrl(entry.question.id);
                     if (!context.mounted) return;
+                    if (url.isEmpty) return;
                     await _showResultShareSheet(
                       context,
                       entry: entry,
@@ -2363,72 +2392,6 @@ String _readVerdict(int gap) {
   if (gap <= 18) return 'A good read.';
   if (gap <= 30) return 'A little off.';
   return 'Way off.';
-}
-
-class _RevealFriendRow extends StatelessWidget {
-  const _RevealFriendRow({
-    required this.name,
-    required this.answer,
-    required this.accuracy,
-    required this.shared,
-  });
-
-  final String name;
-  final String answer;
-  final int accuracy;
-  final bool shared;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                color: RtwColors.ink,
-                fontSize: 15,
-              ),
-            ),
-          ),
-          if (shared)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: RtwColors.blueTint,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'said $answer',
-                style: const TextStyle(
-                  color: RtwColors.blue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            )
-          else
-            Text(
-              'ANSWER PRIVATE',
-              style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                fontSize: 10,
-                letterSpacing: 0.5,
-                color: RtwColors.faint,
-              ),
-            ),
-          const SizedBox(width: 14),
-          Text(
-            '$accuracy',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge!.copyWith(fontSize: 17),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -3185,6 +3148,16 @@ class _PartyScreenState extends ConsumerState<PartyScreen> {
   Widget build(BuildContext context) {
     final controller = ref.watch(rtwControllerProvider);
     final deck = _deck(controller);
+    if (!controller.hasHistory) {
+      return _LiveDataEmptyState(
+        location: '/party',
+        title: 'No questions to play yet.',
+        body: 'Party mode uses closed live questions from history.',
+        actionLabel: 'View history',
+        onAction: () => context.go('/history'),
+        showBottomNav: false,
+      );
+    }
     final partyIndex = deck.isEmpty
         ? 0
         : controller.partyIndex.clamp(0, deck.length - 1).toInt();
@@ -4195,7 +4168,7 @@ class InsightsScreen extends ConsumerWidget {
                     backgroundColor: RtwColors.blue,
                     child: Text(
                       controller.displayName.isEmpty
-                          ? 'A'
+                          ? 'R'
                           : controller.displayName[0].toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
@@ -4304,6 +4277,7 @@ class InsightsScreen extends ConsumerWidget {
                     .read(rtwControllerProvider)
                     .createInviteUrl();
                 if (!context.mounted) return;
+                if (url.isEmpty) return;
                 await _showInviteSheet(context, url);
               },
             ),

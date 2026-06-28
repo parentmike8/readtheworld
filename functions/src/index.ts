@@ -31,7 +31,7 @@ import {
   smoothedCategoryScore,
   type LeaderboardInput,
 } from "./scoring";
-import { buildSeedQuestionSchedule } from "./seedQuestions";
+import { buildProductionQuestionSeed } from "./seedQuestions";
 import {
   isShortLinkType,
   shortLinkExpired,
@@ -64,6 +64,7 @@ import {
 } from "./config";
 import { resultIsRevealed } from "./visibility";
 import { isPracticeAnswerSource } from "./practice";
+import { missingUserProgressDefaults } from "./userProgress";
 
 initializeApp();
 setGlobalOptions({ region: "us-central1", maxInstances: 20 });
@@ -1091,6 +1092,7 @@ async function closeQuestion(questionId: string, force = false): Promise<{
     dailyKey: question.dailyKey ?? null,
     category: question.category,
     prompt: question.prompt,
+    status: "closed",
     options: question.options,
     optionCounts: Object.fromEntries(question.options.map((option) => [option.id, counts[option.id] ?? 0])),
     optionPcts,
@@ -1166,26 +1168,14 @@ export const submitPrediction = onCall(async (request) => {
     }
 
     const counterShard = shardId();
-    const counterRef = db
-      .collection("questionCounters")
-      .doc(questionId)
-      .collection("shards")
-      .doc(counterShard);
+    const counterSummaryRef = db.collection("questionCounters").doc(questionId);
+    const counterRef = counterSummaryRef.collection("shards").doc(counterShard);
 
-    if (userSnap.exists) {
-      tx.set(userRef, {
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } else {
-      tx.set(userRef, {
-        readScore: STARTING_READ_SCORE,
-        officialQuestionsAnswered: 0,
-        currentStreak: 0,
-        longestStreak: 0,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    }
+    tx.set(userRef, {
+      ...missingUserProgressDefaults(userSnap.data()),
+      ...(userSnap.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
 
     tx.create(answerRef, {
       questionId,
@@ -1206,6 +1196,12 @@ export const submitPrediction = onCall(async (request) => {
       options: {
         [selectedOptionId]: FieldValue.increment(1),
       },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    tx.set(counterSummaryRef, {
+      questionId,
+      total: FieldValue.increment(1),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -2111,16 +2107,18 @@ export const seedInitialQuestions = onCall(async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
 
-  let scheduledSeedQuestions;
+  let seedQuestions;
   try {
-    scheduledSeedQuestions = buildSeedQuestionSchedule({
-      startDailyKey: normalizeDailyKey(request.data?.startDailyKey),
+    seedQuestions = buildProductionQuestionSeed({
+      todayDailyKey: normalizeDailyKey(request.data?.todayDailyKey ?? request.data?.startDailyKey),
+      historyDays: request.data?.historyDays == null ? undefined : Number(request.data.historyDays),
+      futureDays: request.data?.futureDays == null ? undefined : Number(request.data.futureDays),
     });
   } catch (error) {
     mapQuestionValidationError(error);
   }
 
-  const firstQuestionId = scheduledSeedQuestions[0]?.id ?? null;
+  const liveQuestionId = seedQuestions.find((question) => question.status === "live")?.id ?? null;
   const liveQuestions = await db
     .collection("questions")
     .where("status", "==", "live")
@@ -2128,7 +2126,7 @@ export const seedInitialQuestions = onCall(async (request) => {
     .get();
   const conflictingLiveQuestions = liveQuestions.docs
     .map((doc) => doc.id)
-    .filter((questionId) => questionId !== firstQuestionId);
+    .filter((questionId) => questionId !== liveQuestionId);
   if (conflictingLiveQuestions.length > 0) {
     throw new HttpsError(
       "failed-precondition",
@@ -2136,38 +2134,76 @@ export const seedInitialQuestions = onCall(async (request) => {
     );
   }
 
-  const refs = scheduledSeedQuestions.map((question) => db.collection("questions").doc(question.id));
-  const existing = await Promise.all(refs.map((ref) => ref.get()));
+  const questionRefs = seedQuestions.map((question) => db.collection("questions").doc(question.id));
+  const resultRefs = seedQuestions.map((question) =>
+    question.result ? db.collection("dailyResults").doc(question.id) : null,
+  );
+  const existingQuestions = await Promise.all(questionRefs.map((ref) => ref.get()));
+  const existingResults = await Promise.all(
+    resultRefs.map((ref) => ref == null ? Promise.resolve(null) : ref.get()),
+  );
   const batch = db.batch();
-  let seeded = 0;
-  let skipped = 0;
-  scheduledSeedQuestions.forEach((question, index) => {
-    if (existing[index]?.exists) {
-      skipped += 1;
+  let seededQuestions = 0;
+  let skippedQuestions = 0;
+  let seededResults = 0;
+  let skippedResults = 0;
+  seedQuestions.forEach((question, index) => {
+    if (existingQuestions[index]?.exists) {
+      skippedQuestions += 1;
+    } else {
+      seededQuestions += 1;
+      batch.set(questionRefs[index], {
+        category: question.category,
+        prompt: question.prompt,
+        options: question.options,
+        type: question.type,
+        status: question.status,
+        dailyKey: question.dailyKey,
+        publishAt: Timestamp.fromDate(question.publishAt),
+        closeAt: Timestamp.fromDate(question.closeAt),
+        totalAnswers: question.result?.totalAnswers ?? 0,
+        closedAt: question.result ? Timestamp.fromDate(question.result.closedAt) : null,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    const resultRef = resultRefs[index];
+    const result = question.result;
+    if (resultRef == null || result == null) return;
+    if (existingResults[index]?.exists) {
+      skippedResults += 1;
       return;
     }
-    seeded += 1;
-    batch.set(refs[index], {
+    seededResults += 1;
+    batch.set(resultRef, {
+      questionId: question.id,
+      dailyKey: question.dailyKey,
       category: question.category,
       prompt: question.prompt,
+      status: "closed",
       options: question.options,
-      type: question.type,
-      status: question.status,
-      dailyKey: question.dailyKey,
-      publishAt: Timestamp.fromDate(question.publishAt),
-      closeAt: Timestamp.fromDate(question.closeAt),
+      optionCounts: result.optionCounts,
+      optionPcts: result.optionPcts,
+      totalAnswers: result.totalAnswers,
+      countedTowardScore: result.countedTowardScore,
+      closedAt: Timestamp.fromDate(result.closedAt),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
-  if (seeded > 0) {
+  if (seededQuestions > 0 || seededResults > 0) {
     await batch.commit();
   }
   return {
-    seeded,
-    skipped,
-    total: scheduledSeedQuestions.length,
-    startDailyKey: scheduledSeedQuestions[0]?.dailyKey ?? null,
-    firstQuestionId,
+    seededQuestions,
+    skippedQuestions,
+    seededResults,
+    skippedResults,
+    totalQuestions: seedQuestions.length,
+    historyDays: seedQuestions.filter((question) => question.status === "closed").length,
+    futureDays: seedQuestions.filter((question) => question.status === "scheduled").length,
+    todayDailyKey: seedQuestions.find((question) => question.status === "live")?.dailyKey ?? null,
+    liveQuestionId,
   };
 });
