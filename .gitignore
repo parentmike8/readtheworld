@@ -1,0 +1,43 @@
+.DS_Store
+.thumbnail
+.env
+.env.*
+!.env.example
+!functions/.env.example
+*.zip
+
+# Node
+node_modules/
+npm-debug.log*
+.next/
+out/
+dist/
+coverage/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+android/.gradle/
+
+# Firebase local state
+.firebaserc
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+functions/lib/
+tmp/
+qa-artifacts/
+.xcodebuildmcp/
+
+# IDE
+.idea/
+*.iml
+.vscode/

@@ -1,0 +1,51 @@
+{
+  "conditions": [],
+  "parameters": {
+    "daily_close_timezone": {
+      "defaultValue": {
+        "value": "America/New_York"
+      },
+      "description": "Official daily close/reveal timezone."
+    },
+    "minimum_scored_responses": {
+      "defaultValue": {
+        "value": "50"
+      },
+      "description": "Minimum official responses required before a question affects Read Score."
+    },
+    "read_score_start": {
+      "defaultValue": {
+        "value": "1500"
+      },
+      "description": "Starting long-term Read Score."
+    },
+    "feature_party_mode": {
+      "defaultValue": {
+        "value": "true"
+      }
+    },
+    "feature_friends": {
+      "defaultValue": {
+        "value": "true"
+      }
+    },
+    "feature_friends_leaderboard": {
+      "defaultValue": {
+        "value": "true"
+      }
+    },
+    "feature_result_sharing": {
+      "defaultValue": {
+        "value": "true"
+      }
+    },
+    "feature_onboarding_demographics": {
+      "defaultValue": {
+        "value": "true"
+      }
+    }
+  },
+  "version": {
+    "description": "Initial Read the World defaults"
+  }
+}

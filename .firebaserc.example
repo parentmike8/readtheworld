@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "read-the-world-74f2a"
+  },
+  "targets": {
+    "read-the-world-74f2a": {
+      "hosting": {
+        "app": ["read-the-world-app-74f2a"],
+        "links": ["rtw-codes-74f2a"],
+        "redirect": ["readtheworld-co-74f2a"]
+      }
+    }
+  }
+}

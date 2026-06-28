@@ -1,0 +1,35 @@
+{
+  "name": "read-the-world",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read the World monorepo: Flutter app, Next.js marketing/admin, and Firebase backend.",
+  "scripts": {
+    "app:analyze": "cd apps/app && flutter analyze",
+    "app:test": "cd apps/app && flutter test",
+    "app:build:web": "bash scripts/build-flutter-web.sh",
+    "app:icons": "swift scripts/generate_app_icons.swift",
+    "web:dev": "cd apps/web && npm run dev",
+    "web:lint": "cd apps/web && npm run lint",
+    "web:build": "cd apps/web && npm run build",
+    "functions:lint": "cd functions && npm run lint",
+    "functions:test": "cd functions && npm test",
+    "functions:build": "cd functions && npm run build",
+    "admin:claim": "cd functions && npm run admin:claim --",
+    "accounts:check": "scripts/check-personal-accounts.sh",
+    "native:check": "node scripts/check-native-readiness.mjs",
+    "readiness:check": "node scripts/check-deployment-readiness.mjs",
+    "rules:test": "npx -y firebase-tools@15.22.3 emulators:exec --only firestore \"vitest run firebase/test\"",
+    "test": "npm run functions:test && npm run app:test",
+    "build": "npm run functions:build && npm run web:build && npm run app:build:web"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "@types/node": "^26.0.1",
+    "firebase": "^12.15.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

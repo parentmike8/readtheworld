@@ -1,0 +1,431 @@
+**Findings**
+- No actionable P0/P1/P2 findings remain for the checked landing, Auth, Today daily-loop, Account/Profile, Insights/Profile, History, Party setup, Party play, invite sheet, result-share sheet, and Admin seven-tab surface across the captured mobile/web/admin surfaces.
+
+**Open Questions**
+- The account source visual includes an iOS device frame/status area. The Flutter app does not draw a fake device bezel in production; comparisons treat the in-app content region as the target.
+- The date-of-birth picker and country selector intentionally depart from the `.dc.html` source controls. The source uses native browser date/select controls; implementation uses polished Flutter bottom sheets as requested.
+- The screenshot folder is incomplete. Remaining secondary states still need direct Claude Design validation before beta hardening.
+
+**Implementation Checklist**
+- Source visual truth path: `/Users/michaelparent/development/Read the World/Daily Global Prediction Game/Read the World.dc.html`
+- Source visual truth path: `/Users/michaelparent/development/Read the World/Daily Global Prediction Game/Read the World - Web.dc.html`
+- Source visual truth path: `/Users/michaelparent/development/Read the World/Daily Global Prediction Game/Read the World - Login.dc.html`
+- Source visual truth path: `/Users/michaelparent/development/Read the World/Daily Global Prediction Game/Read the World - Landing.dc.html`
+- Source screenshot path: `/Users/michaelparent/development/Read the World/Daily Global Prediction Game/screenshots/Screenshot 2026-06-27 at 8.36.33 PM.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-account-state-v2.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-today-nav-v4.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-account-tall-v4.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-auth-v6.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-auth-after-auth-wiring.png`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-claude-web-source.png`
+- Live Chrome implementation capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-web-today.png`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-claude-web-source-after-scale.png`
+- Live Chrome implementation capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-web-today-after-scale.png`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-design-web-today-selected-cta-v1.png`
+- Live Chrome implementation capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-web-today-selected-cta-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-predict50-mobile-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-locked50-mobile-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-reveal-mobile-v2.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-onboardingWelcome2-mobile-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-onboardingAboutEmpty2-mobile-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-login-mobile-signin-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-login-mobile-create-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-login-web-signin-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-login-web-create-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-predict-no-nav-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-locked-cdp-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-reveal-friends-only-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-onboarding-welcome-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-onboarding-about-disabled-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-onboarding-dob-sheet-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-onboarding-country-sheet-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-mobile-signin-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-mobile-create-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-web-signin-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-web-create-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-profile-mobile-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-insights-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-web-profile-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-insights-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-today-after-shell-width-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-web-history-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-history-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-web-predict50-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-predict50-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-web-locked50-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-locked50-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-web-reveal-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-web-reveal-v1.png`
+- Focused Claude preview crop path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-claude-web-preview-crop-after-scale.png`
+- Focused Chrome implementation resize path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-web-today-preview-width-after-scale.png`
+- Web transition check path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-flutter-web-insights-80ms-after-click.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-history-v2.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-setup-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-setup-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-setup-v2.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-reveal-question-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-reveal-question-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-reveal-result-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-reveal-result-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-predict-answer-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-predict-answer-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-predict-slider-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-predict-slider-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-party-predict-result-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-party-predict-result-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-invite-sheet-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-invite-sheet-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-result-share-sheet-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-result-share-sheet-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/landing-mobile-prod-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/landing-desktop-prod-v1.png`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-design-landing-hero-v2.jpg`
+- Live Chrome implementation capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-next-landing-hero-v2.jpg`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-design-admin-visible-v1.png`
+- Live Chrome implementation capture path: `/Users/michaelparent/development/Read the World/tmp/qa/chrome-next-admin-settings-visible-v4.png`
+- Live Claude source capture paths: `/Users/michaelparent/development/Read the World/tmp/qa/admin-tabs/claude-admin-{today,schedule,library,analytics,results,notifications,settings}.png`
+- Live Chrome implementation capture paths: `/Users/michaelparent/development/Read the World/tmp/qa/admin-tabs/local-admin-{today,schedule,library,analytics,results,notifications,settings}.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-account-source-vs-impl-v4.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-landing-source-vs-impl.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-share-sheets-source-vs-impl.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-web-daily-loop-source-vs-impl.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-admin-settings-source-vs-impl-v4.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/admin-tabs/qa-admin-tabs-source-vs-impl-v3.png`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/live-source-mobile-today-v2.jpg`
+- Live Claude source capture path: `/Users/michaelparent/development/Read the World/tmp/qa/live-source-mobile-today-selected-v1.jpg`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-today-cdp-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-today-selected-v1.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-mobile-today-live-source-vs-impl-v4.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-profile-mobile-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-insights-v1.png`
+- Rendered source state path: `/Users/michaelparent/development/Read the World/tmp/qa/source-mobile-history-direct-v1.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/flutter-mobile-history-v3.png`
+- Comparison evidence path: `/Users/michaelparent/development/Read the World/tmp/qa/qa-mobile-history-insights-scaled-v1.png`
+- Viewport: mobile 393x852 and 393x1280; desktop 1440x1100.
+- State: landing hero, Today unanswered with bottom nav, Auth sign-in, Account/Profile, History with calendar, Party setup.
+- State: Party reveal mode question/result using chronological order for a deterministic same-card comparison.
+- State: Party answer-and-predict answer/slider/result using chronological order for a deterministic same-card comparison.
+- State: mobile invite sheet from Insights and result-share sheet from Reveal.
+- State: Insights/Profile with Read Score, category bars, friends leaderboard, visibility pills, and bottom nav.
+- State: web Insights/Profile under the top nav, plus Today smoke-check after the shell-width change.
+- State: web History with source-ordered category chips, dense June 2026 calendar, and first result card.
+- State: web Predict, Locked, and Reveal under the top nav with the source daily-loop composition; Reveal comparison has known demo-data differences while layout/chrome were matched.
+- Full-view comparison evidence: source and implementation account images were combined into `qa-account-source-vs-impl-v4.png`; source and implementation landing images were combined into `qa-landing-source-vs-impl.png`.
+- Full-view comparison evidence: source and implementation share-sheet images were combined into `qa-share-sheets-source-vs-impl.png`.
+- Full-view comparison evidence: source and implementation web daily-loop states were combined into `qa-web-daily-loop-source-vs-impl.png`.
+- Focused region comparison evidence: Account back control, profile header, panel typography, row values, destructive action, and Today bottom nav labels/icons were checked. Separate focused crops were not needed because these controls are legible in the full-view captures.
+- Focused web daily-loop comparison evidence: Predict prompt copy, Locked card width/actions, and Reveal share/CTA treatment were legible in the full-view contact sheet, so separate focused crops were not needed.
+- Focused web Today selected CTA pixel-bounds check: source button measured `266x62` at `x=456,y=566`; Flutter implementation measured `261x61` at `x=456,y=564` after matching the handoff's `18px` text, `20px 40px` padding, `15px` radius, and text-arrow glyph.
+- Focused Admin Settings comparison evidence: source and implementation settings panels were placed in `qa-admin-settings-source-vs-impl-v4.png`; the list row density, toggle shape, settings copy, and category order are readable in the full-view contact sheet, so separate focused crops were not needed.
+- Focused Admin seven-tab comparison evidence: source and implementation Today, Schedule, Library, Analytics, Results, Notifications, and Settings states were placed in `qa-admin-tabs-source-vs-impl-v3.png`; the source-width workspace, row/table density, metrics, charts, side panels, and visible copy are readable in the full-view contact sheet, so separate focused crops were not needed for this pass.
+
+**Patches Made Since Previous QA Pass**
+- Changed Account/Profile to hide mobile bottom nav, matching the focused source account surface.
+- Replaced Account/Profile Material back icon with source-style `\u2190 Insights` text treatment at 15px semibold.
+- Matched mobile bottom nav label size to the source: 11px, 0.3px letter spacing, semibold, 18px icons, paper background.
+- Added `showBottomNav` control to `AppScaffold` for focused routes.
+- Replaced onboarding DOB and country approximations with polished Flutter bottom sheets, intentionally diverging only from those two source controls.
+- Matched onboarding chip/select visual styling back to source tokens.
+- Hardened `RtwButton` text/icon layout against narrow-width overflow.
+- Added widget coverage for onboarding DOB and country picker opening.
+- Disabled Next dev indicator in local web QA config so screenshots are product-only.
+- Rebuilt History around the source calendar/card treatment and fixed header spacing so the Party action no longer compresses the title.
+- Matched web History to `Read the World - Web.dc.html`: source-style deterministic history pool, source category order, dense June calendar, 7% blue marked-day tint, separate weekday row, and `See the reveal →` / `Answer it →` copy.
+- Rebuilt Party setup around source-like chips, segmented controls, summary text, and no-bottom-nav focused layout.
+- Matched mobile Party setup selected topic/month chips to the source blue outlined/tinted treatment, restored the source em-dash body copy, source segment-group background/padding, and text-arrow `Start the round →` CTA.
+- Matched mobile Party reveal-mode play to the source centered stage: fixed-height play surface, bottom-anchored footer, text-arrow `Reveal the world ↓` / `Next question →` controls, black result CTA, and clay-highlighted majority phrase.
+- Matched mobile Party answer-and-predict mode to the source phased flow: answer tap moves directly to prediction, previous-answer helper copy uses the source date phrasing, prediction prompt uses curly quotes, Party prediction hides slider labels, and the result uses the source mono guess line plus clay-highlighted score treatment while preserving the app's real scoring formula.
+- Matched share sheets back to the source treatment: invite links display as compact short codes while copying the full URL, the invite copy action uses the source `Copy` label, and the result-share preview now fills by actual world share with the user's guess as a blue pin instead of incorrectly using the Read Accuracy score for both.
+- Added backend idempotency for close/recompute scoring so Read Score, category totals, and streaks are not double-applied.
+- Normalized daily close logic to `America/New_York` and added Eastern date-boundary plus streak tests.
+- Expanded admin to handle draft/schedule metadata, editable options, preview, close, recompute, and seed actions behind admin custom claims.
+- Routed app share/invite buttons through first-party short-link Functions when Firebase is configured.
+- Wired Flutter auth buttons to real Firebase Auth flows: anonymous account upgrade with email/password, Google provider, Apple provider, reset email, and demo fallback when credentials are absent.
+- Added guarded Flutter initialization for App Check, Analytics, Crashlytics, Performance, Remote Config, and Messaging.
+- Connected the account reminder toggle to FCM permission/token setup and added owner-only Firestore rules for notification tokens.
+- Added auth widget coverage for required-field validation and narrow social-button overflow.
+- Removed default web route slide transitions by using explicit no-transition pages on web and desktop.
+- Limited native mobile slide transitions to drill-in routes where back navigation is expected.
+- Matched the web shell and Today route to source dimensions: 66px top bar, 600px content width, 42px Today headline, 31px question headline, 22px answer tiles, and source nav pill styling.
+- Replaced the Predict back action with the source-style `\u2190 Change my answer` text treatment and placement by form factor.
+- Added global leaderboard recomputation, callable leaderboard retrieval, invite acceptance, scheduled leaderboard refresh, and scheduled daily notification sending.
+- Added leaderboard ranking test coverage and Flutter invite route coverage.
+- Added Firestore-backed Flutter hydration for live questions, locked answers, closed result history, score history, category stats, leaderboard rows, and user profile fields, with demo fallback when Firebase is not configured.
+- Routed history cards and short-link result paths to specific reveal entries instead of always showing the first history item.
+- Replaced hard-coded Insights score/category values with controller-backed read score, percentile label, answered count, category stats, and leaderboard rows.
+- Added Firestore mapper tests for live question parsing and closed-result/user-answer merging.
+- Updated global leaderboard recomputation to write user `readScorePercentile` and `leaderboardRank` fields through chunked server batches, with scoring test coverage.
+- Tightened Firestore rules so client users cannot mutate server-owned leaderboard fields.
+- Added native deep-link scaffolding for `rtw.codes`: Android verified App Links intent filter and iOS Associated Domains entitlements.
+- Validated Android manifest and iOS plist/entitlement XML locally. XcodeBuildMCP discovered the `Runner` workspace/scheme, but simulator listing/build hung in `xcodebuild -runFirstLaunch`; no iOS simulator build pass is claimed from that check.
+- Raised the Flutter iOS deployment target to 15.0 in the Podfile and Xcode project so Firebase iOS pods resolve. CocoaPods now installs after a local specs cache update, but iOS device/simulator builds remain blocked by this machine's Xcode first-launch/platform state: `xcodebuild` reports iOS 26.5 is not installed and `simctl`/`xcodebuild -runFirstLaunch` hang.
+- Added `npm run native:check`, a read-only native readiness guard for Flutter SDK availability, Android app-link/orientation/package metadata, iOS deployment target, iOS bundle ID/display name, plist/entitlement syntax, CocoaPods, Xcode first-launch status, SDKs, Simulator runtimes, and `simctl` availability. Current result correctly blocks only on local Xcode first-launch/Simulator runtime state.
+- Added CI syntax coverage for the deployment readiness, native readiness, account preflight, and Flutter web build helper scripts without running native checks on Linux CI where Xcode is unavailable.
+- Connected the real isolated Firebase project: linked billing, enabled required Cloud/Firebase services, created Firestore in `nam5`, deployed Firestore rules/indexes, deployed Remote Config defaults, enabled anonymous/email/password/Google Auth providers, created Firebase web/Android/iOS app registrations, filled ignored local env files with public SDK config, created the three Firebase Hosting sites, and created the `read-the-world-web` App Hosting backend.
+- Made `seedInitialQuestions` launch-date safe: admins can pass `startDailyKey`, the default uses the current Eastern daily key, generated IDs no longer hard-code stale June 2026 dates, existing seed docs are skipped idempotently, and the callable refuses to seed over an unrelated live question.
+- Added emulator-backed Firestore rules tests for live/closed question reads, hidden results, direct answer write denial, owner-only user reads, server-owned score fields, admin writes, short-code metadata constraints, invite updates, leaderboard writes, and admin-only user deletes.
+- Expanded the protected admin surface with a Firestore-backed recent question rail, click-to-load editing, local payload validation, claim refresh, live-publish action, recompute leaderboard action, and clearer operation busy states.
+- Added Flutter flow coverage for today answer -> predict -> locked, history -> selected reveal, party replay reveal, account profile edits, and invite acceptance -> insights.
+- Fixed narrow mobile Insights overflow by constraining the logo and score header rows without changing their intended nominal type sizes.
+- Replaced the temporary Apple auth button letter mark with the platform Apple icon.
+- Added CI coverage for Firestore emulator rules tests and a Firebase Functions predeploy build hook so generated `functions/lib` output does not need to be committed.
+- Added a read-only `npm run accounts:check` guard for GitHub/GCloud/Firebase context; it now expects Read the World cloud/Firebase work to use `mike@readtheworld.today`.
+- Updated checked-in Firebase examples/docs for project `read-the-world-74f2a` (`863014025103`) under the `readtheworld.today` parent org without writing `.firebaserc` or secrets.
+- Verified no stale `mike@smart.vet` Firebase CLI login is present locally. Firebase CLI is currently logged out and should be re-authenticated with `mike@readtheworld.today`.
+- Switched the canonical Firebase target to `read-the-world-74f2a` (`863014025103`) under the `readtheworld.today` parent org. The separate GCP console project `operating-tiger-500805-j4` (`782240188142`) is documented but not used as the Firebase deploy target.
+- Reworked Party mode play to match the source phased flow: setup, answer, predict, result, next, and round-complete states.
+- Added source-style invite and result share bottom sheets before invoking native share actions.
+- Tightened `/auth` against `Read the World - Login.dc.html`: removed product-visible demo copy, matched password placeholder/copy, mobile forgot-password placement, create-mode initial password visibility, and compact social button sizing.
+- Wired Account/Profile demographic rows to controller-backed profile state, added `/onboarding/about` for direct editing, and persisted saved DOB/gender/country through the user profile when Firebase is configured.
+- Wired Account/Profile actions for real sign-out and clear-data flows while keeping the visible source layout/copy intact.
+- Added callable `clearMyData` to reset score/streak/leaderboard state, delete private answer/history/category/friend data, remove reciprocal friend rows, and decrement stored live answer counters for new unscored answers.
+- Added focused controller/widget coverage for demographic persistence, local clear-data reset, Account edit routing, and Account logout routing.
+- Wired landing page email captures to a public `joinWaitlist` callable, preserving local/demo success behavior when Firebase config is absent.
+- Added Firestore rules coverage confirming clients cannot write `waitlist` records directly.
+- Added admin-claim-protected waitlist review and CSV export through `listWaitlist`, keeping direct waitlist Firestore access closed to clients.
+- Added non-official `savePracticeAnswer` persistence for history replay and party answer mode; practice answers are stored for the user but never affect official results, Read Score, streaks, category stats, or leaderboards.
+- Fixed official daily submit so existing users keep their current Read Score/streak fields instead of being reset to starting defaults on each new answer.
+- Added mapper/controller tests proving practice answers render as revealed, played, and non-scoring.
+- Switched Flutter Friends hydration from global leaderboard rows to the signed-in user's friend collection, and persisted answer-visibility toggles/removal through server callables.
+- Tightened Firestore rules so friendship writes are server-owned while owner reads remain allowed.
+- Added signed prediction-bias metadata (`predictedShare - actualShare`) to scored/practice answer records, score history, user stats, and category stats so over/under-estimation insights are captured without changing the source-aligned Insights UI.
+- Wired the existing Account/Profile "Change password" row to Firebase password reset with snackbar feedback.
+- Hardened Firestore rules so client profile writes are limited to known profile fields, notification token writes are owner-scoped and shape-checked, and short-link/invite metadata is server-owned through Functions.
+- Added a guarded `npm run admin:claim` bootstrap command for setting or revoking the first Firebase custom admin claim after the isolated Firebase project is initialized.
+- Replaced default Flutter app/PWA icon assets with generated brand-sheet `r.` icons across web, Android, and iOS. Assets are exact-size RGB PNGs with no alpha channel.
+- Replaced Flutter scaffold web metadata with Read the World title, description, theme color, and PWA names.
+- Added environment-driven Android release signing config with local debug-signing fallback.
+- Matched the web Today selected-answer CTA to the source button treatment: source-sized desktop padding, source font size/weight, source radius, and literal `\u2192` arrow glyph instead of the Material arrow icon.
+- Extended `clearMyData` to also clean server-owned share/invite metadata: links created by the user, invite links targeting them, invites they created, and accepted-invite array membership.
+- Tightened landing-page hero fidelity against `Read the World - Landing.dc.html`: source-observed hero line breaks, live count directly under the sample card, source arrow glyphs, 600-weight nav/buttons, and 24px live-card radius.
+- Added first-party short-link expiry semantics: invite links expire after 90 days, result links expire after 30 days, result links require a revealed `dailyResults` record, short-code creation is collision-safe, expired/malformed resolver hits redirect to marketing, and valid opens increment analytics counters.
+- Added installed-app short-code handling for `rtw.codes/{code}` Universal/App Links: Flutter now accepts `/:code`, resolves it with the `resolveShortCode` callable, and forwards to the invite or reveal route instead of falling through to an unknown route.
+- Added Next Proxy host routing so `admin.readtheworld.today` rewrites to `/admin` on the shared App Hosting backend while `readtheworld.today` continues to serve the landing page.
+- Tightened delayed-reveal enforcement in Functions so replay/practice answers, result share creation, browser short-link resolution, and installed-app short-code resolution require both `dailyResults/{questionId}` and `questions/{questionId}.status == "closed"`.
+- Hardened admin question writes with server-side validation for question status, option IDs/labels, duplicate options, daily key format, valid admin date strings, and publish-before-close schedule windows.
+- Added the Functions no-emit typecheck/lint step to GitHub Actions before tests and build.
+- Matched the Account/Profile back control to the newer web handoff copy, using the literal `\u2190 Back` text treatment instead of the older `\u2190 Insights` label.
+- Retrieved the new `Read the World - Admin.dc.html` design from the live Claude design tab and rebuilt the Next admin surface around its dark-sidebar seven-tab shell: Today, Schedule, Library, Analytics, Results, Notifications, and Settings.
+- Added a dev-only `NEXT_PUBLIC_ADMIN_PREVIEW=true` mode for visual admin QA with sample data before Firebase credentials/admin claims are available; production builds keep admin protected.
+- Added the admin-claim-protected `getAdminOverview` callable for bounded dashboard reads, including aggregate counts, live answer counters, recent results, category activity, accuracy buckets, and aggregate audience slices.
+- Wired the designed Next admin Today, Library, Analytics, Results, and Notifications views to `getAdminOverview`, keeping the existing sample data as local preview/empty-project fallback.
+- Added the admin-claim-protected `sendBroadcastNotification` callable for manual broadcasts, with validated copy/routes, all/streak-at-risk/lapsed audience targeting, invalid-token cleanup, and `notificationCampaigns` audit logging.
+- Wired the designed admin Notifications form to the broadcast callable while preserving the source layout and preview card.
+- Added typed Flutter `AppSettings` loaded from Firebase Remote Config defaults and activated values.
+- Gated Party mode, Friends/invite surfaces, result sharing, onboarding demographics, and Account "About you" editing behind Remote Config flags, with all defaults enabled.
+- Added admin-claim-protected Remote Config callables for reading and updating supported feature flags, plus audit logging.
+- Wired the designed admin Settings toggles to those Remote Config callables and kept preview/sample behavior for unauthenticated local QA.
+- Added Remote Config template defaults for result sharing and onboarding demographics.
+- Enforced the social/share Remote Config flags server-side for invite creation/acceptance, friend visibility/removal, result-share creation, and short-code resolution, and redirected direct Flutter invite routes when friends are disabled.
+- Preserved existing question/result `closedAt` timestamps during forced admin recomputes so historical results do not reorder as newly closed days.
+- Matched mobile Predict and Reveal route chrome back to the source by hiding bottom nav on those focused screens while keeping it on Locked.
+- Matched the Reveal friends panel to the source by removing the self row from that panel; Insights still keeps the self row in the leaderboard.
+- Matched onboarding About behavior back to the source: demographics must be filled before continuing, the empty state shows `Fill in each to continue`, and the skip link was removed. DOB and country remain intentionally polished Flutter sheets instead of the source native browser controls.
+- Confirmed `mike@smart.vet` is not logged in to the Firebase CLI; the targeted `firebase logout mike@smart.vet` command was a no-op because the local Firebase CLI has no authorized accounts.
+- Tightened Auth layout against `Read the World - Login.dc.html`: mobile side margins now match the source, mobile auth footers are bottom-aligned without fixed-height overflow, desktop auth uses the exact 1000x640 source surface, desktop form contents are vertically centered, and the create-mode brand panel keeps the source one-line headline/body wrap.
+- Hardened the scheduled daily lifecycle so it closes due live questions, then opens at most one scheduled question only when no live question remains. This prevents multiple live dailies from making the Flutter live-question query ambiguous.
+- Matched Insights/Profile friend rows to the source: comma-formatted scores, highlighted self row, `Scores only` / `Answers shared` mono visibility pills, source helper copy, and swipe-to-remove behavior for non-self friends. Demo friend visibility now defaults to `Scores only`, matching the design's first-render state.
+- Matched the Flutter web shell to `Read the World - Web.dc.html`: desktop app content now defaults to the source `780px` shell, while Today/Predict/Locked retain their source `600px` focus column. Web Insights/Profile no longer renders the mobile in-content logo/avatar header, and its invite action now uses the source dashed border and literal arrow glyph.
+- Matched web daily-loop secondary states to `Read the World - Web.dc.html`: Predict uses the source curly quotes, desktop Locked uses the source wider content/card column, desktop Locked actions are side-by-side with left-aligned restart text, and Reveal uses the source muted share action plus literal arrow-glyph CTA copy.
+- Added Firebase Analytics route observers and product event logging for auth, answer selection, prediction submit/lock, reveal views, archive practice answers, result sharing, friend invites/acceptance, and notification opt-in/out. The hooks no-op when Firebase credentials are absent, preserving local design QA behavior.
+- Tightened the read-only account preflight to explicitly require the `parentmike8` active GitHub account before Read the World push/deploy work, and documented the expected GitHub, Google Cloud, and Firebase CLI identities.
+- Added the missing result-ready scheduled notification path: Functions now send a distinct `result_ready` notification to `/reveal` shortly after midnight Eastern, while the existing morning daily-question notification continues to route to `/today`.
+- Hardened notification targeting so scheduled/admin push sends exclude users whose profile has `dailyReminder: false`, while keeping the default behavior opt-in when the preference is missing.
+- Fixed Firestore deploy indexes for current runtime queries: collection-group indexes now use `COLLECTION_GROUP` scope, the official-answer aggregation index matches the query shape, and the daily close job has a `status + closeAt` index. The readiness check now validates the required indexes.
+- Tightened Firestore rules so user-document deletes are admin-only. Users must use `clearMyData`, preserving server-owned cleanup for answers, counters, friends, links, invites, and leaderboard rows.
+- Completed the Flutter reminder opt-out path: turning off Daily reminder now writes the profile preference and best-effort disables the current FCM token, while server-side notification sends still filter `dailyReminder: false` as a backstop.
+- Added the Flutter web FCM service worker for background push and routed Flutter web builds through `npm run app:build:web`, which copies the worker into `apps/app/build/web` after the Flutter build. CI now uses that root build script instead of raw `flutter build web`.
+- Added first-party Next SEO route coverage for the marketing/admin surface: canonical metadata, summary-card metadata, `/robots.txt`, `/sitemap.xml`, explicit admin `noindex,nofollow`, and removal of unused default Next starter SVG assets.
+- Matched the live Claude Admin Settings source: fixed the admin serif variable to Newsreader, tightened Settings header/list density, corrected toggle specificity so switches render as source-size pills, aligned Settings copy, restored the Friends leaderboard row, and matched the source category order.
+- Added the real `feature_friends_leaderboard` Remote Config flag across Functions allowlisting, template defaults, readiness checks, admin settings, and Flutter app settings; Flutter now hides friend score rows while keeping friend invites available when only the leaderboard flag is disabled.
+- Matched the broader live Claude Admin design: constrained the admin workspace to the source-width composition, made Today's preview reveal clock deterministic in admin preview, aligned Library preview ordering/count/world values with the source, changed the preview Analytics fourth metric back to `Party rounds`, and removed the visible broadcast route input from Notifications while preserving the submitted `/today` route payload.
+- Confirmed `mike@smart.vet` is not authorized in the local Firebase CLI; no Firebase CLI account removal was needed because `firebase login:list` reports no authorized accounts.
+- Matched mobile Today against the live Claude mobile source: removed the unanswered-state `See yesterday's result` link, anchored the selected-answer CTA above the bottom nav, and added a Flutter-web-only scaled phone surface so local mobile web uses the same visual proportions without changing native iOS/Android full-width layout.
+- Updated ignored QA capture helpers for the scaled web surface so Today, Predict, Locked, Reveal, and selected-answer screenshots hit the correct controls.
+- Revalidated mobile Insights/Profile and History under the scaled Flutter web shell. Insights/Profile remained visually aligned. The History source prototype persisted a mid-calendar scroll position in direct capture, but the source markup and Flutter implementation use the same compact calendar token pattern, so no production patch was needed.
+- Matched Auth/Login to the same Flutter-web scaled phone surface used by the rest of the mobile app shell, while leaving native iOS/Android Auth full-width. The updated captures are `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-mobile-signin-v1.png` and `/Users/michaelparent/development/Read the World/tmp/qa/flutter-login-mobile-create-v1.png`.
+- Muted Flutter input hint styling to match the source Login fields instead of rendering placeholders like entered text.
+- Tightened the deployment readiness check to prove Firebase App Hosting declares the required Next public Firebase env variables and that `admin.readtheworld.today` still rewrites to `/admin`.
+- Corrected setup docs to reflect the verified Firebase CLI state: no local authorized Firebase accounts are present, so `mike@smart.vet` was not logged in and did not need removal.
+- Added an explicit backend allowlist/test for every non-official practice source in the product plan, including `peek`, so archive/replay/peek/closed-party answers remain separate from official scoring.
+- Added a deployable Firebase Functions runtime env template at `functions/.env.example`, updated docs to copy it to `functions/.env.read-the-world-74f2a`, and tightened readiness so root app env values cannot accidentally stand in for the Functions app-link env that serves `rtw.codes/.well-known/*`.
+- Hardened Flutter auth provider runtime behavior: web Google/Apple now use Firebase popup/link popup methods, native Google uses `google_sign_in` plus a Firebase credential, iOS has the Sign in with Apple entitlement, and readiness blocks until Google web/iOS OAuth IDs plus the iOS reversed-client URL scheme are supplied.
+- Tightened native mobile metadata to match the mobile prototype: Android MainActivity is portrait-locked, iOS supported orientations are portrait-only, iOS display name is exactly `Read the World`, Flutter package metadata no longer uses the default scaffold description, and readiness now checks those native metadata invariants.
+
+**Verification**
+- `flutter analyze`
+- `flutter test` (21 tests)
+- `flutter build web --release`
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- `npm run lint` in `functions`
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web` (confirmed static `/robots.txt` and `/sitemap.xml` routes)
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (34 tests)
+- `npm run build` in `functions`
+- `flutter analyze`
+- `flutter test` (25 tests)
+- `npm run app:build:web`
+- `npm run readiness:check` (expected blockers: active GitHub/GCloud/Firebase identities, `.firebaserc`, Firebase env values, and app-link env values)
+- `npm run lint` in `apps/web`
+- `flutter analyze`
+- `flutter test` (25 tests)
+- `npm run app:build:web`
+- `node tmp/qa/cdp-login-flutter.js`
+- `npm run readiness:check` (expected blockers: active GitHub/GCloud/Firebase identities, `.firebaserc`, Firebase env values, and app-link env values; App Hosting env and admin-host routing checks passed)
+- `git diff --check`
+- `npm run rules:test` (12 rules tests)
+- `npm run functions:lint`
+- `npm run functions:test` (35 tests)
+- `npm run functions:build`
+- `npm run web:lint`
+- `npm run web:build`
+- `node --check scripts/check-deployment-readiness.mjs`
+- `npm run readiness:check` (expected blockers now include the missing deployable `functions/.env.read-the-world-74f2a` runtime env file)
+- `git check-ignore -v functions/.env.example functions/.env.read-the-world-74f2a .env.local functions/.env || true`
+- `flutter analyze`
+- `flutter test` (25 tests)
+- `npm run app:build:web`
+- `plutil -lint apps/app/ios/Runner/Info.plist apps/app/ios/Runner/Runner.entitlements`
+- `xmllint --noout apps/app/android/app/src/main/AndroidManifest.xml`
+- `flutter build apk --debug`
+- `npm run build` in `apps/web`
+- `git diff --check`
+- `npm test` in `functions` (29 tests)
+- `npm run build` in `functions`
+- Local source-state Chrome headless captures for Predict, Locked, and Reveal from `Read the World.dc.html`.
+- Local Flutter release-build CDP captures for Predict, Locked, and Reveal after the route-chrome/friends-panel fixes.
+- Local source-state Chrome headless captures for onboarding Welcome and About from `Read the World.dc.html`.
+- Local Flutter release-build CDP captures for onboarding Welcome, disabled About, DOB sheet, and country sheet.
+- Local source-state Chrome headless captures for Login mobile/web sign-in and create states from `Read the World - Login.dc.html`.
+- Local Flutter release-build CDP captures for Login mobile/web sign-in and create states after the auth layout fixes.
+- `flutter analyze`
+- `flutter test` (23 tests)
+- `flutter build web --release`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (32 tests)
+- `npm run build` in `functions`
+- Local source-state Chrome headless capture for Insights/Profile from `Read the World.dc.html`.
+- Local Flutter release-build CDP capture for `/insights` after the friend-row fidelity fixes.
+- Local source-state Chrome headless capture for web Insights/Profile from `Read the World - Web.dc.html`.
+- Local Flutter release-build CDP capture for web `/insights` after the shell-width/header/invite-button fixes.
+- Local Flutter release-build CDP smoke capture for web `/today` confirming the daily focus route stayed at source 600px width after the shell-width change.
+- Local source-state Chrome headless capture for web History from `Read the World - Web.dc.html`.
+- Local Flutter release-build CDP capture for web `/history` after the generated-history/calendar fixes.
+- Local source-state Chrome headless captures for web Predict, Locked, and Reveal from `Read the World - Web.dc.html`.
+- Local Flutter release-build CDP captures for web Predict, Locked, and Reveal after the prompt/card/action/share fixes.
+- Chrome headless contact-sheet capture comparing source and Flutter web daily-loop states side by side.
+- Local source-state Chrome headless captures for mobile Party reveal-mode question/result from `Read the World.dc.html`.
+- Local Flutter release-build CDP captures for mobile Party reveal-mode question/result after the centered-play/result-CTA fixes.
+- Local source-state Chrome headless captures for mobile Party answer-and-predict answer/slider/result from `Read the World.dc.html`.
+- Local Flutter release-build CDP captures for mobile Party answer-and-predict answer/slider/result after the phased-flow/result-typography fixes.
+- Local source-state Chrome headless captures for mobile invite and result-share sheets from `Read the World.dc.html`.
+- Local Flutter release-build CDP captures for mobile invite and result-share sheets after the compact-link and share-card bar fixes.
+- Chrome headless contact-sheet capture comparing source and Flutter share-sheet states side by side.
+- `flutter analyze`
+- `flutter test` (24 tests)
+- `flutter build web --release`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (29 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (13 tests)
+- `npm run build` in `functions`
+- `flutter analyze`
+- `flutter test` (22 tests)
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- Chrome visual QA of `Read the World - Admin.dc.html` from the live Claude design tab against local Next admin preview (`NEXT_PUBLIC_ADMIN_PREVIEW=true`), covering Today and all six secondary admin tabs.
+- `npm run lint` in `functions`
+- `npm test` in `functions` (26 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- `npm run rules:test` through pinned `npx firebase-tools@15.22.3` (12 tests; unauthenticated CLI warning expected while Firebase CLI is logged out)
+- `npm run lint` in `functions`
+- `npm test` in `functions` (17 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- Local host-header smoke test: `Host: admin.readtheworld.today` rewrites to `/admin`; `Host: readtheworld.today` serves the landing page.
+- `npm run build` in `apps/web`
+- `plutil -lint apps/app/ios/Runner/Runner.entitlements apps/app/ios/Runner/Info.plist`
+- `xmllint --noout apps/app/android/app/src/main/AndroidManifest.xml apps/app/ios/Runner/Runner.entitlements apps/app/ios/Runner/Info.plist`
+- `flutter build apk --debug`
+- `npm run rules:test` through pinned `npx firebase-tools@15.22.3` (11 tests; transient CLI may emit Node 20 engine/deprecation warnings; emulator tests pass)
+- `npm run admin:claim -- --help`
+- `npm run admin:claim -- --email admin@example.com --project covet-test` (expected refusal before any Firebase write)
+- `npm run admin:claim -- --email admin@example.com --project read-the-world-500801` (expected refusal after Firebase target migration)
+- `npm run accounts:check` (expected blocked result until GitHub/GCloud are switched to non-work/Read the World contexts; Firebase CLI is now logged out)
+- `npm run app:icons`
+- `sips -g hasAlpha -g pixelWidth -g pixelHeight apps/app/web/icons/Icon-512.png apps/app/web/icons/Icon-192.png apps/app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png apps/app/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`
+- `node -e "JSON.parse(require('fs').readFileSync('apps/app/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json','utf8')); console.log('AppIcon Contents.json OK')"`
+- `npm run lint` in `apps/web`
+- `npm audit --audit-level=moderate`
+- `npm run accounts:check` (expected blocked result in current local account state; read-only)
+- Chrome visual QA of web Today selected-answer state against `Read the World - Web.dc.html`, including CTA pixel-bounds comparison.
+- `npm run lint` in `functions`
+- `npm test` in `functions` (17 tests)
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- Chrome visual QA of landing hero against `Read the World - Landing.dc.html` using local source and built Next preview.
+- Local source-state Chrome headless capture for mobile Party setup from `Read the World.dc.html`.
+- Local Flutter release-build CDP capture for mobile `/party` after the chip/segment/CTA fidelity fixes.
+- `npm run build` in `functions`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (19 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (23 tests)
+- `npm run build` in `functions`
+- `flutter analyze`
+- `flutter test` (24 tests)
+- `flutter build web --release`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (28 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `apps/web`
+- `npm run build` in `apps/web`
+- `flutter test` (22 tests)
+- `flutter analyze`
+- `flutter test` (24 tests)
+- `flutter build web --release`
+- `npm run accounts:check` (expected blocked result in current local account state: active GitHub is `mikecovet`, active gcloud is `parentmike8@gmail.com`, Firebase CLI is logged out)
+- `npm run readiness:check` (expected blocked result before credential setup: 14 blockers, 1 warning; Git remote is correct and Firebase/Remote Config files are present)
+- `npm run lint` in `functions`
+- `npm test` in `functions` (33 tests)
+- `npm run build` in `functions`
+- `npm run lint` in `functions`
+- `npm test` in `functions` (34 tests)
+- `npm run build` in `functions`
+- `node -e "JSON.parse(require('fs').readFileSync('firebase/firestore.indexes.json','utf8')); console.log('firestore.indexes.json OK')"`
+- `node -c scripts/check-deployment-readiness.mjs`
+- `npm run readiness:check` (expected blocked result before credential setup: 14 blockers, 1 warning; required Firestore indexes now pass)
+- `npm run rules:test` through pinned `npx firebase-tools@15.22.3` (12 tests; unauthenticated CLI warning expected while Firebase CLI is logged out)
+- `flutter analyze`
+- `flutter test` (24 tests)
+- `flutter build web --release`
+- `node --check apps/app/web/firebase-messaging-sw.js`
+- `bash -n scripts/build-flutter-web.sh`
+- `node --check scripts/copy-flutter-web-static.mjs`
+- `node -c scripts/check-deployment-readiness.mjs`
+- `npm run app:build:web`
+- Built artifact check: `apps/app/build/web/firebase-messaging-sw.js` exists and matches the source worker.
+- `npm run readiness:check` (expected blocked result before credential setup: 14 blockers, 1 warning; source and built Flutter web FCM service-worker checks now pass)
+- `firebase login:list` (no authorized accounts; `mike@smart.vet` is not present)
+- Live Claude mobile Today source capture from `Read the World.dc.html` in Claude Design.
+- Local Flutter release-build CDP captures for mobile Today unanswered, selected, Predict, Locked, and Reveal after the scaled web-surface fixes.
+- `flutter analyze`
+- `flutter test` (25 tests)
+- `npm run app:build:web`
+- `npm run readiness:check` (expected blocked result before credential setup: 14 blockers, 1 warning; code/config checks passed, account/env setup still missing)
+- Local source-state Chrome headless capture for mobile Insights/Profile after the scaled web-surface fixes.
+- Local Flutter release-build CDP captures for mobile Insights/Profile and History after the scaled web-surface fixes.
+
+**Follow-up Polish**
+- [P3] Validate every secondary state directly in Claude Design for screens not present in the local screenshot folder.
+
+final result: passed

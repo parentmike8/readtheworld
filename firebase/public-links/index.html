@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Read the World</title>
+    <script>
+      const marketingUrl = "https://readtheworld.today";
+      const appUrl = "https://app.readtheworld.today";
+      const code = window.location.pathname.split("/").filter(Boolean)[0] || "";
+      const isCode = /^[A-Za-z0-9]{4,16}$/.test(code);
+
+      if (isCode) {
+        const target = new URL(`/${encodeURIComponent(code.toUpperCase())}`, appUrl);
+        target.search = window.location.search;
+        window.location.replace(target.toString());
+      } else if (window.location.pathname !== "/") {
+        window.location.replace(marketingUrl);
+      }
+    </script>
+  </head>
+  <body>
+    <p>Opening Read the World...</p>
+    <p><a id="fallback" href="https://readtheworld.today">Continue</a></p>
+    <script>
+      const fallback = document.getElementById("fallback");
+      if (fallback && isCode) {
+        fallback.href = `${appUrl}/${encodeURIComponent(code.toUpperCase())}${window.location.search}`;
+      }
+    </script>
+  </body>
+</html>

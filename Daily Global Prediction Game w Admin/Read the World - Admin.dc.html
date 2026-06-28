@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  #adminScroll::-webkit-scrollbar{ width:10px; }
+  #adminScroll::-webkit-scrollbar-thumb{ background:#D9D3C6; border-radius:5px; border:3px solid #F3F0E9; }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; width:100%; overflow:hidden; background:#F3F0E9; color:#23211C; font-family:'Hanken Grotesk',system-ui,sans-serif;">
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <div style="width:236px; flex-shrink:0; background:#211F1A; display:flex; flex-direction:column; padding:0;">
+    <div style="padding:24px 22px 18px; display:flex; align-items:center; justify-content:space-between;">
+      <div style="font-family:'Newsreader',serif; font-size:26px; font-weight:500; letter-spacing:-0.6px; color:#F3F0E9;">read<span style="color:oklch(0.62 0.11 47);">.</span></div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:2px; color:#8E887C; border:1px solid #3A372F; border-radius:5px; padding:3px 7px;">ADMIN</div>
+    </div>
+
+    <div style="height:1px; background:#312E27; margin:0 0 10px;"></div>
+
+    <div style="flex:1; display:flex; flex-direction:column; gap:2px; padding:4px 0;">
+      <button onClick="{{ navToday }}" style="{{ nav.today }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.4" stroke-linecap="round"/></svg><span>Today</span></button>
+      <button onClick="{{ navSchedule }}" style="{{ nav.schedule }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3.2" width="11" height="10.3" rx="1.6"/><path d="M2.5 6.4h11M5.4 2v2.4M10.6 2v2.4" stroke-linecap="round"/></svg><span>Schedule</span></button>
+      <button onClick="{{ navLibrary }}" style="{{ nav.library }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3.2h8M4 6.2h8M4 9.2h5.5M4 12.2h8" stroke-linecap="round"/></svg><span>Library</span></button>
+      <button onClick="{{ navAnalytics }}" style="{{ nav.analytics }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13V8.5M7.3 13V4M11.6 13V10" stroke-linecap="round"/></svg><span>Analytics</span></button>
+      <button onClick="{{ navResults }}" style="{{ nav.results }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.4"/><path d="M8 8V2.6M8 8l4.7 2.6" stroke-linecap="round"/></svg><span>Results</span></button>
+      <button onClick="{{ navNotifs }}" style="{{ nav.notifs }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.6 7a3.4 3.4 0 0 1 6.8 0c0 3 1.4 3.9 1.4 3.9H3.2S4.6 10 4.6 7z" stroke-linejoin="round"/><path d="M6.7 13.4a1.5 1.5 0 0 0 2.6 0" stroke-linecap="round"/></svg><span>Notifications</span></button>
+      <button onClick="{{ navSettings }}" style="{{ nav.settings }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.6 5h6.4M12 5h1.4M2.6 11h1.4M7 11h6.4" stroke-linecap="round"/><circle cx="10.4" cy="5" r="1.7"/><circle cx="5.4" cy="11" r="1.7"/></svg><span>Settings</span></button>
+    </div>
+
+    <div style="padding:14px; border-top:1px solid #312E27; display:flex; align-items:center; gap:11px;">
+      <div style="width:34px; height:34px; border-radius:50%; background:oklch(0.50 0.10 256); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Newsreader',serif; font-size:17px;">A</div>
+      <div style="line-height:1.2;">
+        <div style="font-size:13px; font-weight:600; color:#F3F0E9;">Alex Rivera</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8E887C;">OWNER</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <div id="adminScroll" style="flex:1; overflow-y:auto; overflow-x:hidden;">
+
+    <!-- ════════ TODAY ════════ -->
+    <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="width:8px; height:8px; border-radius:50%; background:oklch(0.55 0.105 47); box-shadow:0 0 0 4px oklch(0.55 0.105 47 / 0.18);"></span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px; color:oklch(0.50 0.105 47);">LIVE NOW &middot; THURSDAY, JUNE 25, 2026</span>
+            </div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A; margin-top:8px;">Today at a glance</div>
+          </div>
+          <div style="text-align:right; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:14px; padding:12px 18px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.4px; color:#8A8475;">REVEAL IN</div>
+            <div style="font-family:'Newsreader',serif; font-size:26px; font-weight:500; color:#211F1A; margin-top:2px;">6h 24m</div>
+          </div>
+        </div>
+
+        <!-- live question -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:20px; padding:28px 30px; display:flex; gap:34px; align-items:center;">
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:9px;">
+              <span style="width:8px; height:8px; border-radius:2px; background:oklch(0.52 0.09 300);"></span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.4px; color:#8A8475;">PHILOSOPHY &middot; TODAY'S QUESTION</span>
+            </div>
+            <div style="font-family:'Newsreader',serif; font-size:30px; font-weight:500; line-height:1.2; letter-spacing:-0.5px; color:#211F1A; margin-top:14px;">Would you want to know the exact date you'll die?</div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+              <button onClick="{{ navResults }}" style="padding:11px 20px; border:none; border-radius:11px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">View live results</button>
+              <button onClick="{{ navLibrary }}" style="padding:11px 20px; border:1.5px solid #DCD6C9; border-radius:11px; background:none; color:#23211C; font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">Edit question</button>
+            </div>
+          </div>
+          <!-- live split donut -->
+          <div style="flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="position:relative; width:128px; height:128px; border-radius:50%; background:conic-gradient(oklch(0.55 0.105 47) 0% 68%, #E6E0D3 68% 100%); display:flex; align-items:center; justify-content:center;">
+              <div style="width:88px; height:88px; border-radius:50%; background:#FBFAF6; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; line-height:1; color:#211F1A;">68%</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475; margin-top:2px;">SAID YES</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:#6E6A60;">
+              <span style="display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:2px; background:oklch(0.55 0.105 47);"></span>YES 68</span>
+              <span style="display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:2px; background:#D8D2C5;"></span>NO 32</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI row -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:16px;">
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">ANSWERS TODAY</div>
+            <div style="font-family:'Newsreader',serif; font-size:38px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">1,640</div>
+            <div style="font-size:12px; color:oklch(0.50 0.12 150); font-weight:600; margin-top:8px;">87% of active users</div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">PREDICTIONS LOCKED</div>
+            <div style="font-family:'Newsreader',serif; font-size:38px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">1,512</div>
+            <div style="font-size:12px; color:#6E6A60; margin-top:8px;">Avg guess <span style="color:#211F1A; font-weight:600;">64%</span></div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">DAILY ACTIVE</div>
+            <div style="font-family:'Newsreader',serif; font-size:38px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">1,892</div>
+            <div style="font-size:12px; color:oklch(0.50 0.12 150); font-weight:600; margin-top:8px;">+3.4% vs yesterday</div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">NEW USERS</div>
+            <div style="font-family:'Newsreader',serif; font-size:38px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">47</div>
+            <div style="font-size:12px; color:#6E6A60; margin-top:8px;">3,247 total</div>
+          </div>
+        </div>
+
+        <!-- answers through the day + tomorrow -->
+        <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:16px; margin-top:16px;">
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">ANSWERS THROUGH THE DAY</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#A89F8C;">00:00 → NOW</div>
+            </div>
+            <svg viewBox="0 0 520 120" style="width:100%; height:120px; margin-top:14px; overflow:visible;">
+              <polyline points="{{ todayCurve }}" fill="none" stroke="oklch(0.50 0.10 256)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="{{ todayCurveFill }}" fill="oklch(0.50 0.10 256 / 0.08)" stroke="none"/>
+            </svg>
+          </div>
+          <div style="background:#211F1A; border-radius:16px; padding:20px 22px; display:flex; flex-direction:column;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8E887C;">UP NEXT &middot; TOMORROW</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:14px;">
+              <span style="width:8px; height:8px; border-radius:2px; background:oklch(0.62 0.10 75);"></span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.2px; color:#A8A192;">CULTURE</span>
+            </div>
+            <div style="font-family:'Newsreader',serif; font-size:21px; font-weight:500; line-height:1.25; color:#F3F0E9; margin-top:10px; flex:1;">Is it rude to keep your phone on the table at dinner?</div>
+            <button onClick="{{ navSchedule }}" style="margin-top:14px; align-self:flex-start; padding:9px 16px; border:1px solid #3A372F; border-radius:10px; background:none; color:#F3F0E9; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer;">Open schedule</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ SCHEDULE ════════ -->
+    <sc-if value="{{ isSchedule }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px;">
+          <div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Schedule</div>
+            <div style="font-size:14px; color:#6E6A60; margin-top:4px;">Assign one question to each day. Gaps are flagged in red.</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="display:flex; align-items:center; gap:6px; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:11px; padding:7px 8px;">
+              <button onClick="{{ noop }}" style="border:none; background:none; cursor:pointer; color:#6E6A60; padding:2px 6px; font-size:15px;">‹</button>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; color:#211F1A; min-width:86px; text-align:center;">JUNE 2026</span>
+              <button onClick="{{ noop }}" style="border:none; background:none; cursor:pointer; color:#6E6A60; padding:2px 6px; font-size:15px;">›</button>
+            </div>
+            <button onClick="{{ navLibrary }}" style="padding:10px 18px; border:none; border-radius:11px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">+ New question</button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 270px; gap:18px;">
+          <!-- calendar -->
+          <div>
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:8px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">SUN</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">MON</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">TUE</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">WED</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">THU</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">FRI</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#A89F8C; text-align:center;">SAT</div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px;">
+              <sc-for list="{{ cells }}" as="c" hint-placeholder-count="35">
+                <div style="{{ c.cellStyle }}">
+                  <sc-if value="{{ c.show }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                      <span style="{{ c.numStyle }}">{{ c.day }}</span>
+                      <sc-if value="{{ c.isLive }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:1px; color:#fff; background:oklch(0.55 0.105 47); padding:2px 5px; border-radius:4px;">LIVE</span></sc-if>
+                      <sc-if value="{{ c.isEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:0.5px; color:oklch(0.55 0.13 25);">NEEDS Q</span></sc-if>
+                    </div>
+                    <sc-if value="{{ c.hasQ }}" hint-placeholder-val="{{ true }}">
+                      <div style="margin-top:auto; display:flex; align-items:flex-start; gap:5px;">
+                        <span style="{{ c.dotStyle }}"></span>
+                        <span style="font-family:'Hanken Grotesk',sans-serif; font-size:11px; line-height:1.25; color:{{ c.txtColor }};">{{ c.txt }}</span>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ c.isEmpty }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ navLibrary }}" style="margin-top:auto; border:none; background:none; padding:0; text-align:left; font-family:'Hanken Grotesk',sans-serif; font-size:11px; color:oklch(0.55 0.13 25); cursor:pointer; font-weight:600;">+ Assign</button>
+                    </sc-if>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- drafts rail -->
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px; align-self:start;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">UNSCHEDULED DRAFTS</div>
+            <div style="font-size:12px; color:#A89F8C; margin-top:4px;">Drag onto a day to schedule.</div>
+            <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px;">
+              <div style="background:#fff; border:1px solid #EFEAE0; border-radius:11px; padding:11px 12px; cursor:grab;">
+                <div style="display:flex; align-items:center; gap:6px;"><span style="width:7px; height:7px; border-radius:2px; background:oklch(0.50 0.03 260);"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">ETHICS</span></div>
+                <div style="font-family:'Newsreader',serif; font-size:14px; line-height:1.3; color:#211F1A; margin-top:6px;">Is it ever okay to lie to protect someone's feelings?</div>
+              </div>
+              <div style="background:#fff; border:1px solid #EFEAE0; border-radius:11px; padding:11px 12px; cursor:grab;">
+                <div style="display:flex; align-items:center; gap:6px;"><span style="width:7px; height:7px; border-radius:2px; background:oklch(0.55 0.08 220);"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">SCIENCE</span></div>
+                <div style="font-family:'Newsreader',serif; font-size:14px; line-height:1.3; color:#211F1A; margin-top:6px;">Will humans live on Mars within 50 years?</div>
+              </div>
+              <div style="background:#fff; border:1px solid #EFEAE0; border-radius:11px; padding:11px 12px; cursor:grab;">
+                <div style="display:flex; align-items:center; gap:6px;"><span style="width:7px; height:7px; border-radius:2px; background:oklch(0.55 0.105 47);"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">SOCIETY</span></div>
+                <div style="font-family:'Newsreader',serif; font-size:14px; line-height:1.3; color:#211F1A; margin-top:6px;">Is remote work better than the office?</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ LIBRARY ════════ -->
+    <sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:22px;">
+          <div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Question library</div>
+            <div style="font-size:14px; color:#6E6A60; margin-top:4px;">{{ qCount }} questions · write, edit, and categorize.</div>
+          </div>
+          <button onClick="{{ openCompose }}" style="padding:10px 18px; border:none; border-radius:11px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">+ New question</button>
+        </div>
+
+        <!-- compose -->
+        <sc-if value="{{ composing }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#FBFAF6; border:1px solid #DCD6C9; border-radius:18px; padding:22px 24px; margin-bottom:20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">NEW QUESTION</div>
+            <textarea placeholder="Write a yes/no question the whole world can answer…" style="width:100%; margin-top:12px; border:1px solid #E4DFD4; border-radius:12px; padding:14px 16px; font-family:'Newsreader',serif; font-size:20px; line-height:1.3; color:#211F1A; background:#fff; resize:none; height:78px; outline:none;"></textarea>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#8A8475;">CATEGORY</span>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <sc-for list="{{ catChips }}" as="cc" hint-placeholder-count="8">
+                    <span style="{{ cc.style }}"><span style="width:7px; height:7px; border-radius:2px; background:{{ cc.color }};"></span>{{ cc.name }}</span>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex; gap:9px;">
+                <button onClick="{{ closeCompose }}" style="padding:9px 16px; border:1.5px solid #DCD6C9; border-radius:10px; background:none; color:#6E6A60; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer;">Cancel</button>
+                <button onClick="{{ closeCompose }}" style="padding:9px 16px; border:none; border-radius:10px; background:#211F1A; color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer;">Save draft</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- filter bar -->
+        <div style="display:flex; gap:7px; margin-bottom:14px;">
+          <sc-for list="{{ libFilters }}" as="lf" hint-placeholder-count="4">
+            <button onClick="{{ lf.onClick }}" style="{{ lf.style }}">{{ lf.label }}</button>
+          </sc-for>
+        </div>
+
+        <!-- table -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1fr 130px 120px 90px; gap:16px; padding:12px 20px; border-bottom:1px solid #EFEAE0; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1.2px; color:#A89F8C;">
+            <div>QUESTION</div><div>CATEGORY</div><div>STATUS</div><div style="text-align:right;">WORLD</div>
+          </div>
+          <sc-for list="{{ qrows }}" as="q" hint-placeholder-count="10">
+            <button onClick="{{ q.onClick }}" style="display:grid; grid-template-columns:1fr 130px 120px 90px; gap:16px; padding:15px 20px; border:none; border-bottom:1px solid #EFEAE0; background:none; cursor:pointer; text-align:left; width:100%; align-items:center;">
+              <div style="font-family:'Newsreader',serif; font-size:16px; line-height:1.3; color:#211F1A;">{{ q.text }}</div>
+              <div style="display:flex; align-items:center; gap:7px; font-family:'Hanken Grotesk',sans-serif; font-size:12px; color:#6E6A60;"><span style="width:8px; height:8px; border-radius:2px; background:{{ q.color }};"></span>{{ q.cat }}</div>
+              <div><span style="{{ q.statusStyle }}">{{ q.status }}</span></div>
+              <div style="text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; color:{{ q.worldColor }};">{{ q.world }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ ANALYTICS ════════ -->
+    <sc-if value="{{ isAnalytics }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px;">
+          <div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Analytics</div>
+            <div style="font-size:14px; color:#6E6A60; margin-top:4px;">Last 30 days · engagement, retention & audience.</div>
+          </div>
+          <div style="display:flex; gap:6px; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:11px; padding:5px;">
+            <span style="padding:6px 12px; border-radius:8px; background:#211F1A; color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600;">30D</span>
+            <span style="padding:6px 12px; border-radius:8px; color:#8A8475; font-family:'Hanken Grotesk',sans-serif; font-size:12px;">90D</span>
+            <span style="padding:6px 12px; border-radius:8px; color:#8A8475; font-family:'Hanken Grotesk',sans-serif; font-size:12px;">All</span>
+          </div>
+        </div>
+
+        <!-- KPI cards -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">AVG DAILY ACTIVE</div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">1,540</div>
+            <div style="font-size:12px; color:oklch(0.50 0.12 150); font-weight:600; margin-top:6px;">+18% MoM</div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">D7 RETENTION</div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">38%</div>
+            <div style="font-size:12px; color:oklch(0.50 0.12 150); font-weight:600; margin-top:6px;">+2.1 pts</div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">AVG STREAK</div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">9.4<span style="font-size:16px; color:#8A8475;"> days</span></div>
+            <div style="font-size:12px; color:#6E6A60; margin-top:6px;">1,203 active streaks</div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:18px 20px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">PARTY ROUNDS</div>
+            <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; color:#211F1A; margin-top:6px; line-height:1;">612</div>
+            <div style="font-size:12px; color:oklch(0.50 0.12 150); font-weight:600; margin-top:6px;">+44% MoM</div>
+          </div>
+        </div>
+
+        <!-- DAU chart -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px; margin-top:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">DAILY ACTIVE USERS</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#A89F8C;">820 → 1,892</div>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:4px; height:140px; margin-top:18px;">
+            <sc-for list="{{ dauBars }}" as="b" hint-placeholder-count="30">
+              <div style="{{ b.style }}"></div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- two-up: category + retention -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">ENGAGEMENT BY CATEGORY</div>
+            <div style="display:flex; flex-direction:column; gap:13px; margin-top:16px;">
+              <sc-for list="{{ catBars }}" as="c" hint-placeholder-count="8">
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#211F1A; margin-bottom:6px;"><span>{{ c.name }}</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">{{ c.val }}</span></div>
+                  <div style="height:8px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ c.barStyle }}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">RETENTION CURVE</div>
+            <div style="display:flex; align-items:flex-end; justify-content:space-around; height:150px; margin-top:18px; gap:14px;">
+              <sc-for list="{{ retBars }}" as="r" hint-placeholder-count="5">
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;">
+                  <div style="font-family:'Newsreader',serif; font-size:18px; color:#211F1A;">{{ r.val }}</div>
+                  <div style="{{ r.barStyle }}"></div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.5px; color:#8A8475;">{{ r.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- demographics -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px; margin-top:16px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">AUDIENCE</div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:34px; margin-top:18px;">
+            <div>
+              <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; color:#211F1A; margin-bottom:14px;">Age</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ ageRows }}" as="a" hint-placeholder-count="5">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:46px;">{{ a.label }}</span>
+                    <div style="flex:1; height:7px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ a.barStyle }}"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:30px; text-align:right;">{{ a.pct }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; color:#211F1A; margin-bottom:14px;">Gender</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ genderRows }}" as="g" hint-placeholder-count="4">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:90px;">{{ g.label }}</span>
+                    <div style="flex:1; height:7px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ g.barStyle }}"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:30px; text-align:right;">{{ g.pct }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; color:#211F1A; margin-bottom:14px;">Top countries</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ countryRows }}" as="c" hint-placeholder-count="5">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:90px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.label }}</span>
+                    <div style="flex:1; height:7px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ c.barStyle }}"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:30px; text-align:right;">{{ c.pct }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ RESULTS ════════ -->
+    <sc-if value="{{ isResults }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="margin-bottom:24px;">
+          <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Question results</div>
+          <div style="font-size:14px; color:#6E6A60; margin-top:4px;">How the world answered · how well users predicted it.</div>
+        </div>
+
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:18px; padding:24px 26px;">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <span style="width:8px; height:8px; border-radius:2px; background:oklch(0.52 0.09 300);"></span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.4px; color:#8A8475;">PHILOSOPHY · JUN 25, 2026 · LIVE</span>
+          </div>
+          <div style="font-family:'Newsreader',serif; font-size:28px; font-weight:500; line-height:1.2; color:#211F1A; margin-top:12px;">Would you want to know the exact date you'll die?</div>
+
+          <div style="display:grid; grid-template-columns:240px 1fr; gap:34px; margin-top:26px; align-items:center;">
+            <!-- big split -->
+            <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+              <div style="position:relative; width:160px; height:160px; border-radius:50%; background:conic-gradient(oklch(0.55 0.105 47) 0% 68%, #E6E0D3 68% 100%); display:flex; align-items:center; justify-content:center;">
+                <div style="width:112px; height:112px; border-radius:50%; background:#FBFAF6; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                  <div style="font-family:'Newsreader',serif; font-size:44px; font-weight:500; line-height:1; color:#211F1A;">68%</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475; margin-top:3px;">SAID YES</div>
+                </div>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60;">1,640 answers · still climbing</div>
+            </div>
+            <!-- prediction accuracy -->
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">HOW WELL USERS PREDICTED (READ ACCURACY)</div>
+              <div style="display:flex; align-items:flex-end; gap:10px; height:130px; margin-top:18px;">
+                <sc-for list="{{ predDist }}" as="p" hint-placeholder-count="5">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; height:100%; justify-content:flex-end;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A;">{{ p.pct }}</span>
+                    <div style="{{ p.barStyle }}"></div>
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; color:#8A8475;">{{ p.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:24px; margin-top:14px; padding-top:14px; border-top:1px solid #EFEAE0;">
+                <div><div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">AVG GUESS</div><div style="font-family:'Newsreader',serif; font-size:22px; color:oklch(0.42 0.09 256);">64%</div></div>
+                <div><div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">MEDIAN READ SCORE</div><div style="font-family:'Newsreader',serif; font-size:22px; color:#211F1A;">73<span style="font-size:13px; color:#8A8475;">/100</span></div></div>
+                <div><div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; color:#8A8475;">NAILED IT (90+)</div><div style="font-family:'Newsreader',serif; font-size:22px; color:oklch(0.50 0.12 150);">21%</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- splits by segment -->
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:16px;">
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">YES % BY AGE</div>
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px;">
+              <sc-for list="{{ resAge }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:46px;">{{ r.label }}</span>
+                  <div style="flex:1; height:8px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ r.barStyle }}"></div></div>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:34px; text-align:right;">{{ r.pct }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">YES % BY GENDER</div>
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px;">
+              <sc-for list="{{ resGender }}" as="r" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:90px;">{{ r.label }}</span>
+                  <div style="flex:1; height:8px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ r.barStyle }}"></div></div>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:34px; text-align:right;">{{ r.pct }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">YES % BY COUNTRY</div>
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px;">
+              <sc-for list="{{ resCountry }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6E6A60; width:90px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.label }}</span>
+                  <div style="flex:1; height:8px; border-radius:4px; background:#E6E0D3; overflow:hidden;"><div style="{{ r.barStyle }}"></div></div>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#211F1A; width:34px; text-align:right;">{{ r.pct }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ NOTIFICATIONS ════════ -->
+    <sc-if value="{{ isNotifs }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:1180px;">
+        <div style="margin-bottom:24px;">
+          <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Notifications</div>
+          <div style="font-size:14px; color:#6E6A60; margin-top:4px;">Daily reminders & broadcast messages.</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:16px;">
+          <!-- composer -->
+          <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:18px; padding:22px 24px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">NEW BROADCAST</div>
+            <input value="Today's question is live 🌍" style="width:100%; margin-top:12px; border:1px solid #E4DFD4; border-radius:11px; padding:12px 14px; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; color:#211F1A; background:#fff; outline:none;"/>
+            <textarea style="width:100%; margin-top:10px; border:1px solid #E4DFD4; border-radius:11px; padding:12px 14px; font-family:'Hanken Grotesk',sans-serif; font-size:14px; line-height:1.4; color:#211F1A; background:#fff; resize:none; height:70px; outline:none;">Can you read the world today? Tap to answer and lock your prediction before the reveal.</textarea>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:#8A8475; margin-top:16px;">AUDIENCE</div>
+            <div style="display:flex; gap:7px; margin-top:9px; flex-wrap:wrap;">
+              <span style="padding:7px 13px; border-radius:9px; background:#211F1A; color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600;">Everyone · 3,247</span>
+              <span style="padding:7px 13px; border-radius:9px; border:1.5px solid #DCD6C9; color:#6E6A60; font-family:'Hanken Grotesk',sans-serif; font-size:12px;">Streak at risk · 410</span>
+              <span style="padding:7px 13px; border-radius:9px; border:1.5px solid #DCD6C9; color:#6E6A60; font-family:'Hanken Grotesk',sans-serif; font-size:12px;">Lapsed 7d · 880</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:20px; padding-top:18px; border-top:1px solid #EFEAE0;">
+              <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#6E6A60;">Send <span style="color:#211F1A; font-weight:600;">now</span></div>
+              <button onClick="{{ noop }}" style="padding:11px 22px; border:none; border-radius:11px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">Send broadcast</button>
+            </div>
+          </div>
+
+          <!-- daily reminder + preview -->
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:18px; padding:20px 22px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div>
+                  <div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; color:#211F1A;">Daily reminder</div>
+                  <div style="font-size:13px; color:#6E6A60; margin-top:3px;">9:00 AM · user local time</div>
+                </div>
+                <div style="width:44px; height:26px; border-radius:13px; background:oklch(0.50 0.10 256); position:relative;"><div style="position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:#fff;"></div></div>
+              </div>
+            </div>
+            <div style="background:#211F1A; border-radius:18px; padding:20px 22px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8E887C;">LOCK-SCREEN PREVIEW</div>
+              <div style="background:#2B2820; border-radius:14px; padding:14px 16px; margin-top:12px; display:flex; gap:12px; align-items:flex-start;">
+                <div style="width:30px; height:30px; border-radius:8px; background:#211F1A; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="font-family:'Newsreader',serif; font-size:16px; color:#F3F0E9;">r<span style="color:oklch(0.62 0.11 47);">.</span></span></div>
+                <div style="line-height:1.3;">
+                  <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:700; color:#F3F0E9;">Read the World</div>
+                  <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#C9C2B2; margin-top:2px;">Today's question is live 🌍 Can you read the world today?</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- recent sends -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:6px 0; margin-top:16px;">
+          <div style="display:grid; grid-template-columns:1fr 130px 100px 100px; gap:16px; padding:12px 22px; border-bottom:1px solid #EFEAE0; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1.2px; color:#A89F8C;">
+            <div>MESSAGE</div><div>SENT</div><div style="text-align:right;">DELIVERED</div><div style="text-align:right;">OPEN RATE</div>
+          </div>
+          <sc-for list="{{ sends }}" as="s" hint-placeholder-count="4">
+            <div style="display:grid; grid-template-columns:1fr 130px 100px 100px; gap:16px; padding:14px 22px; border-bottom:1px solid #EFEAE0; align-items:center;">
+              <div style="font-family:'Hanken Grotesk',sans-serif; font-size:14px; color:#211F1A;">{{ s.msg }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8A8475;">{{ s.when }}</div>
+              <div style="text-align:right; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#6E6A60;">{{ s.delivered }}</div>
+              <div style="text-align:right; font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ s.rateColor }};">{{ s.rate }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ════════ SETTINGS ════════ -->
+    <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 40px 60px; max-width:900px;">
+        <div style="margin-bottom:24px;">
+          <div style="font-family:'Newsreader',serif; font-size:34px; font-weight:500; letter-spacing:-0.8px; color:#211F1A;">Settings</div>
+          <div style="font-size:14px; color:#6E6A60; margin-top:4px;">Feature flags & app configuration.</div>
+        </div>
+
+        <!-- feature flags -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; overflow:hidden;">
+          <div style="padding:14px 22px; border-bottom:1px solid #EFEAE0; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">FEATURE FLAGS</div>
+          <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid #EFEAE0;">
+              <div style="padding-right:24px;">
+                <div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; color:#211F1A;">{{ t.label }}</div>
+                <div style="font-size:13px; color:#6E6A60; margin-top:2px;">{{ t.desc }}</div>
+              </div>
+              <button onClick="{{ t.onClick }}" style="{{ t.trackStyle }}"><div style="{{ t.knobStyle }}"></div></button>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- config -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; overflow:hidden; margin-top:16px;">
+          <div style="padding:14px 22px; border-bottom:1px solid #EFEAE0; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">TIMING</div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid #EFEAE0;">
+            <div><div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; color:#211F1A;">New question drops</div><div style="font-size:13px; color:#6E6A60; margin-top:2px;">When today's question goes live</div></div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; color:#211F1A; background:#fff; border:1px solid #E4DFD4; border-radius:9px; padding:8px 14px;">00:00 local</div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px;">
+            <div><div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; color:#211F1A;">Results reveal</div><div style="font-size:13px; color:#6E6A60; margin-top:2px;">When the world's answer unlocks</div></div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; color:#211F1A; background:#fff; border:1px solid #E4DFD4; border-radius:9px; padding:8px 14px;">Next day 00:00</div>
+          </div>
+        </div>
+
+        <!-- categories -->
+        <div style="background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:20px 22px; margin-top:16px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.3px; color:#8A8475;">CATEGORIES</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
+            <sc-for list="{{ catChipsPlain }}" as="cc" hint-placeholder-count="8">
+              <span style="display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px solid #E4DFD4; border-radius:9px; background:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#211F1A;"><span style="width:8px; height:8px; border-radius:2px; background:{{ cc.color }};"></span>{{ cc.name }}</span>
+            </sc-for>
+            <button onClick="{{ noop }}" style="padding:7px 13px; border:1.5px dashed #CFC8B8; border-radius:9px; background:none; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#8A8475; cursor:pointer;">+ Add category</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    screen: 'today',
+    composing: false,
+    libFilter: 'All',
+    flags: { party: true, social: true, share: true, demographics: true, suggestions: false, leaderboard: true }
+  };
+
+  go = (s) => () => this.setState({ screen: s });
+  navToday = this.go('today');
+  navSchedule = this.go('schedule');
+  navLibrary = this.go('library');
+  navAnalytics = this.go('analytics');
+  navResults = this.go('results');
+  navNotifs = this.go('notifs');
+  navSettings = this.go('settings');
+  noop = () => {};
+  openCompose = () => this.setState({ screen: 'library', composing: true });
+  closeCompose = () => this.setState({ composing: false });
+  setLibFilter = (f) => () => this.setState({ libFilter: f });
+  toggle = (k) => () => this.setState(st => ({ flags: { ...st.flags, [k]: !st.flags[k] } }));
+
+  renderVals() {
+    const st = this.state || {};
+    const screen = st.screen || 'today';
+    const flags = st.flags || {};
+
+    const CATC = {
+      Technology: 'oklch(0.50 0.10 256)', Society: 'oklch(0.55 0.105 47)', Culture: 'oklch(0.62 0.10 75)',
+      Philosophy: 'oklch(0.52 0.09 300)', Money: 'oklch(0.52 0.08 150)', Science: 'oklch(0.55 0.08 220)',
+      Health: 'oklch(0.58 0.10 20)', Ethics: 'oklch(0.50 0.03 260)'
+    };
+
+    // ---- nav ----
+    const navStyle = (key) => {
+      const active = screen === key;
+      return `display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:11px 16px 11px 17px; border:none; border-left:3px solid ${active ? 'oklch(0.62 0.11 47)' : 'transparent'}; background:${active ? 'rgba(243,240,233,0.07)' : 'transparent'}; color:${active ? '#F3F0E9' : '#8E887C'}; font-family:'Hanken Grotesk',sans-serif; font-size:14px; font-weight:${active ? '600' : '500'}; cursor:pointer;`;
+    };
+    const nav = { today: navStyle('today'), schedule: navStyle('schedule'), library: navStyle('library'), analytics: navStyle('analytics'), results: navStyle('results'), notifs: navStyle('notifs'), settings: navStyle('settings') };
+
+    // ---- today curve ----
+    const curvePts = [40, 220, 520, 760, 980, 1140, 1280, 1410, 1520, 1600, 1640];
+    const maxC = 1700;
+    const cw = 520, ch = 110;
+    const pts = curvePts.map((v, i) => `${(i / (curvePts.length - 1) * cw).toFixed(0)},${(ch - v / maxC * ch + 6).toFixed(0)}`);
+    const todayCurve = pts.join(' ');
+    const todayCurveFill = `0,${ch + 6} ` + pts.join(' ') + ` ${cw},${ch + 6}`;
+
+    // ---- schedule calendar ----
+    const today = 25;
+    const sched = { 26: { cat: 'Culture', txt: 'Is it rude to keep your phone on the table at dinner?' }, 27: { cat: 'Society', txt: 'Should billionaires exist?' } };
+    const pastCats = ['Technology', 'Money', 'Culture', 'Society', 'Philosophy', 'Science', 'Health', 'Ethics'];
+    const pastTxt = ['Should AI-generated content be labeled by law?', 'Can money buy happiness?', 'Is a hot dog a sandwich?', 'Would the world be better without social media?', 'Do you believe in free will?', 'Could you go a week without your phone?', 'Is breakfast the most important meal?', 'Is honesty always the best policy?'];
+    const lead = 1; // June 1 2026 = Monday, so 1 empty Sunday cell
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push({ show: false, cellStyle: 'min-height:96px;' });
+    for (let d = 1; d <= 30; d++) {
+      const base = 'min-height:96px; border-radius:12px; padding:9px 10px; display:flex; flex-direction:column;';
+      let cell = { show: true, day: String(d), hasQ: false, isLive: false, isEmpty: false, numStyle: "font-family:'IBM Plex Mono',monospace; font-size:12px; color:#A89F8C;", txtColor: '#211F1A', dotStyle: '', txt: '' };
+      if (d < today) {
+        const ci = (d - 1) % pastCats.length;
+        cell.hasQ = true;
+        cell.txt = pastTxt[(d - 1) % pastTxt.length];
+        cell.dotStyle = `width:7px; height:7px; border-radius:2px; flex-shrink:0; margin-top:3px; background:${CATC[pastCats[ci]]};`;
+        cell.cellStyle = base + ' background:#FBFAF6; border:1px solid #E4DFD4;';
+      } else if (d === today) {
+        cell.hasQ = true; cell.isLive = true;
+        cell.txt = "Would you want to know the exact date you'll die?";
+        cell.dotStyle = `width:7px; height:7px; border-radius:2px; flex-shrink:0; margin-top:3px; background:${CATC.Philosophy};`;
+        cell.numStyle = "font-family:'IBM Plex Mono',monospace; font-size:12px; color:#211F1A; font-weight:500;";
+        cell.cellStyle = base + ' background:#FBF6EE; border:2px solid oklch(0.55 0.105 47);';
+      } else if (sched[d]) {
+        cell.hasQ = true;
+        cell.txt = sched[d].txt; cell.txtColor = '#6E6A60';
+        cell.dotStyle = `width:7px; height:7px; border-radius:2px; flex-shrink:0; margin-top:3px; background:${CATC[sched[d].cat]};`;
+        cell.cellStyle = base + ' background:#fff; border:1px solid #E4DFD4;';
+      } else {
+        cell.isEmpty = true;
+        cell.cellStyle = base + ' background:#fff; border:1.5px dashed oklch(0.78 0.07 40);';
+      }
+      cells.push(cell);
+    }
+    while (cells.length < 35) cells.push({ show: false, cellStyle: 'min-height:96px;' });
+
+    // ---- library ----
+    const QS = [
+      { text: "Would you want to know the exact date you'll die?", cat: 'Philosophy', status: 'LIVE', world: '68%' },
+      { text: 'Is it rude to keep your phone on the table at dinner?', cat: 'Culture', status: 'SCHEDULED', world: '—' },
+      { text: 'Should billionaires exist?', cat: 'Society', status: 'SCHEDULED', world: '—' },
+      { text: 'Should AI-generated content be labeled by law?', cat: 'Technology', status: 'USED', world: '84%' },
+      { text: 'Can money buy happiness?', cat: 'Money', status: 'USED', world: '57%' },
+      { text: 'Is a hot dog a sandwich?', cat: 'Culture', status: 'USED', world: '39%' },
+      { text: 'Would the world be better without social media?', cat: 'Society', status: 'USED', world: '62%' },
+      { text: 'Do you believe in free will?', cat: 'Philosophy', status: 'USED', world: '71%' },
+      { text: 'Is it ever okay to lie to protect someone\u2019s feelings?', cat: 'Ethics', status: 'DRAFT', world: '—' },
+      { text: 'Will humans live on Mars within 50 years?', cat: 'Science', status: 'DRAFT', world: '—' },
+      { text: 'Is remote work better than the office?', cat: 'Society', status: 'DRAFT', world: '—' },
+      { text: 'Does luck matter more than hard work?', cat: 'Philosophy', status: 'DRAFT', world: '—' }
+    ];
+    const statusStyle = (s) => {
+      const map = {
+        LIVE: 'color:#fff; background:oklch(0.55 0.105 47);',
+        SCHEDULED: 'color:oklch(0.42 0.09 256); background:oklch(0.55 0.10 256 / 0.12);',
+        USED: 'color:#6E6A60; background:#EAE5D9;',
+        DRAFT: 'color:#8A8475; background:transparent; border:1px solid #DCD6C9;'
+      };
+      return `display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; padding:4px 9px; border-radius:6px; ${map[s] || ''}`;
+    };
+    const libFilter = st.libFilter || 'All';
+    const qrows = QS.filter(q => libFilter === 'All' || q.status === libFilter.toUpperCase()).map((q, i) => ({
+      text: q.text, cat: q.cat, color: CATC[q.cat], status: q.status, statusStyle: statusStyle(q.status),
+      world: q.world, worldColor: q.world === '\u2014' ? '#C4BDAD' : '#211F1A', onClick: this.navResults
+    }));
+    const filters = ['All', 'Live', 'Scheduled', 'Used', 'Draft'];
+    const libFilters = filters.map(f => ({
+      label: f, onClick: this.setLibFilter(f),
+      style: `padding:7px 14px; border-radius:9px; cursor:pointer; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:600; ${libFilter === f ? 'background:#211F1A; color:#fff; border:1px solid #211F1A;' : 'background:#FBFAF6; color:#6E6A60; border:1px solid #E4DFD4;'}`
+    }));
+    const catChips = Object.keys(CATC).map((name, i) => ({
+      name, color: CATC[name],
+      style: `display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; font-family:'Hanken Grotesk',sans-serif; font-size:12px; cursor:pointer; ${i === 3 ? 'background:#211F1A; color:#fff;' : 'background:#fff; color:#6E6A60; border:1px solid #E4DFD4;'}`
+    }));
+    const catChipsPlain = Object.keys(CATC).map(name => ({ name, color: CATC[name] }));
+
+    // ---- analytics ----
+    const dau = [820, 910, 880, 960, 1020, 990, 1080, 1140, 1100, 1210, 1180, 1260, 1240, 1320, 1380, 1350, 1420, 1400, 1480, 1520, 1500, 1560, 1610, 1590, 1650, 1700, 1740, 1780, 1840, 1892];
+    const maxD = Math.max(...dau);
+    const dauBars = dau.map((v, i) => ({
+      style: `flex:1; height:${(v / maxD * 100).toFixed(1)}%; border-radius:4px 4px 2px 2px; background:${i === dau.length - 1 ? 'oklch(0.50 0.10 256)' : 'oklch(0.50 0.10 256 / 0.32)'};`
+    }));
+    const catData = [['Technology', 92], ['Society', 88], ['Culture', 81], ['Philosophy', 78], ['Money', 74], ['Science', 71], ['Health', 64], ['Ethics', 58]];
+    const catBars = catData.map(([name, val]) => ({
+      name, val, barStyle: `height:100%; width:${val}%; border-radius:4px; background:${CATC[name]};`
+    }));
+    const retData = [['D1', 62], ['D3', 48], ['D7', 38], ['D14', 30], ['D30', 24]];
+    const retBars = retData.map(([label, v]) => ({
+      label, val: v + '%', barStyle: `width:70%; max-width:38px; height:${v / 62 * 100}%; border-radius:6px 6px 0 0; background:oklch(0.55 0.105 47);`
+    }));
+    const hbar = (pct, max, color) => `height:100%; width:${(pct / max * 100).toFixed(1)}%; border-radius:4px; background:${color};`;
+    const ageData = [['18–24', 22], ['25–34', 38], ['35–44', 24], ['45–54', 11], ['55+', 5]];
+    const ageRows = ageData.map(([label, pct]) => ({ label, pct: pct + '%', barStyle: hbar(pct, 38, 'oklch(0.50 0.10 256)') }));
+    const genderData = [['Women', 47], ['Men', 44], ['Non-binary', 6], ['Prefer not', 3]];
+    const genderRows = genderData.map(([label, pct]) => ({ label, pct: pct + '%', barStyle: hbar(pct, 47, 'oklch(0.52 0.09 300)') }));
+    const countryData = [['United States', 41], ['United Kingdom', 14], ['Canada', 11], ['Australia', 7], ['Germany', 6]];
+    const countryRows = countryData.map(([label, pct]) => ({ label, pct: pct + '%', barStyle: hbar(pct, 41, 'oklch(0.55 0.105 47)') }));
+
+    // ---- results ----
+    const pd = [['0–20', 4], ['21–40', 9], ['41–60', 21], ['61–80', 38], ['81–100', 28]];
+    const predDist = pd.map(([label, pct]) => ({ label, pct: pct + '%', barStyle: `width:62%; max-width:34px; height:${pct / 38 * 100}%; border-radius:5px 5px 0 0; background:${label === '81–100' ? 'oklch(0.50 0.12 150)' : 'oklch(0.50 0.10 256 / 0.55)'};` }));
+    const yesBar = (pct) => `height:100%; width:${pct}%; border-radius:4px; background:oklch(0.55 0.105 47);`;
+    const resAge = [['18–24', 75], ['25–34', 70], ['35–44', 66], ['45–54', 59], ['55+', 52]].map(([label, pct]) => ({ label, pct: pct + '%', barStyle: yesBar(pct) }));
+    const resGender = [['Women', 64], ['Men', 73], ['Non-binary', 70]].map(([label, pct]) => ({ label, pct: pct + '%', barStyle: yesBar(pct) }));
+    const resCountry = [['United States', 69], ['United Kingdom', 66], ['Canada', 67], ['Australia', 71], ['Germany', 63]].map(([label, pct]) => ({ label, pct: pct + '%', barStyle: yesBar(pct) }));
+
+    // ---- notifications ----
+    const sends = [
+      { msg: 'The reveal is in — see how you did', when: 'Today 00:01', delivered: '3,180', rate: '54%', rateColor: 'oklch(0.50 0.12 150)' },
+      { msg: "Today's question is live 🌍", when: 'Yesterday', delivered: '3,166', rate: '61%', rateColor: 'oklch(0.50 0.12 150)' },
+      { msg: 'Your streak ends in 3 hours', when: 'Jun 23', delivered: '402', rate: '72%', rateColor: 'oklch(0.50 0.12 150)' },
+      { msg: 'We miss your read — come back', when: 'Jun 21', delivered: '861', rate: '19%', rateColor: '#A89F8C' }
+    ];
+
+    // ---- settings toggles ----
+    const tgl = (k) => {
+      const on = !!flags[k];
+      return {
+        trackStyle: `width:44px; height:26px; border-radius:13px; border:none; cursor:pointer; padding:0; position:relative; flex-shrink:0; background:${on ? 'oklch(0.50 0.10 256)' : '#D8D2C5'};`,
+        knobStyle: `position:absolute; top:3px; ${on ? 'right:3px' : 'left:3px'}; width:20px; height:20px; border-radius:50%; background:#fff;`
+      };
+    };
+    const toggleDefs = [
+      ['party', 'Party mode', 'Group play with past questions on a shared screen'],
+      ['social', 'Friends & social', 'Add friends, compare reads, share results'],
+      ['leaderboard', 'Friends leaderboard', 'Rank friends by Read Score'],
+      ['share', 'Shareable result cards', 'Let users share their daily read'],
+      ['demographics', 'Onboarding demographics', 'Collect age, gender & country at sign-up'],
+      ['suggestions', 'User-suggested questions', 'Let users submit questions for review']
+    ];
+    const toggles = toggleDefs.map(([k, label, desc]) => ({ label, desc, onClick: this.toggle(k), ...tgl(k) }));
+
+    return {
+      nav,
+      isToday: screen === 'today', isSchedule: screen === 'schedule', isLibrary: screen === 'library',
+      isAnalytics: screen === 'analytics', isResults: screen === 'results', isNotifs: screen === 'notifs', isSettings: screen === 'settings',
+      navToday: this.navToday, navSchedule: this.navSchedule, navLibrary: this.navLibrary, navAnalytics: this.navAnalytics,
+      navResults: this.navResults, navNotifs: this.navNotifs, navSettings: this.navSettings, noop: this.noop,
+      todayCurve, todayCurveFill,
+      cells,
+      qrows, qCount: QS.length, libFilters, composing: !!st.composing, openCompose: this.openCompose, closeCompose: this.closeCompose, catChips, catChipsPlain,
+      dauBars, catBars, retBars, ageRows, genderRows, countryRows,
+      predDist, resAge, resGender, resCountry,
+      sends,
+      toggles
+    };
+  }
+}
+</script>
+</body>
+</html>

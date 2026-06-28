@@ -1,0 +1,144 @@
+{
+  "firestore": {
+    "rules": "firebase/firestore.rules",
+    "indexes": "firebase/firestore.indexes.json"
+  },
+  "remoteconfig": {
+    "template": "firebase/remoteconfig.template.json"
+  },
+  "auth": {
+    "providers": {
+      "anonymous": true,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Read the World",
+        "supportEmail": "mike@readtheworld.today",
+        "authorizedRedirectUris": [
+          "https://readtheworld.today/__/auth/handler",
+          "https://app.readtheworld.today/__/auth/handler",
+          "https://admin.readtheworld.today/__/auth/handler"
+        ]
+      }
+    }
+  },
+  "apphosting": [
+    {
+      "backendId": "read-the-world-web",
+      "rootDir": "apps/web",
+      "ignore": [
+        ".env",
+        ".env.*",
+        ".next",
+        "node_modules",
+        "**/node_modules/**",
+        ".xcodebuildmcp/**",
+        "apps/app/**",
+        "Daily Global Prediction Game*/**",
+        "docs/**",
+        "firebase/**",
+        "functions/**",
+        "qa-artifacts/**",
+        "tmp/**"
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+    }
+  ],
+  "hosting": [
+    {
+      "target": "app",
+      "public": "apps/app/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=0, must-revalidate"
+            }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "links",
+      "public": "firebase/public-links",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=0, must-revalidate"
+            }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "/.well-known/apple-app-site-association",
+          "function": {
+            "functionId": "appleAppSiteAssociation",
+            "region": "us-central1"
+          }
+        },
+        {
+          "source": "/.well-known/assetlinks.json",
+          "function": {
+            "functionId": "androidAssetLinks",
+            "region": "us-central1"
+          }
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "redirect",
+      "public": "firebase/public-redirect",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://readtheworld.today",
+          "type": 301
+        }
+      ]
+    }
+  ],
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "singleProjectMode": true
+  }
+}
