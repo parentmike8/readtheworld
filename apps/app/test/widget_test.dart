@@ -290,6 +290,64 @@ void main() {
     expect(find.text('Canada'), findsWidgets);
   });
 
+  testWidgets('Onboarding DOB sheet is usable on compact web height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _testApp(initialLocation: '/onboarding/about', routes: _demoRoutes()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Select your date of birth'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a date'), findsOneWidget);
+    expect(find.text('Use this date'), findsOneWidget);
+    await tester.tap(find.text('Use this date'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select your date of birth'), findsNothing);
+  });
+
+  testWidgets('Onboarding locks desktop nav exits', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _testApp(initialLocation: '/onboarding', routes: _demoRoutes()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('How well do you know what everyone else thinks?'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('History'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('How well do you know what everyone else thinks?'),
+      findsOneWidget,
+    );
+    expect(find.text("Every call you've made."), findsNothing);
+
+    await tester.tap(find.text('Insights'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('How well do you know what everyone else thinks?'),
+      findsOneWidget,
+    );
+    expect(find.text('Your Read Score'), findsNothing);
+  });
+
   testWidgets('Auth email flow validates required fields before navigation', (
     tester,
   ) async {

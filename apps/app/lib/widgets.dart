@@ -451,12 +451,14 @@ class AppScaffold extends StatelessWidget {
     required this.location,
     this.maxWidth = 780,
     this.showBottomNav = true,
+    this.navigationLocked = false,
   });
 
   final Widget child;
   final String location;
   final double maxWidth;
   final bool showBottomNav;
+  final bool navigationLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -479,14 +481,15 @@ class AppScaffold extends StatelessWidget {
         bottom: false,
         child: Column(
           children: [
-            if (isWide) _TopNav(location: location),
+            if (isWide)
+              _TopNav(location: location, navigationLocked: navigationLocked),
             Expanded(child: expandedBody),
           ],
         ),
       ),
       bottomNavigationBar: isWide || !showBottomNav
           ? null
-          : _BottomNav(location: location),
+          : _BottomNav(location: location, navigationLocked: navigationLocked),
     );
   }
 }
@@ -523,12 +526,14 @@ class _AppBodySurface extends StatelessWidget {
 }
 
 class _TopNav extends StatelessWidget {
-  const _TopNav({required this.location});
+  const _TopNav({required this.location, required this.navigationLocked});
 
   final String location;
+  final bool navigationLocked;
 
   @override
   Widget build(BuildContext context) {
+    final compactNav = MediaQuery.sizeOf(context).width < 1100;
     return Container(
       height: 66,
       padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -545,6 +550,7 @@ class _TopNav extends StatelessWidget {
             glyph: _NavGlyph.today,
             path: '/today',
             active: location.startsWith('/today') || location == '/reveal',
+            enabled: !navigationLocked,
           ),
           const SizedBox(width: 8),
           _NavPill(
@@ -552,6 +558,7 @@ class _TopNav extends StatelessWidget {
             glyph: _NavGlyph.history,
             path: '/history',
             active: location == '/history' || location == '/party',
+            enabled: !navigationLocked,
           ),
           const SizedBox(width: 8),
           _NavPill(
@@ -559,30 +566,34 @@ class _TopNav extends StatelessWidget {
             glyph: _NavGlyph.insights,
             path: '/insights',
             active: location == '/insights',
+            enabled: !navigationLocked,
           ),
           const Spacer(),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: RtwColors.clay,
-                  shape: BoxShape.circle,
+              if (!compactNav) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: RtwColors.clay,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '7-DAY STREAK',
-                style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                  fontSize: 11,
-                  letterSpacing: 1,
+                const SizedBox(width: 10),
+                Text(
+                  '7-DAY STREAK',
+                  style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                    fontSize: 11,
+                    letterSpacing: 1,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 20),
+                const SizedBox(width: 20),
+              ],
               InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () => context.go('/account'),
+                onTap: navigationLocked ? null : () => context.go('/account'),
                 child: Container(
                   width: 38,
                   height: 38,
@@ -615,18 +626,20 @@ class _NavPill extends StatelessWidget {
     required this.glyph,
     required this.path,
     required this.active,
+    required this.enabled,
   });
 
   final String label;
   final _NavGlyph glyph;
   final String path;
   final bool active;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(11),
-      onTap: () => context.go(path),
+      onTap: enabled ? () => context.go(path) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
@@ -658,9 +671,10 @@ class _NavPill extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.location});
+  const _BottomNav({required this.location, required this.navigationLocked});
 
   final String location;
+  final bool navigationLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -686,21 +700,21 @@ class _BottomNav extends StatelessWidget {
             selectedIndex: current,
             glyph: _NavGlyph.today,
             label: 'Today',
-            onTap: () => context.go('/today'),
+            onTap: navigationLocked ? null : () => context.go('/today'),
           ),
           _BottomItem(
             index: 1,
             selectedIndex: current,
             glyph: _NavGlyph.history,
             label: 'History',
-            onTap: () => context.go('/history'),
+            onTap: navigationLocked ? null : () => context.go('/history'),
           ),
           _BottomItem(
             index: 2,
             selectedIndex: current,
             glyph: _NavGlyph.insights,
             label: 'Insights',
-            onTap: () => context.go('/insights'),
+            onTap: navigationLocked ? null : () => context.go('/insights'),
           ),
         ],
       ),
@@ -735,7 +749,7 @@ class _BottomItem extends StatelessWidget {
   final int selectedIndex;
   final _NavGlyph glyph;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

@@ -1124,6 +1124,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     var pending = birthdate ?? DateTime(1989);
     final picked = await showModalBottomSheet<DateTime>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: RtwColors.paper,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1131,60 +1133,82 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, sheetSetState) {
+            final media = MediaQuery.of(context);
+            final availableSheetHeight =
+                media.size.height - media.viewInsets.bottom - 16;
+            final maxSheetHeight = availableSheetHeight > 0
+                ? availableSheetHeight
+                : media.size.height;
             return SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: RtwColors.borderStrong,
-                          borderRadius: BorderRadius.circular(2),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxSheetHeight),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: RtwColors.borderStrong,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Eyebrow('Date of birth'),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Choose a date',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineLarge!
+                                    .copyWith(fontSize: 28),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Used only for private comparison insights.',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: RtwColors.card,
+                                    border: Border.all(color: RtwColors.border),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: CalendarDatePicker(
+                                    initialDate: pending,
+                                    firstDate: DateTime(1900),
+                                    lastDate: DateTime(2026, 6, 27),
+                                    onDateChanged: (value) {
+                                      sheetSetState(() => pending = value);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Eyebrow('Date of birth'),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Choose a date',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.headlineLarge!.copyWith(fontSize: 28),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Used only for private comparison insights.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: RtwColors.card,
-                        border: Border.all(color: RtwColors.border),
-                        borderRadius: BorderRadius.circular(18),
+                      const SizedBox(height: 18),
+                      RtwButton(
+                        label: 'Use this date',
+                        onPressed: () => Navigator.pop(sheetContext, pending),
                       ),
-                      child: CalendarDatePicker(
-                        initialDate: pending,
-                        firstDate: DateTime(1900),
-                        lastDate: DateTime(2026, 6, 27),
-                        onDateChanged: (value) {
-                          sheetSetState(() => pending = value);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    RtwButton(
-                      label: 'Use this date',
-                      onPressed: () => Navigator.pop(sheetContext, pending),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1288,6 +1312,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return AppScaffold(
       location: '/onboarding',
       showBottomNav: false,
+      navigationLocked: true,
       child: ListView(
         padding: EdgeInsets.fromLTRB(
           24,
