@@ -65,6 +65,12 @@ class RtwController extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _scoreHistoryCache = {};
   final Map<String, Map<String, dynamic>> _resultCache = {};
   String? _boundUid;
+  String? _pendingHandoffQuestionId;
+  String? _pendingHandoffOptionId;
+  int? _pendingHandoffPrediction;
+  String? _postOnboardingRoute;
+  final Map<String, Future<String?>> _handoffRedemptions = {};
+  final Map<String, String?> _redeemedHandoffRoutes = {};
   static const _historyCategoryOrder = [
     'TECHNOLOGY',
     'SCIENCE',
@@ -81,6 +87,17 @@ class RtwController extends ChangeNotifier {
 
   bool get hasTodayQuestion => today.id.isNotEmpty;
   bool get hasHistory => history.isNotEmpty;
+  bool get hasPendingTodaySubmission =>
+      selectedOptionId != null || _pendingHandoffOptionId != null;
+
+  String consumePostOnboardingRoute() {
+    final route = _postOnboardingRoute;
+    _postOnboardingRoute = null;
+    if (route != null && route.startsWith('/') && !route.startsWith('//')) {
+      return route;
+    }
+    return hasPendingTodaySubmission ? '/today/predict' : '/today';
+  }
 
   List<String> get categories {
     final present = history.map((entry) => entry.question.category).toSet();
@@ -190,6 +207,7 @@ class RtwController extends ChangeNotifier {
               lockedToday = false;
               _stopLiveTimer();
             }
+            _applyPendingHandoffAnswer();
             _syncTodayAnswerFromCache();
             notifyListeners();
           },
@@ -477,6 +495,20 @@ class RtwController extends ChangeNotifier {
     _startLiveTimer();
   }
 
+  void _applyPendingHandoffAnswer() {
+    if (_pendingHandoffQuestionId == null ||
+        _pendingHandoffQuestionId != today.id ||
+        _pendingHandoffOptionId == null) {
+      return;
+    }
+    selectedOptionId = _pendingHandoffOptionId;
+    prediction = (_pendingHandoffPrediction ?? prediction).clamp(0, 100);
+    lockedToday = false;
+    _pendingHandoffQuestionId = null;
+    _pendingHandoffOptionId = null;
+    _pendingHandoffPrediction = null;
+  }
+
   void _rebuildHistoryFromCache() {
     if (_resultCache.isEmpty) return;
     final nextHistory =
@@ -603,6 +635,89 @@ class RtwController extends ChangeNotifier {
       lastError = error.toString();
       notifyListeners();
       return hasCompletedDemographics ? '/today' : '/onboarding';
+    }
+  }
+
+  Future<String?> redeemAuthHandoff(
+    String code, {
+    String? fallbackRoute,
+  }) async {
+    final normalizedCode = code.trim().toUpperCase();
+    if (normalizedCode.isEmpty) return null;
+    if (_redeemedHandoffRoutes.containsKey(normalizedCode)) {
+      return _redeemedHandoffRoutes[normalizedCode];
+    }
+    final inFlight = _handoffRedemptions[normalizedCode];
+    if (inFlight != null) return inFlight;
+    final future =
+        _redeemAuthHandoff(normalizedCode, fallbackRoute: fallbackRoute).then((
+          route,
+        ) {
+          if (route != null) _redeemedHandoffRoutes[normalizedCode] = route;
+          return route;
+        });
+    _handoffRedemptions[normalizedCode] = future;
+    future.whenComplete(() => _handoffRedemptions.remove(normalizedCode));
+    return future;
+  }
+
+  Future<String?> _redeemAuthHandoff(
+    String code, {
+    String? fallbackRoute,
+  }) async {
+    lastError = null;
+    if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
+      notifyListeners();
+      return null;
+    }
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('redeemAuthHandoff');
+      final result = await callable.call({'code': code});
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final customToken = _nonEmptyString(data['customToken']);
+      if (customToken == null) {
+        throw StateError('Auth handoff did not return a sign-in token.');
+      }
+      _pendingHandoffQuestionId = _nonEmptyString(data['questionId']);
+      _pendingHandoffOptionId = _nonEmptyString(data['selectedOptionId']);
+      _pendingHandoffPrediction = _intValue(
+        data['predictedShare'],
+        fallback: prediction,
+      );
+      final hasPendingHandoffAnswer =
+          _pendingHandoffQuestionId != null && _pendingHandoffOptionId != null;
+      if (hasPendingHandoffAnswer) {
+        _postOnboardingRoute = '/today/predict';
+      }
+      await FirebaseAuth.instance.signInWithCustomToken(customToken);
+      _applyPendingHandoffAnswer();
+      final completedDemographics = data['hasCompletedDemographics'] == true;
+      if (!completedDemographics) return '/onboarding';
+      if (hasPendingHandoffAnswer) {
+        return '/today/predict';
+      }
+      final targetRoute =
+          _nonEmptyString(data['targetRoute']) ??
+          _nonEmptyString(fallbackRoute) ??
+          '/today';
+      return targetRoute.startsWith('/') && !targetRoute.startsWith('//')
+          ? targetRoute
+          : '/today';
+    } on FirebaseFunctionsException catch (error) {
+      lastError = error.message ?? error.code;
+      notifyListeners();
+      return null;
+    } on FirebaseAuthException catch (error) {
+      lastError = _authMessage(error);
+      notifyListeners();
+      return null;
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return null;
     }
   }
 
@@ -846,6 +961,13 @@ class RtwController extends ChangeNotifier {
       );
       lockedToday = true;
       _startLiveTimer();
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'already-exists') {
+        lockedToday = true;
+        _startLiveTimer();
+      } else {
+        lastError = error.message ?? error.code;
+      }
     } catch (error) {
       lastError = error.toString();
     } finally {

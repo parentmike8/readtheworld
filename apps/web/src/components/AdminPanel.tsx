@@ -448,6 +448,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<AdminFeatureFlag[]>([]);
+  const [resultsQuestionId, setResultsQuestionId] = useState("");
   const [broadcastTitle, setBroadcastTitle] = useState("Today's question is live 🌍");
   const [broadcastBody, setBroadcastBody] = useState("Can you read the world today? Tap to answer and lock your prediction before the reveal.");
   const [broadcastAudience, setBroadcastAudience] = useState<BroadcastAudience>("all");
@@ -472,10 +473,17 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     rows.find((question) => question.status === "live") ?? rows[0] ?? emptyAdminQuestion;
   const nextQuestion =
     nextScheduledQuestion(rows, liveQuestion.dailyKey) ?? (devAdminPreview ? sampleQuestions[1] : emptyAdminQuestion);
-  const focusedResult = overview?.focusResult ?? overview?.results[0] ?? null;
-  const resultsQuestion = focusedResult ? resultAsQuestion(focusedResult) : liveQuestion;
+  const resultsFocusQuestion = resultsQuestionId
+    ? rows.find((question) => question.id === resultsQuestionId) ?? null
+    : null;
+  const focusedResult = resultsFocusQuestion
+    ? resultForQuestion(resultsFocusQuestion.id, overview)
+    : overview?.focusResult ?? overview?.results[0] ?? null;
+  const resultsQuestion = resultsFocusQuestion ?? (focusedResult ? resultAsQuestion(focusedResult) : liveQuestion);
   const liveDonut = donutForQuestion(liveQuestion, overview);
-  const resultDonut = focusedResult ? donutForResult(focusedResult) : liveDonut;
+  const resultDonut = resultsFocusQuestion
+    ? donutForQuestion(resultsFocusQuestion, overview)
+    : focusedResult ? donutForResult(focusedResult) : liveDonut;
   const displayName = user?.displayName || user?.email?.split("@")[0] || "Admin";
   const displayInitial = displayName.trim().slice(0, 1).toUpperCase() || "A";
 
@@ -843,7 +851,11 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             </div>
             <h2 className="adminSerif">{liveQuestion.prompt}</h2>
             <div className="adminHeroActions">
-              <button className="adminBlueButton" onClick={() => setActiveView("results")}>
+              <button className="adminBlueButton" onClick={() => {
+                setResultsQuestionId(liveQuestion.id);
+                void loadOverview(liveQuestion.id);
+                setActiveView("results");
+              }}>
                 View live results
               </button>
               <button onClick={() => {

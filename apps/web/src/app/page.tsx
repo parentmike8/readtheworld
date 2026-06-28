@@ -11,6 +11,13 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  type User,
+} from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -40,6 +47,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const appBaseUrl = "https://app.readtheworld.today";
+
 type LiveQuestion = {
   id: string;
   category: string;
@@ -65,12 +74,12 @@ function predictionWord(value: number) {
 
 export default function Home() {
   const [step, setStep] = useState<"answer" | "predict" | "gate">("answer");
-  const [answer, setAnswer] = useState<string | null>(null);
+  const [answerId, setAnswerId] = useState<string | null>(null);
   const [prediction, setPrediction] = useState(50);
   const [dragging, setDragging] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [footerEmail, setFooterEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [footerSubmitted, setFooterSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState<"" | "gate" | "footer">("");
@@ -78,12 +87,19 @@ export default function Home() {
   const [liveQuestion, setLiveQuestion] = useState<LiveQuestion | null>(null);
   const [recentQuestions, setRecentQuestions] = useState<PublicQuestion[]>([]);
   const [liveCount, setLiveCount] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
+  const [todayAnswer, setTodayAnswer] = useState<{
+    questionId: string;
+    selectedOptionId: string;
+    predictedShare: number;
+  } | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const app = useMemo<FirebaseApp | null>(() => {
     if (!hasFirebaseConfig()) return null;
     return getApps()[0] ?? initializeApp(firebaseConfig);
   }, []);
   const firestore = useMemo(() => (app ? getFirestore(app) : null), [app]);
+  const auth = useMemo(() => (app ? getAuth(app) : null), [app]);
   const functions = useMemo(() => (app ? getFunctions(app, "us-central1") : null), [app]);
 
   useEffect(() => {
@@ -142,10 +158,41 @@ export default function Home() {
     });
   }, [firestore, liveQuestion]);
 
+  useEffect(() => {
+    if (!auth) return undefined;
+    return onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      if (nextUser?.email) setEmail((current) => current || nextUser.email || "");
+    });
+  }, [auth]);
+
+  useEffect(() => {
+    if (!firestore || !user || !liveQuestion) return undefined;
+    return onSnapshot(
+      doc(firestore, "users", user.uid, "answers", liveQuestion.id),
+      (snapshot) => {
+        const data = snapshot.data();
+        if (!snapshot.exists() || !data) {
+          setTodayAnswer(null);
+          return;
+        }
+        const predictedShare = Number(data.predictedShare ?? 0);
+        setTodayAnswer({
+          questionId: liveQuestion.id,
+          selectedOptionId: String(data.selectedOptionId ?? ""),
+          predictedShare: Number.isFinite(predictedShare) ? predictedShare : 0,
+        });
+      },
+    );
+  }, [firestore, user, liveQuestion]);
+
   const predictPrompt = useMemo(
-    () => `What share of people also answered "${answer ?? "Yes"}"?`,
-    [answer],
+    () => `What share of people also answered "${selectedAnswerLabel(liveQuestion, answerId) ?? "Yes"}"?`,
+    [answerId, liveQuestion],
   );
+  const playedToday = Boolean(user && liveQuestion && todayAnswer?.questionId === liveQuestion.id && todayAnswer.selectedOptionId);
+  const navCtaLabel = !user ? "Log in" : playedToday ? "Enter app" : "Play today";
+  const submittedAnswerLabel = selectedAnswerLabel(liveQuestion, todayAnswer?.selectedOptionId ?? null);
 
   function setPredictionFromPointer(clientX: number) {
     const element = trackRef.current;
@@ -156,10 +203,99 @@ export default function Home() {
   }
 
   function pick(next: string) {
-    setAnswer(next);
+    setAnswerId(next);
     setStep("predict");
-    setSubmitted(false);
     setSubmitError("");
+  }
+
+  async function signInOrCreateLandingUser(normalizedEmail: string, nextPassword: string) {
+    if (!auth) throw new Error("Live authentication is unavailable.");
+    try {
+      return await signInWithEmailAndPassword(auth, normalizedEmail, nextPassword);
+    } catch (signInError) {
+      if (!(signInError instanceof FirebaseError)) throw signInError;
+      if (!["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(signInError.code)) {
+        throw signInError;
+      }
+      try {
+        return await createUserWithEmailAndPassword(auth, normalizedEmail, nextPassword);
+      } catch (createError) {
+        if (createError instanceof FirebaseError && createError.code === "auth/email-already-in-use") {
+          throw new Error("Email or password was not recognized.");
+        }
+        throw createError;
+      }
+    }
+  }
+
+  async function createAppHandoff(targetRoute: string, pending?: {
+    questionId: string;
+    selectedOptionId: string;
+    predictedShare: number;
+  }) {
+    if (!functions) return `${appBaseUrl}${targetRoute}`;
+    const callable = httpsCallable(functions, "createAuthHandoff");
+    const result = await callable({
+      targetRoute,
+      ...(pending ?? {}),
+    });
+    const data = result.data as { code?: unknown };
+    const code = typeof data.code === "string" ? data.code : "";
+    if (!code) throw new Error("Could not create app handoff.");
+    const params = new URLSearchParams({ handoff: code, next: targetRoute });
+    return `${appBaseUrl}/auth?${params.toString()}`;
+  }
+
+  async function enterApp(targetRoute: string) {
+    if (!user) {
+      window.location.href = `${appBaseUrl}/auth`;
+      return;
+    }
+    setSubmitting("gate");
+    setSubmitError("");
+    try {
+      window.location.href = await createAppHandoff(targetRoute);
+    } catch (error) {
+      setSubmitError(error instanceof FirebaseError ? error.message : String(error));
+      setSubmitting("");
+    }
+  }
+
+  async function completeLandingPlay() {
+    if (!liveQuestion || !answerId) {
+      setSubmitError("Choose an answer first.");
+      return;
+    }
+
+    setSubmitError("");
+    setSubmitting("gate");
+    try {
+      if (!user) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedPassword = password;
+        if (!normalizedEmail.includes("@")) {
+          setSubmitError("Enter a valid email address.");
+          setSubmitting("");
+          return;
+        }
+        if (normalizedPassword.length < 6) {
+          setSubmitError("Enter your password.");
+          setSubmitting("");
+          return;
+        }
+        await signInOrCreateLandingUser(normalizedEmail, normalizedPassword);
+      }
+      const destination = await createAppHandoff("/today/predict", {
+        questionId: liveQuestion.id,
+        selectedOptionId: answerId,
+        predictedShare: prediction,
+      });
+      window.location.href = destination;
+    } catch (error) {
+      const message = error instanceof FirebaseError ? authErrorMessage(error) : String(error);
+      setSubmitError(message);
+      setSubmitting("");
+    }
   }
 
   async function submitWaitlist(nextEmail: string, source: "landing_gate" | "landing_footer") {
@@ -180,7 +316,7 @@ export default function Home() {
       await callable({
         email: normalizedEmail,
         source,
-        answer,
+        answer: selectedAnswerLabel(liveQuestion, answerId),
         predictedShare: prediction,
       });
       return true;
@@ -207,12 +343,24 @@ export default function Home() {
             <a href="#faq">FAQ</a>
           </nav>
           <div className="lpNavActions">
-            <a className="lpHideMobile" href="https://app.readtheworld.today/auth">
-              Log in
-            </a>
-            <a className="darkButton" href="#play">
-              Play today {"\u2192"}
-            </a>
+            {user ? (
+              <button
+                className="textNavButton lpHideMobile"
+                type="button"
+                onClick={() => enterApp("/account")}
+                disabled={submitting === "gate"}
+              >
+                Account
+              </button>
+            ) : null}
+            <button
+              className="darkButton"
+              type="button"
+              onClick={() => enterApp(!user ? "/auth" : playedToday ? "/history" : "/today")}
+              disabled={submitting === "gate"}
+            >
+              {navCtaLabel} {"\u2192"}
+            </button>
           </div>
         </div>
       </header>
@@ -241,14 +389,28 @@ export default function Home() {
             </div>
             <h2 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h2>
 
-            {step === "answer" ? (
+            {playedToday ? (
+              <div className="submittedState">
+                <div>
+                  <span>{"\u2713"}</span>
+                  <strong>Your read is locked.</strong>
+                </div>
+                <p>
+                  You answered {submittedAnswerLabel ?? "today"} and predicted {todayAnswer?.predictedShare ?? "--"}%.
+                  Come back after the reveal to see how close you were.
+                </p>
+                <button className="blueButton" onClick={() => enterApp("/history")} disabled={submitting === "gate"}>
+                  Enter app {"\u2192"}
+                </button>
+              </div>
+            ) : step === "answer" ? (
               <div className="answerStep">
                 <p>First, where do you stand?</p>
                 {(liveQuestion?.options ?? []).map((option) => (
                   <button
                     key={option.id}
-                    className={answer === option.label ? "selected" : ""}
-                    onClick={() => pick(option.label)}
+                    className={answerId === option.id ? "selected" : ""}
+                    onClick={() => pick(option.id)}
                   >
                     {option.label}
                   </button>
@@ -291,48 +453,55 @@ export default function Home() {
               </div>
             ) : null}
 
-            {step === "gate" ? (
+	            {step === "gate" ? (
               <div className="gateStep">
                 <div className="gateBox">
                   <div>
-                    <span>Your answer &middot; {answer}</span>
+                    <span>Your answer &middot; {selectedAnswerLabel(liveQuestion, answerId)}</span>
                     <span>Your read &middot; {prediction}%</span>
                   </div>
                   <p>
-                    The world&apos;s answer unlocks tomorrow. Create a free account to
-                    lock your prediction and start your streak.
+                    The world&apos;s answer unlocks tomorrow. Create a free account or sign in
+                    to carry this read into the app.
                   </p>
                 </div>
-                {!submitted ? (
-                  <>
-                    <div className="gateForm">
-                      <input
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        placeholder="you@email.com"
-                        type="email"
-                      />
-                      <button
-                        disabled={submitting === "gate"}
-                        onClick={async () => {
-                          const ok = await submitWaitlist(email, "landing_gate");
-                          if (ok) setSubmitted(true);
-                        }}
-                      >
-                        {submitting === "gate" ? "Saving..." : "Lock it in"}
-                      </button>
-                    </div>
-                    {submitError ? <p className="formError">{submitError}</p> : null}
-                    <button className="ghostButton left" onClick={() => setStep("predict")}>
-                      {"\u2190"} Change my prediction
+                {user ? (
+                  <div className="gateForm accountGate">
+                    <button
+                      disabled={submitting === "gate"}
+                      onClick={completeLandingPlay}
+                    >
+                      {submitting === "gate" ? "Opening app..." : `Continue as ${user.email ?? "this account"}`}
                     </button>
-                  </>
+                  </div>
                 ) : (
-                  <div className="successBox">
-                    <span>{"\u2713"}</span>
-                    <p>You&apos;re in. Come back tomorrow for the reveal and your first Read Score.</p>
+                  <div className="gateForm stacked">
+                    <input
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@email.com"
+                      type="email"
+                      autoComplete="email"
+                    />
+                    <input
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Password"
+                      type="password"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      disabled={submitting === "gate"}
+                      onClick={completeLandingPlay}
+                    >
+                      {submitting === "gate" ? "Opening app..." : "Continue"}
+                    </button>
                   </div>
                 )}
+                {submitError ? <p className="formError">{submitError}</p> : null}
+                <button className="ghostButton left" onClick={() => setStep("predict")}>
+                  {"\u2190"} Change my prediction
+                </button>
               </div>
             ) : null}
           </section>
@@ -495,4 +664,27 @@ export default function Home() {
       </footer>
     </main>
   );
+}
+
+function selectedAnswerLabel(question: LiveQuestion | null, optionId: string | null) {
+  if (!question || !optionId) return null;
+  return question.options.find((option) => option.id === optionId)?.label ?? optionId;
+}
+
+function authErrorMessage(error: FirebaseError) {
+  switch (error.code) {
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/weak-password":
+      return "Use a stronger password.";
+    case "auth/email-already-in-use":
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "Email or password was not recognized.";
+    case "auth/network-request-failed":
+      return "Network error. Try again.";
+    default:
+      return error.message;
+  }
 }

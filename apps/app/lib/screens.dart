@@ -420,8 +420,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool creating = false;
   bool obscure = true;
   bool authBusy = false;
+  bool handoffStarted = false;
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final email = Uri.base.queryParameters['email'];
+    if (email != null && email.isNotEmpty) {
+      emailController.text = email;
+    }
+    final handoffCode = Uri.base.queryParameters['handoff'];
+    if (handoffCode != null && handoffCode.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _redeemHandoff(handoffCode.trim());
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -437,6 +453,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final route = ok
         ? await ref.read(rtwControllerProvider).postAuthRoute()
         : null;
+    if (!mounted) return;
+    setState(() => authBusy = false);
+    if (route != null) context.go(route);
+  }
+
+  Future<void> _redeemHandoff(String code) async {
+    if (handoffStarted || authBusy) return;
+    setState(() {
+      handoffStarted = true;
+      authBusy = true;
+    });
+    final route = await ref
+        .read(rtwControllerProvider)
+        .redeemAuthHandoff(
+          code,
+          fallbackRoute: Uri.base.queryParameters['next'],
+        );
     if (!mounted) return;
     setState(() => authBusy = false);
     if (route != null) context.go(route);
@@ -488,49 +521,62 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return Scaffold(
         backgroundColor: RtwColors.paper,
         body: SafeArea(
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: Scrollbar(
-              thumbVisibility: true,
-              interactive: true,
-              notificationPredicate: (notification) =>
-                  notification.depth == 0 &&
-                  notification.metrics.axis == Axis.vertical,
-              child: SingleChildScrollView(
-                child: Center(
-                  child: Container(
-                    width: 1000,
-                    height: 640,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x2928241C),
-                          blurRadius: 60,
-                          offset: Offset(0, 24),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        _AuthBrandPanel(creating: creating),
-                        Expanded(
-                          child: ColoredBox(
-                            color: RtwColors.paper,
-                            child: Center(
-                              child: SizedBox(width: 380, child: authForm()),
-                            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final panelWidth = math.min(1000.0, constraints.maxWidth - 48);
+              return ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  interactive: true,
+                  notificationPredicate: (notification) =>
+                      notification.depth == 0 &&
+                      notification.metrics.axis == Axis.vertical,
+                  child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: panelWidth,
+                          height: 640,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x2928241C),
+                                blurRadius: 60,
+                                offset: Offset(0, 24),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _AuthBrandPanel(creating: creating),
+                              Expanded(
+                                child: ColoredBox(
+                                  color: RtwColors.paper,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 380,
+                                      child: authForm(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       );
@@ -1379,15 +1425,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 label: _editingAbout ? 'Save changes' : 'Finish setup',
                 icon: Icons.arrow_forward,
                 onPressed: () async {
-                  await ref
-                      .read(rtwControllerProvider)
-                      .saveDemographics(
-                        birthdate: birthdate,
-                        gender: gender,
-                        country: country,
-                      );
+                  final controller = ref.read(rtwControllerProvider);
+                  await controller.saveDemographics(
+                    birthdate: birthdate,
+                    gender: gender,
+                    country: country,
+                  );
                   if (!context.mounted) return;
-                  context.go(_editingAbout ? '/account' : '/today');
+                  context.go(
+                    _editingAbout
+                        ? '/account'
+                        : controller.consumePostOnboardingRoute(),
+                  );
                 },
               )
             else

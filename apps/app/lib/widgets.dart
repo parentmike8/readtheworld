@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -444,7 +445,7 @@ class SectionRule extends StatelessWidget {
   }
 }
 
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends StatefulWidget {
   const AppScaffold({
     super.key,
     required this.child,
@@ -461,16 +462,38 @@ class AppScaffold extends StatelessWidget {
   final bool navigationLocked;
 
   @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  final ScrollController _primaryScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _primaryScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isWide = size.width >= 820;
     final mobileWidth = math.min(size.width, 393.0);
+    final constrainedChild = isWide
+        ? Center(
+            child: SizedBox(width: widget.maxWidth, child: widget.child),
+          )
+        : SizedBox(width: mobileWidth, child: widget.child);
     final appSurface = ColoredBox(
       color: RtwColors.paper,
-      child: SizedBox(width: isWide ? maxWidth : mobileWidth, child: child),
+      child: SizedBox(
+        width: isWide ? double.infinity : mobileWidth,
+        child: constrainedChild,
+      ),
     );
     final expandedBody = _AppBodySurface(
       isWide: isWide,
+      scrollController: _primaryScrollController,
       appSurface: appSurface,
     );
     return Scaffold(
@@ -482,22 +505,39 @@ class AppScaffold extends StatelessWidget {
         child: Column(
           children: [
             if (isWide)
-              _TopNav(location: location, navigationLocked: navigationLocked),
-            Expanded(child: expandedBody),
+              _TopNav(
+                location: widget.location,
+                navigationLocked: widget.navigationLocked,
+              ),
+            Expanded(
+              child: PrimaryScrollController(
+                controller: _primaryScrollController,
+                automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+                child: expandedBody,
+              ),
+            ),
           ],
         ),
       ),
-      bottomNavigationBar: isWide || !showBottomNav
+      bottomNavigationBar: isWide || !widget.showBottomNav
           ? null
-          : _BottomNav(location: location, navigationLocked: navigationLocked),
+          : _BottomNav(
+              location: widget.location,
+              navigationLocked: widget.navigationLocked,
+            ),
     );
   }
 }
 
 class _AppBodySurface extends StatelessWidget {
-  const _AppBodySurface({required this.isWide, required this.appSurface});
+  const _AppBodySurface({
+    required this.isWide,
+    required this.scrollController,
+    required this.appSurface,
+  });
 
   final bool isWide;
+  final ScrollController scrollController;
   final Widget appSurface;
 
   @override
@@ -511,15 +551,29 @@ class _AppBodySurface extends StatelessWidget {
 
     if (!kIsWeb || !isWide) return alignedSurface;
 
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: Scrollbar(
-        thumbVisibility: true,
-        interactive: true,
-        notificationPredicate: (notification) =>
-            notification.depth == 0 &&
-            notification.metrics.axis == Axis.vertical,
-        child: alignedSurface,
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerSignal: (event) {
+        if (event is! PointerScrollEvent) return;
+        if (!scrollController.hasClients) return;
+        final position = scrollController.positions.last;
+        if (!position.hasContentDimensions) return;
+        final nextOffset = (position.pixels + event.scrollDelta.dy).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+        position.jumpTo(nextOffset);
+      },
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: Scrollbar(
+          thumbVisibility: true,
+          interactive: true,
+          notificationPredicate: (notification) =>
+              notification.depth == 0 &&
+              notification.metrics.axis == Axis.vertical,
+          child: alignedSurface,
+        ),
       ),
     );
   }

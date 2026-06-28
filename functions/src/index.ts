@@ -80,6 +80,7 @@ const APP_URL = "https://app.readtheworld.today";
 const MARKETING_URL = "https://readtheworld.today";
 const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
+const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
 
 class ShortCodeCollisionError extends Error {}
 
@@ -118,6 +119,14 @@ type NotificationPayload = {
   body: string;
   route: string;
   type: string;
+};
+
+type AuthHandoffPayload = {
+  uid: string;
+  questionId: string | null;
+  selectedOptionId: string | null;
+  predictedShare: number | null;
+  targetRoute: string;
 };
 
 let featureFlagCache:
@@ -222,6 +231,23 @@ function assertNotificationRoute(value: unknown): string {
   const route = assertString(value ?? "/today", "route");
   if (!route.startsWith("/") || route.startsWith("//") || route.length > 120) {
     throw new HttpsError("invalid-argument", "route must be a relative app path.");
+  }
+  return route;
+}
+
+function assertAppRoute(value: unknown, fallback = "/today"): string {
+  const route = assertNotificationRoute(value ?? fallback);
+  if (![
+    "/auth",
+    "/onboarding",
+    "/today",
+    "/today/predict",
+    "/today/locked",
+    "/history",
+    "/insights",
+    "/account",
+  ].some((path) => route === path || route.startsWith(`${path}/`))) {
+    throw new HttpsError("invalid-argument", "targetRoute is not an allowed app path.");
   }
   return route;
 }
@@ -343,6 +369,31 @@ async function createShortLink(input: ShortLinkCreateInput): Promise<{
   throw new HttpsError("resource-exhausted", "Could not reserve a short code.");
 }
 
+async function createAuthHandoffDocument(input: AuthHandoffPayload): Promise<string> {
+  const expiresAt = Timestamp.fromMillis(Date.now() + AUTH_HANDOFF_TTL_MS);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = randomCode(12);
+    try {
+      await db.runTransaction(async (tx) => {
+        const ref = db.collection("authHandoffs").doc(code);
+        const snap = await tx.get(ref);
+        if (snap.exists) throw new ShortCodeCollisionError();
+        tx.create(ref, {
+          ...input,
+          status: "active",
+          expiresAt,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      });
+      return code;
+    } catch (error) {
+      if (error instanceof ShortCodeCollisionError) continue;
+      throw error;
+    }
+  }
+  throw new HttpsError("resource-exhausted", "Could not reserve an auth handoff.");
+}
+
 function expiresAtTimestamp(type: ShortLinkType): Timestamp {
   return Timestamp.fromDate(shortLinkExpiresAt(type));
 }
@@ -393,6 +444,18 @@ function timestampMillis(value?: Timestamp): number | null {
 
 function timestampIso(value: unknown): string | null {
   return value instanceof Timestamp ? value.toDate().toISOString() : null;
+}
+
+function hasCompletedDemographics(data: Record<string, unknown> | undefined): boolean {
+  const demographics = data?.demographics;
+  if (!demographics || typeof demographics !== "object") return false;
+  const fields = demographics as Record<string, unknown>;
+  return typeof fields.birthdate === "string" &&
+    fields.birthdate.trim().length > 0 &&
+    typeof fields.gender === "string" &&
+    fields.gender.trim().length > 0 &&
+    typeof fields.country === "string" &&
+    fields.country.trim().length > 0;
 }
 
 function numericRecord(value: unknown): Record<string, number> {
@@ -1214,6 +1277,123 @@ export const submitPrediction = onCall(async (request) => {
   });
 
   return result;
+});
+
+export const createAuthHandoff = onCall(async (request) => {
+  const uid = requireUid(request.auth);
+  const targetRoute = assertAppRoute(request.data?.targetRoute, "/today");
+  const rawQuestionId = typeof request.data?.questionId === "string"
+    ? request.data.questionId.trim()
+    : "";
+  const rawSelectedOptionId = typeof request.data?.selectedOptionId === "string"
+    ? request.data.selectedOptionId.trim()
+    : "";
+  const rawPredictedShare = request.data?.predictedShare;
+
+  let questionId: string | null = null;
+  let selectedOptionId: string | null = null;
+  let predictedShare: number | null = null;
+
+  if (rawQuestionId || rawSelectedOptionId || rawPredictedShare != null) {
+    questionId = assertString(rawQuestionId, "questionId");
+    selectedOptionId = assertString(rawSelectedOptionId, "selectedOptionId");
+    predictedShare = assertPrediction(rawPredictedShare);
+    const questionSnap = await db.collection("questions").doc(questionId).get();
+    if (!questionSnap.exists) {
+      throw new HttpsError("not-found", "Question not found.");
+    }
+    const question = questionSnap.data() as Question;
+    if (question.status !== "live") {
+      throw new HttpsError("failed-precondition", "This question is not live.");
+    }
+    if (!question.options.some((option) => option.id === selectedOptionId)) {
+      throw new HttpsError("invalid-argument", "Selected option is not valid for this question.");
+    }
+  }
+
+  const [authUser, userSnap] = await Promise.all([
+    getAuth().getUser(uid),
+    db.collection("users").doc(uid).get(),
+  ]);
+  const userData = userSnap.data();
+  await db.collection("users").doc(uid).set({
+    ...missingUserProgressDefaults(userData),
+    ...(!userSnap.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+    ...(!userSnap.exists || typeof userData?.email !== "string"
+      ? { email: authUser.email ?? null }
+      : {}),
+    ...(!userSnap.exists || typeof userData?.displayName !== "string"
+      ? { displayName: authUser.displayName ?? authUser.email?.split("@")[0] ?? "Reader" }
+      : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  const code = await createAuthHandoffDocument({
+    uid,
+    questionId,
+    selectedOptionId,
+    predictedShare,
+    targetRoute,
+  });
+  return {
+    code,
+    appUrl: `${APP_URL}/auth?handoff=${encodeURIComponent(code)}`,
+    expiresInSeconds: Math.floor(AUTH_HANDOFF_TTL_MS / 1000),
+  };
+});
+
+export const redeemAuthHandoff = onCall(async (request) => {
+  const code = assertString(request.data?.code, "code").toUpperCase();
+  let payload: AuthHandoffPayload | null = null;
+
+  await db.runTransaction(async (tx) => {
+    const ref = db.collection("authHandoffs").doc(code);
+    const snap = await tx.get(ref);
+    const data = snap.data() ?? {};
+    if (!snap.exists || !["active", "redeemed"].includes(String(data.status ?? ""))) {
+      throw new HttpsError("not-found", "Auth handoff not found.");
+    }
+    const expiresAt = timestampDate(data.expiresAt);
+    if (expiresAt == null || expiresAt.getTime() <= Date.now()) {
+      throw new HttpsError("deadline-exceeded", "Auth handoff has expired.");
+    }
+    const uid = String(data.uid ?? "");
+    if (!uid) {
+      throw new HttpsError("failed-precondition", "Auth handoff is invalid.");
+    }
+    payload = {
+      uid,
+      questionId: typeof data.questionId === "string" ? data.questionId : null,
+      selectedOptionId: typeof data.selectedOptionId === "string" ? data.selectedOptionId : null,
+      predictedShare: typeof data.predictedShare === "number" ? data.predictedShare : null,
+      targetRoute: typeof data.targetRoute === "string" ? data.targetRoute : "/today",
+    };
+    if (data.status === "active") {
+      tx.set(ref, {
+        status: "redeemed",
+        redeemedAt: FieldValue.serverTimestamp(),
+        lastRedeemedAt: FieldValue.serverTimestamp(),
+        redeemAttempts: FieldValue.increment(1),
+      }, { merge: true });
+    }
+  });
+
+  if (payload == null) {
+    throw new HttpsError("not-found", "Auth handoff not found.");
+  }
+  const redeemedPayload = payload as AuthHandoffPayload;
+  const userSnap = await db.collection("users").doc(redeemedPayload.uid).get();
+  const customToken = await getAuth().createCustomToken(redeemedPayload.uid, {
+    source: "landing_handoff",
+  });
+  return {
+    customToken,
+    questionId: redeemedPayload.questionId,
+    selectedOptionId: redeemedPayload.selectedOptionId,
+    predictedShare: redeemedPayload.predictedShare,
+    targetRoute: redeemedPayload.targetRoute,
+    hasCompletedDemographics: hasCompletedDemographics(userSnap.data()),
+  };
 });
 
 export const savePracticeAnswer = onCall(async (request) => {
