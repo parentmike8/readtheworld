@@ -467,6 +467,10 @@ class AppScaffold extends StatelessWidget {
       color: RtwColors.paper,
       child: SizedBox(width: isWide ? maxWidth : mobileWidth, child: child),
     );
+    final expandedBody = _AppBodySurface(
+      isWide: isWide,
+      appSurface: appSurface,
+    );
     return Scaffold(
       backgroundColor: kIsWeb && !isWide
           ? RtwColors.deviceBackdrop
@@ -476,22 +480,44 @@ class AppScaffold extends StatelessWidget {
         child: Column(
           children: [
             if (isWide) _TopNav(location: location),
-            Expanded(
-              child: Align(
-                alignment: kIsWeb && !isWide
-                    ? Alignment.topCenter
-                    : isWide
-                    ? Alignment.topCenter
-                    : Alignment.topLeft,
-                child: appSurface,
-              ),
-            ),
+            Expanded(child: expandedBody),
           ],
         ),
       ),
       bottomNavigationBar: isWide || !showBottomNav
           ? null
           : _BottomNav(location: location),
+    );
+  }
+}
+
+class _AppBodySurface extends StatelessWidget {
+  const _AppBodySurface({required this.isWide, required this.appSurface});
+
+  final bool isWide;
+  final Widget appSurface;
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = kIsWeb && !isWide
+        ? Alignment.topCenter
+        : isWide
+        ? Alignment.topCenter
+        : Alignment.topLeft;
+    final alignedSurface = Align(alignment: alignment, child: appSurface);
+
+    if (!kIsWeb || !isWide) return alignedSurface;
+
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: Scrollbar(
+        thumbVisibility: true,
+        interactive: true,
+        notificationPredicate: (notification) =>
+            notification.depth == 0 &&
+            notification.metrics.axis == Axis.vertical,
+        child: alignedSurface,
+      ),
     );
   }
 }

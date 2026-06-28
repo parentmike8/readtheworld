@@ -485,34 +485,46 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return Scaffold(
         backgroundColor: RtwColors.paper,
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: Container(
-                width: 1000,
-                height: 640,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x2928241C),
-                      blurRadius: 60,
-                      offset: Offset(0, 24),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    _AuthBrandPanel(creating: creating),
-                    Expanded(
-                      child: ColoredBox(
-                        color: RtwColors.paper,
-                        child: Center(
-                          child: SizedBox(width: 380, child: authForm()),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: Scrollbar(
+              thumbVisibility: true,
+              interactive: true,
+              notificationPredicate: (notification) =>
+                  notification.depth == 0 &&
+                  notification.metrics.axis == Axis.vertical,
+              child: SingleChildScrollView(
+                child: Center(
+                  child: Container(
+                    width: 1000,
+                    height: 640,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x2928241C),
+                          blurRadius: 60,
+                          offset: Offset(0, 24),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        _AuthBrandPanel(creating: creating),
+                        Expanded(
+                          child: ColoredBox(
+                            color: RtwColors.paper,
+                            child: Center(
+                              child: SizedBox(width: 380, child: authForm()),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
