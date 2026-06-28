@@ -465,13 +465,13 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const functions = app ? getFunctions(app, "us-central1") : null;
   const adminUnlocked = state === "authorized" || devAdminPreview;
   const overviewQuestions = overview?.questions ?? [];
-  const liveRows = questions.length > 0 ? questions : overviewQuestions;
+  const liveRows = mergeAdminQuestions(overviewQuestions, questions);
   const rows = liveRows.length > 0 ? liveRows : devAdminPreview ? sampleQuestions : [];
   const scheduleRows = devAdminPreview && questions.length === 0 ? calendarPreviewQuestions(rows) : rows;
   const liveQuestion =
     rows.find((question) => question.status === "live") ?? rows[0] ?? emptyAdminQuestion;
   const nextQuestion =
-    rows.find((question) => question.status === "scheduled") ?? (devAdminPreview ? sampleQuestions[1] : emptyAdminQuestion);
+    nextScheduledQuestion(rows, liveQuestion.dailyKey) ?? (devAdminPreview ? sampleQuestions[1] : emptyAdminQuestion);
   const focusedResult = overview?.focusResult ?? overview?.results[0] ?? null;
   const resultsQuestion = focusedResult ? resultAsQuestion(focusedResult) : liveQuestion;
   const liveDonut = donutForQuestion(liveQuestion, overview);
@@ -569,7 +569,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
 
   useEffect(() => {
     if (!firestore || state !== "authorized" || devAdminPreview) return;
-    const questionsQuery = query(collection(firestore, "questions"), orderBy("dailyKey", "desc"), limit(30));
+    const questionsQuery = query(collection(firestore, "questions"), orderBy("dailyKey", "desc"), limit(120));
     return onSnapshot(
       questionsQuery,
       (snapshot) => {
@@ -1654,6 +1654,35 @@ function sourceOrderedLibraryRows(rows: AdminQuestion[]) {
   return sourceOrder
     .map((id) => rows.find((question) => question.id === id))
     .filter((question): question is AdminQuestion => Boolean(question));
+}
+
+function mergeAdminQuestions(...groups: AdminQuestion[][]) {
+  const byId = new Map<string, AdminQuestion>();
+  for (const group of groups) {
+    for (const question of group) {
+      if (!question.id) continue;
+      byId.set(question.id, {
+        ...(byId.get(question.id) ?? {}),
+        ...question,
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => compareDailyKeysDesc(a.dailyKey, b.dailyKey));
+}
+
+function nextScheduledQuestion(rows: AdminQuestion[], currentDailyKey: string) {
+  return rows
+    .filter((question) => question.status === "scheduled")
+    .sort((a, b) => compareDailyKeysAsc(a.dailyKey, b.dailyKey))
+    .find((question) => !currentDailyKey || question.dailyKey > currentDailyKey) ?? null;
+}
+
+function compareDailyKeysDesc(a: string, b: string) {
+  return compareDailyKeysAsc(b, a);
+}
+
+function compareDailyKeysAsc(a: string, b: string) {
+  return (a || "9999-99-99").localeCompare(b || "9999-99-99");
 }
 
 function questionFromSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): AdminQuestion {
