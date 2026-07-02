@@ -282,45 +282,73 @@ class _TierSegment extends StatelessWidget {
   }
 }
 
-class _CategoryChips extends StatelessWidget {
+class _CategoryChips extends StatefulWidget {
   const _CategoryChips({required this.selected, required this.onToggle});
 
   final List<String> selected;
   final ValueChanged<String> onToggle;
 
   @override
+  State<_CategoryChips> createState() => _CategoryChipsState();
+}
+
+class _CategoryChipsState extends State<_CategoryChips> {
+  // Most rooms keep 'All' — the full grid only unfolds on request, or when
+  // a room already has a narrowed selection to show.
+  late bool _expanded = !widget.selected.contains('All');
+
+  Widget _chip(String label, {required bool on, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: v2Sans(
+            13,
+            color: on ? RtwV2Colors.blueTextDeep : RtwV2Colors.subText,
+            weight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final allOn = selected.contains('All');
+    final allOn = widget.selected.contains('All');
+    if (!_expanded) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _chip('All', on: allOn, onTap: () => widget.onToggle('All')),
+          _chip(
+            'Choose topics →',
+            on: false,
+            onTap: () => setState(() => _expanded = true),
+          ),
+        ],
+      );
+    }
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final cat in ['All', ...roomCategoryOptions])
-          Builder(builder: (context) {
-            final on = cat == 'All' ? allOn : (!allOn && selected.contains(cat));
-            return GestureDetector(
-              onTap: () => onToggle(cat),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
-                    width: 1.5,
-                  ),
-                ),
-                child: Text(
-                  cat,
-                  style: v2Sans(
-                    13,
-                    color: on ? RtwV2Colors.blueTextDeep : RtwV2Colors.subText,
-                    weight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            );
-          }),
+          _chip(
+            cat,
+            on: cat == 'All' ? allOn : (!allOn && widget.selected.contains(cat)),
+            onTap: () => widget.onToggle(cat),
+          ),
       ],
     );
   }

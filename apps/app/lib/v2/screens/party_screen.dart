@@ -119,38 +119,7 @@ class _Setup extends ConsumerWidget {
           const SizedBox(height: 24),
           const V2Eyebrow('Topic'),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final tag in topics)
-                Builder(builder: (context) {
-                  final on = party.topic == tag;
-                  return GestureDetector(
-                    onTap: () => party.setTopic(tag),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Text(
-                        tag == 'All' ? 'All topics' : tag,
-                        style: v2Sans(
-                          14,
-                          color: on ? RtwV2Colors.blueTextDeep : RtwV2Colors.subText,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-            ],
-          ),
+          _TopicChips(party: party, topics: topics),
           const SizedBox(height: 24),
           const V2Eyebrow('Rounds'),
           const SizedBox(height: 12),
@@ -233,6 +202,81 @@ class _Setup extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Topic picker: collapsed to "All topics" + an expander by default — the
+/// full tag grid is a lot of chrome for a default most players keep.
+class _TopicChips extends StatefulWidget {
+  const _TopicChips({required this.party, required this.topics});
+
+  final PartyController party;
+  final List<String> topics;
+
+  @override
+  State<_TopicChips> createState() => _TopicChipsState();
+}
+
+class _TopicChipsState extends State<_TopicChips> {
+  late bool _expanded = widget.party.topic != 'All';
+
+  Widget _chip(String label, {required bool on, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: v2Sans(
+            14,
+            color: on ? RtwV2Colors.blueTextDeep : RtwV2Colors.subText,
+            weight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_expanded) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _chip(
+            'All topics',
+            on: widget.party.topic == 'All',
+            onTap: () => widget.party.setTopic('All'),
+          ),
+          _chip(
+            'Choose a topic →',
+            on: false,
+            onTap: () => setState(() => _expanded = true),
+          ),
+        ],
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final tag in widget.topics)
+          _chip(
+            tag == 'All' ? 'All topics' : tag,
+            on: widget.party.topic == tag,
+            onTap: () => widget.party.setTopic(tag),
+          ),
+      ],
     );
   }
 }

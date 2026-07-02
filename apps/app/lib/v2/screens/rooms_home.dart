@@ -286,10 +286,15 @@ class _WorldHero extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 8),
+                  // Full-width, opaque hit target — the text alone was a
+                  // frustratingly small tap area.
                   GestureDetector(
                     onTap: () => showInviteSheet(context, rooms, worldRoomId),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      alignment: Alignment.center,
                       child: Text(
                         'Invite friends to help unlock predicting',
                         textAlign: TextAlign.center,
