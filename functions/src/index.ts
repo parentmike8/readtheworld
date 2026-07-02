@@ -2827,14 +2827,17 @@ async function closeRoomDay(
     }
   }
 
-  const memberRefs = [...picksByUid.keys()].map(
-    (uid) => roomRef(roomId).collection("members").doc(uid),
-  );
-  const memberSnaps = memberRefs.length > 0 ? await db.getAll(...memberRefs) : [];
-  const memberDataByUid = new Map<string, DocumentData>();
-  memberSnaps.forEach((snap) => {
-    if (snap.exists) memberDataByUid.set(snap.id, snap.data() ?? {});
+  // All members, not just answerers — ranks below cover the whole room.
+  const allMemberSnaps = await roomRef(roomId).collection("members").get();
+  const allMemberDataByUid = new Map<string, DocumentData>();
+  allMemberSnaps.docs.forEach((snap) => {
+    allMemberDataByUid.set(snap.id, snap.data() ?? {});
   });
+  const memberDataByUid = new Map<string, DocumentData>();
+  for (const uid of picksByUid.keys()) {
+    const data = allMemberDataByUid.get(uid);
+    if (data) memberDataByUid.set(uid, data);
+  }
 
   const results: RoomMemberDayResult[] = [];
   const accuracyByUid = new Map<string, Map<string, number>>();
@@ -2888,6 +2891,22 @@ async function closeRoomDay(
       scoredAt: FieldValue.serverTimestamp(),
     }, { merge: true }));
   }
+
+  // Standings across the whole room by post-delta score (prototype room
+  // cards show "Rank #N"). Ties share the higher rank via score ordering.
+  const standings = [...allMemberDataByUid.entries()]
+    .map(([uid, data]) => ({
+      uid,
+      score: Number(data.roomScore ?? 0) + (deltaByUid.get(uid)?.delta ?? 0),
+    }))
+    .sort((a, b) => b.score - a.score);
+  standings.forEach((standing, index) => {
+    const memberDocRef = roomRef(roomId).collection("members").doc(standing.uid);
+    writes.push((batch) => batch.set(memberDocRef, {
+      rank: index + 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  });
 
   const questionResults = activeQids.map((qid) => {
     const counts = sideCounts.get(qid) ?? { a: 0, b: 0 };

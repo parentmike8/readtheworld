@@ -109,7 +109,12 @@ class RoomsController extends ChangeNotifier {
   bool submitting = false;
   bool loadingRooms = true;
 
+  /// users/{uid} profile doc state — gates the first-run onboarding demo.
+  bool profileLoaded = false;
+  bool hasOnboarded = false;
+
   StreamSubscription<User?>? _authSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membershipsSub;
   final Map<String, List<StreamSubscription<dynamic>>> _roomSubs = {};
   final List<StreamSubscription<dynamic>> _worldSubs = [];
@@ -131,17 +136,57 @@ class RoomsController extends ChangeNotifier {
       _boundUid = user?.uid;
       _clearRoomSubs();
       _membershipsSub?.cancel();
+      _profileSub?.cancel();
       bindings.clear();
       roomOrder = [];
       play = null;
       summaryRoomId = null;
       loadingRooms = true;
+      profileLoaded = false;
+      hasOnboarded = false;
       notifyListeners();
       if (user == null) return;
+      _bindProfile(user.uid);
       _bindMemberships(user.uid);
       _bindWorld(user.uid);
     });
   }
+
+  void _bindProfile(String uid) {
+    _profileSub = _db.collection('users').doc(uid).snapshots().listen((snapshot) {
+      hasOnboarded = hasOnboarded || snapshot.data()?['onboardedAt'] != null;
+      profileLoaded = true;
+      notifyListeners();
+    }, onError: _handleError);
+  }
+
+  /// Stamp the profile so the intro never auto-plays again (replayable
+  /// from the profile screen). Local flag flips immediately; the write
+  /// persists it across restarts.
+  void markOnboarded() {
+    if (hasOnboarded) return;
+    hasOnboarded = true;
+    notifyListeners();
+    final currentUid = uid;
+    if (!firebaseReady || currentUid == null) return;
+    unawaited(
+      _db.collection('users').doc(currentUid).set({
+        'onboardedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).catchError((Object error) {
+        _handleError(error);
+      }),
+    );
+  }
+
+  /// True while a signed-in first-run user should be shown the intro demo:
+  /// profile + memberships have both loaded, no real rooms, never onboarded.
+  bool get needsOnboarding =>
+      firebaseReady &&
+      profileLoaded &&
+      !loadingRooms &&
+      !hasOnboarded &&
+      roomOrder.where((id) => id != worldRoomId).isEmpty;
 
   void _bindMemberships(String uid) {
     _membershipsSub = _db
@@ -998,6 +1043,7 @@ class RoomsController extends ChangeNotifier {
   @override
   void dispose() {
     _authSub?.cancel();
+    _profileSub?.cancel();
     _membershipsSub?.cancel();
     _clearRoomSubs();
     super.dispose();

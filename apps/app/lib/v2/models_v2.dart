@@ -73,6 +73,7 @@ class RtwRoomMember {
     this.lastScoredDailyKey,
     this.lastPlayedDailyKey,
     this.revealSeenDailyKey,
+    this.rank,
   });
 
   final String uid;
@@ -86,6 +87,9 @@ class RtwRoomMember {
   final String? lastScoredDailyKey;
   final String? lastPlayedDailyKey;
   final String? revealSeenDailyKey;
+
+  /// Room standing written at day close (1 = top).
+  final int? rank;
 
   bool get isCreator => role == 'creator';
 }

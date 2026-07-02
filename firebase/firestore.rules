@@ -21,6 +21,7 @@ service cloud.firestore {
         "email",
         "demographics",
         "dailyReminder",
+        "onboardedAt",
         "createdAt",
         "updatedAt"
       ];
@@ -33,6 +34,7 @@ service cloud.firestore {
         "email",
         "demographics",
         "dailyReminder",
+        "onboardedAt",
         "updatedAt"
       ];
     }

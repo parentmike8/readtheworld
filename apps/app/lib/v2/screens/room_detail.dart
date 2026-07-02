@@ -124,6 +124,15 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                                     : '${room.memberCount} members',
                             style: v2Sans(13, color: RtwV2Colors.muted),
                           ),
+                          if (hasBoard) ...[
+                            const SizedBox(width: 9),
+                            Container(width: 1, height: 11, color: const Color(0xFFD8D2C5)),
+                            const SizedBox(width: 9),
+                            Text(
+                              'RANK #${me?.rank ?? '—'}',
+                              style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 0.5),
+                            ),
+                          ],
                         ],
                       ),
                     ],

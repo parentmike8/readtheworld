@@ -106,7 +106,9 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
   }
 
   void _finish() {
-    ref.read(roomsControllerProvider).enterToday();
+    final rooms = ref.read(roomsControllerProvider);
+    rooms.markOnboarded();
+    rooms.enterToday();
     context.go('/today');
   }
 
@@ -221,21 +223,21 @@ class _Welcome extends StatelessWidget {
           const V2Eyebrow('Three ways to play', letterSpacing: 1.8),
           const SizedBox(height: 14),
           const _WayToPlay(
-            icon: Icons.groups_outlined,
+            glyph: _WayGlyph.rooms,
             color: RtwV2Colors.blue,
             title: 'Rooms',
             body: 'Your crew, group chat or family. Three calls a day.',
           ),
           const SizedBox(height: 12),
           const _WayToPlay(
-            icon: Icons.play_arrow_rounded,
+            glyph: _WayGlyph.party,
             color: RtwV2Colors.clay,
             title: 'Party',
             body: 'Pass one phone around the table. Read the group out loud.',
           ),
           const SizedBox(height: 12),
           const _WayToPlay(
-            icon: Icons.public,
+            glyph: _WayGlyph.world,
             color: RtwV2Colors.green,
             title: 'The World',
             body: 'Everyone, one question, one day. Read the whole world.',
@@ -265,16 +267,89 @@ class _Welcome extends StatelessWidget {
   }
 }
 
+enum _WayGlyph { rooms, party, world }
+
+/// Prototype welcome-row icons (20px SVGs, stroke 1.5, round caps).
+class _WayGlyphPainter extends CustomPainter {
+  const _WayGlyphPainter({required this.glyph, required this.color});
+
+  final _WayGlyph glyph;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = color;
+    switch (glyph) {
+      case _WayGlyph.rooms:
+        // Two heads + shoulders.
+        canvas.drawCircle(const Offset(7, 8), 2.6, stroke);
+        canvas.drawCircle(const Offset(13, 8), 2.6, stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(2.5, 15.5)
+            ..relativeCubicTo(0, -2.2, 1.8, -3.5, 4.5, -3.5),
+          stroke,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(13, 12)
+            ..relativeCubicTo(2.7, 0, 4.5, 1.3, 4.5, 3.5),
+          stroke,
+        );
+      case _WayGlyph.party:
+        // Phone with a play glyph.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(6, 2.5, 8, 15),
+            const Radius.circular(2),
+          ),
+          stroke,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(8.5, 8.5)
+            ..lineTo(12, 10.5)
+            ..lineTo(8.5, 12.5)
+            ..close(),
+          fill,
+        );
+      case _WayGlyph.world:
+        // Globe: circle, equator, meridian lens.
+        canvas.drawCircle(const Offset(10, 10), 7.5, stroke);
+        canvas.drawLine(const Offset(2.5, 10), const Offset(17.5, 10), stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(10, 2.5)
+            ..relativeCubicTo(2, 2.2, 3, 4.7, 3, 7.5)
+            ..relativeCubicTo(0, 2.8, -1, 5.3, -3, 7.5)
+            ..relativeCubicTo(-2, -2.2, -3, -4.7, -3, -7.5)
+            ..relativeCubicTo(0, -2.8, 1, -5.3, 3, -7.5)
+            ..close(),
+          stroke,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WayGlyphPainter oldDelegate) =>
+      oldDelegate.glyph != glyph || oldDelegate.color != color;
+}
+
 class _WayToPlay extends StatelessWidget {
   const _WayToPlay({
-    required this.icon,
+    required this.glyph,
     required this.color,
     required this.title,
     required this.body,
     this.badge,
   });
 
-  final IconData icon;
+  final _WayGlyph glyph;
   final Color color;
   final String title;
   final String body;
@@ -300,7 +375,10 @@ class _WayToPlay extends StatelessWidget {
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(icon, size: 20, color: color),
+            child: CustomPaint(
+              size: const Size(20, 20),
+              painter: _WayGlyphPainter(glyph: glyph, color: color),
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(

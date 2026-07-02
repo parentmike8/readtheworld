@@ -284,7 +284,10 @@ class V2BottomNav extends StatelessWidget {
             label: 'Party',
             active: partyActive,
             onTap: () => context.go('/party'),
-            icon: (color) => Icon(Icons.play_arrow_rounded, size: 20, color: color),
+            icon: (color) => CustomPaint(
+              size: const Size(18, 18),
+              painter: _TrianglePainter(color: color),
+            ),
           ),
         ],
       ),
@@ -334,6 +337,8 @@ class _GridGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Prototype: 6px cells at x 2/10, y 2.5/10.5 in an 18px box — a tight
+    // 14px grid with a 2px gutter, centered.
     Widget cell() => Container(
       width: 6,
       height: 6,
@@ -342,18 +347,41 @@ class _GridGlyph extends StatelessWidget {
         borderRadius: BorderRadius.circular(1.6),
       ),
     );
+    Widget row() => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [cell(), const SizedBox(width: 2), cell()],
+    );
     return SizedBox(
       width: 18,
       height: 18,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [cell(), cell()]),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [cell(), cell()]),
-        ],
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [row(), const SizedBox(height: 2), row()],
+        ),
       ),
     );
   }
+}
+
+/// Prototype party glyph: sharp play triangle (M4 3l11 6-11 6z in 18px).
+class _TrianglePainter extends CustomPainter {
+  const _TrianglePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(4, 3)
+      ..lineTo(15, 9)
+      ..lineTo(4, 15)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_TrianglePainter oldDelegate) => oldDelegate.color != color;
 }
 
 /// v2 page scaffold: phone-column surface centered on wide screens

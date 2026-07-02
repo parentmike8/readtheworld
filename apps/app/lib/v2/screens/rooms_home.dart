@@ -438,7 +438,8 @@ class _RoomCard extends ConsumerWidget {
   String? _rankLabel(RoomBinding binding) {
     final room = binding.room!;
     if (room.isSolo || room.isWorld) return null;
-    return null; // Rank is computed on Room Detail from the members stream.
+    final rank = binding.me?.rank;
+    return rank == null ? null : 'Rank #$rank';
   }
 }
 

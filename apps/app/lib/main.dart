@@ -265,6 +265,7 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
   final firebaseReady = ref.watch(firebaseReadyProvider);
   final appSettings = ref.watch(appSettingsProvider);
   final controller = ref.read(rtwControllerProvider);
+  final roomsController = ref.read(roomsControllerProvider);
   final browserPath = Uri.base.path;
   final isAppPath = [
     '/auth',
@@ -289,10 +290,16 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ]
         : const <NavigatorObserver>[],
-    refreshListenable: controller,
+    refreshListenable: Listenable.merge([controller, roomsController]),
     redirect: (_, state) {
       if (!appSettings.partyMode && state.uri.path == '/party') {
         return '/rooms';
+      }
+      // First run: the default tabs hand off to the intro demo. Deep links
+      // (join codes, room links, auth) stay untouched.
+      const gatedTabs = {'/today', '/rooms', '/party'};
+      if (gatedTabs.contains(state.uri.path) && roomsController.needsOnboarding) {
+        return '/onboarding';
       }
       return null;
     },

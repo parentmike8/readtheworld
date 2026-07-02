@@ -66,6 +66,7 @@ RtwRoomMember roomMemberFromFirestore(String uid, Map<String, dynamic> data) {
     lastScoredDailyKey: _nullableString(data['lastScoredDailyKey']),
     lastPlayedDailyKey: _nullableString(data['lastPlayedDailyKey']),
     revealSeenDailyKey: _nullableString(data['revealSeenDailyKey']),
+    rank: _nullableIntValue(data['rank']),
   );
 }
 
