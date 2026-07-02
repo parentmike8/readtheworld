@@ -166,7 +166,9 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow read: if isAdmin() || isRoomMember(roomId) || (isWorldRoom(roomId) && signedIn());
+      // The World's question of the day is public content — the landing
+      // page shows it to signed-out visitors.
+      allow read: if isAdmin() || isRoomMember(roomId) || isWorldRoom(roomId);
       allow write: if isAdmin();
 
       match /members/{memberUid} {
@@ -175,7 +177,7 @@ service cloud.firestore {
       }
 
       match /days/{dailyKey} {
-        allow read: if isAdmin() || isRoomMember(roomId) || (isWorldRoom(roomId) && signedIn());
+        allow read: if isAdmin() || isRoomMember(roomId) || isWorldRoom(roomId);
         allow write: if isAdmin();
 
         match /answers/{answerUid} {

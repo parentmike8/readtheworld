@@ -431,14 +431,17 @@ describe("v2 rooms", () => {
     );
   });
 
-  it("lets any signed-in user browse the World room but not write it", async () => {
+  it("lets anyone browse the World room but not write it", async () => {
     await seed("rooms/world", { name: "The World", isWorld: true });
     await seed("rooms/world/days/2026-07-01", { status: "live", questions: [] });
 
     await assertSucceeds(getDoc(doc(authedDb("outsider"), "rooms/world")));
     await assertSucceeds(getDoc(doc(authedDb("outsider"), "rooms/world/days/2026-07-01")));
-    await assertFails(getDoc(doc(anonDb(), "rooms/world")));
+    // The landing page shows today's World questions to signed-out visitors.
+    await assertSucceeds(getDoc(doc(anonDb(), "rooms/world")));
+    await assertSucceeds(getDoc(doc(anonDb(), "rooms/world/days/2026-07-01")));
     await assertFails(setDoc(doc(authedDb("outsider"), "rooms/world"), { name: "Mine" }));
+    await assertFails(setDoc(doc(anonDb(), "rooms/world"), { name: "Mine" }));
   });
 
   it("locks the question bank and flags to admins", async () => {

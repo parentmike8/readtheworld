@@ -4,8 +4,21 @@
     {
       "name": "rtw-web-qa",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["scripts/run-flutter-web-qa.sh"],
+      "runtimeArgs": [
+        "scripts/run-flutter-web-qa.sh"
+      ],
       "port": 5173
+    },
+    {
+      "name": "landing-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "apps/web"
+      ],
+      "port": 3000
     }
   ]
 }

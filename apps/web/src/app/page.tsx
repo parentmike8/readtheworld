@@ -20,17 +20,17 @@ import {
   type User,
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { activateClientAppCheck } from "@/lib/appCheck";
 
 const faqs = [
   [
-    "Is it the same question for everyone?",
-    "Yes. Every player worldwide gets the same question each day, so you are always reading the same global crowd.",
+    "Is it the same questions for everyone?",
+    "Yes. Every player worldwide gets the same three questions each day, so you are always reading the same global crowd.",
   ],
   [
     "Why don't results show right away?",
-    "Results arrive the next day, when the new question drops. You commit your read before you see how it landed.",
+    "Results arrive the next day, when the new questions drop. You commit your read before you see how it landed.",
   ],
   [
     "How is my score calculated?",
@@ -38,7 +38,7 @@ const faqs = [
   ],
   [
     "Is it free?",
-    "Yes. One question a day, free. Create an account to save your streak, track your score, and compare with friends.",
+    "Yes. Three questions a day, free. Create an account to save your streak, track your score, and compare with friends.",
   ],
 ];
 
@@ -51,50 +51,42 @@ const firebaseConfig = {
 
 const appBaseUrl = "https://app.readtheworld.today";
 
-type LiveQuestion = {
-  id: string;
-  category: string;
+/** One of today's three World questions (rooms/world/days/{key}). */
+type WorldQuestion = {
+  qid: string;
+  tag: string;
   prompt: string;
-  options: Array<{ id: string; label: string }>;
+  optA: string;
+  optB: string;
 };
 
-type PublicQuestion = Pick<LiveQuestion, "id" | "category" | "prompt">;
+type PublicQuestion = { id: string; category: string; prompt: string };
+
+const sampleQuestions: PublicQuestion[] = [
+  { id: "s1", category: "Food", prompt: "Is a hot dog a sandwich?" },
+  { id: "s2", category: "Ethics", prompt: "Would you keep quiet if you saw a friend shoplift a small item?" },
+  { id: "s3", category: "Lifestyle", prompt: "Would you rather always be 10 minutes early or never rushed?" },
+];
 
 function hasFirebaseConfig() {
   return Object.values(firebaseConfig).every(Boolean);
 }
 
-function predictionWord(value: number) {
-  if (value <= 12) return "Almost no one, you think";
-  if (value <= 35) return "You're betting minority";
-  if (value <= 45) return "A little under half";
-  if (value <= 55) return "Split down the middle";
-  if (value <= 70) return "A clear majority";
-  if (value <= 88) return "Most of the world";
-  return "Nearly everyone";
-}
-
 export default function Home() {
-  const [step, setStep] = useState<"answer" | "predict" | "gate">("answer");
-  const [answerId, setAnswerId] = useState<string | null>(null);
-  const [prediction, setPrediction] = useState(50);
-  const [dragging, setDragging] = useState(false);
+  const [step, setStep] = useState<"answer" | "gate">("answer");
+  const [qIndex, setQIndex] = useState(0);
+  const [sides, setSides] = useState<Record<string, "a" | "b">>({});
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [footerEmail, setFooterEmail] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState<"" | "gate">("");
   const [openFaq, setOpenFaq] = useState(0);
-  const [liveQuestion, setLiveQuestion] = useState<LiveQuestion | null>(null);
+  const [worldQuestions, setWorldQuestions] = useState<WorldQuestion[]>([]);
+  const [worldDailyKey, setWorldDailyKey] = useState("");
   const [recentQuestions, setRecentQuestions] = useState<PublicQuestion[]>([]);
   const [liveCount, setLiveCount] = useState(0);
   const [user, setUser] = useState<User | null>(null);
-  const [todayAnswer, setTodayAnswer] = useState<{
-    questionId: string;
-    selectedOptionId: string;
-    predictedShare: number;
-  } | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
   const app = useMemo<FirebaseApp | null>(() => {
     if (!hasFirebaseConfig()) return null;
     const firebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
@@ -105,66 +97,63 @@ export default function Home() {
   const auth = useMemo(() => (app ? getAuth(app) : null), [app]);
   const functions = useMemo(() => (app ? getFunctions(app, "us-central1") : null), [app]);
 
+  // The World's current daily key, then today's three questions.
   useEffect(() => {
     if (!firestore) return undefined;
-    const liveQuery = query(
-      collection(firestore, "questions"),
-      where("status", "==", "live"),
-      orderBy("publishAt", "desc"),
-      limit(1),
-    );
-    return onSnapshot(liveQuery, (snapshot) => {
-      const first = snapshot.docs[0];
-      if (!first) {
-        setLiveQuestion(null);
-        setLiveCount(0);
-        return;
-      }
-      const data = first.data();
-      const options = Array.isArray(data.options)
-        ? data.options
-            .map((option) => ({
-              id: String(option?.id ?? ""),
-              label: String(option?.label ?? ""),
-            }))
-            .filter((option) => option.id && option.label)
-        : [];
-      setLiveQuestion({
-        id: first.id,
-        category: String(data.category ?? "Today"),
-        prompt: String(data.prompt ?? "Loading today's question..."),
-        options,
-      });
+    return onSnapshot(doc(firestore, "rooms", "world"), (snapshot) => {
+      setWorldDailyKey(String(snapshot.data()?.currentDailyKey ?? ""));
     });
   }, [firestore]);
 
+  useEffect(() => {
+    if (!firestore || !worldDailyKey) return undefined;
+    return onSnapshot(doc(firestore, "rooms", "world", "days", worldDailyKey), (snapshot) => {
+      const data = snapshot.data();
+      const questions = Array.isArray(data?.questions) ? data.questions : [];
+      setWorldQuestions(
+        questions
+          .filter((question) => question?.pulled !== true)
+          .map((question) => ({
+            qid: String(question?.qid ?? ""),
+            tag: String(question?.tag ?? "Today"),
+            prompt: String(question?.prompt ?? ""),
+            optA: String(question?.optA ?? "Yes"),
+            optB: String(question?.optB ?? "No"),
+          }))
+          .filter((question) => question.qid && question.prompt),
+      );
+      const total = Number(data?.answerCount ?? 0);
+      setLiveCount(Number.isFinite(total) ? total : 0);
+    });
+  }, [firestore, worldDailyKey]);
+
+  // Recent world reveals fill the archive strip once days start closing.
   useEffect(() => {
     if (!firestore) return undefined;
     const recentQuery = query(
-      collection(firestore, "dailyResults"),
+      collection(firestore, "rooms", "world", "days"),
       where("status", "==", "closed"),
-      orderBy("closedAt", "desc"),
-      limit(6),
+      orderBy("dailyKey", "desc"),
+      limit(2),
     );
     return onSnapshot(recentQuery, (snapshot) => {
-      setRecentQuestions(snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          category: String(data.category ?? "Daily read"),
-          prompt: String(data.prompt ?? ""),
-        };
-      }).filter((question) => question.prompt.length > 0));
-    });
+      const closed: PublicQuestion[] = [];
+      snapshot.docs.forEach((docSnap) => {
+        const questions = Array.isArray(docSnap.data().questions) ? docSnap.data().questions : [];
+        questions.forEach((question: Record<string, unknown>, index: number) => {
+          const prompt = String(question?.prompt ?? "");
+          if (prompt) {
+            closed.push({
+              id: `${docSnap.id}-${index}`,
+              category: String(question?.tag ?? "Daily read"),
+              prompt,
+            });
+          }
+        });
+      });
+      setRecentQuestions(closed.slice(0, 6));
+    }, () => setRecentQuestions([]));
   }, [firestore]);
-
-  useEffect(() => {
-    if (!firestore || !liveQuestion) return undefined;
-    return onSnapshot(doc(firestore, "questionCounters", liveQuestion.id), (snapshot) => {
-      const total = Number(snapshot.data()?.total ?? 0);
-      setLiveCount(Number.isFinite(total) ? total : 0);
-    });
-  }, [firestore, liveQuestion]);
 
   useEffect(() => {
     if (!auth) return undefined;
@@ -174,46 +163,18 @@ export default function Home() {
     });
   }, [auth]);
 
-  useEffect(() => {
-    if (!firestore || !user || !liveQuestion) return undefined;
-    return onSnapshot(
-      doc(firestore, "users", user.uid, "answers", liveQuestion.id),
-      (snapshot) => {
-        const data = snapshot.data();
-        if (!snapshot.exists() || !data) {
-          setTodayAnswer(null);
-          return;
-        }
-        const predictedShare = Number(data.predictedShare ?? 0);
-        setTodayAnswer({
-          questionId: liveQuestion.id,
-          selectedOptionId: String(data.selectedOptionId ?? ""),
-          predictedShare: Number.isFinite(predictedShare) ? predictedShare : 0,
-        });
-      },
-    );
-  }, [firestore, user, liveQuestion]);
+  const currentQuestion = worldQuestions[qIndex] ?? null;
+  const navCtaLabel = !user ? "Log in" : "Enter app";
 
-  const predictPrompt = useMemo(
-    () => `What share of people also answered "${selectedAnswerLabel(liveQuestion, answerId) ?? "Yes"}"?`,
-    [answerId, liveQuestion],
-  );
-  const playedToday = Boolean(user && liveQuestion && todayAnswer?.questionId === liveQuestion.id && todayAnswer.selectedOptionId);
-  const navCtaLabel = !user ? "Log in" : playedToday ? "Enter app" : "Play today";
-  const submittedAnswerLabel = selectedAnswerLabel(liveQuestion, todayAnswer?.selectedOptionId ?? null);
-
-  function setPredictionFromPointer(clientX: number) {
-    const element = trackRef.current;
-    if (!element) return;
-    const rect = element.getBoundingClientRect();
-    const next = Math.round(((clientX - rect.left) / rect.width) * 100);
-    setPrediction(Math.max(0, Math.min(100, next)));
-  }
-
-  function pick(next: string) {
-    setAnswerId(next);
-    setStep("predict");
+  function pick(side: "a" | "b") {
+    if (!currentQuestion) return;
+    setSides((current) => ({ ...current, [currentQuestion.qid]: side }));
     setSubmitError("");
+    if (qIndex + 1 < worldQuestions.length) {
+      setQIndex(qIndex + 1);
+    } else {
+      setStep("gate");
+    }
   }
 
   async function signInOrCreateLandingUser(normalizedEmail: string, nextPassword: string) {
@@ -236,17 +197,10 @@ export default function Home() {
     }
   }
 
-  async function createAppHandoff(targetRoute: string, pending?: {
-    questionId: string;
-    selectedOptionId: string;
-    predictedShare: number;
-  }) {
+  async function createAppHandoff(targetRoute: string) {
     if (!functions) return `${appBaseUrl}${targetRoute}`;
     const callable = httpsCallable(functions, "createAuthHandoff");
-    const result = await callable({
-      targetRoute,
-      ...(pending ?? {}),
-    });
+    const result = await callable({ targetRoute });
     const data = result.data as { code?: unknown };
     const code = typeof data.code === "string" ? data.code : "";
     if (!code) throw new Error("Could not create app handoff.");
@@ -270,8 +224,11 @@ export default function Home() {
   }
 
   async function completeLandingPlay() {
-    if (!liveQuestion || !answerId) {
-      setSubmitError("Choose an answer first.");
+    const picks = worldQuestions
+      .filter((question) => sides[question.qid])
+      .map((question) => ({ qid: question.qid, side: sides[question.qid] }));
+    if (picks.length !== worldQuestions.length || picks.length === 0) {
+      setSubmitError("Answer all three questions first.");
       return;
     }
 
@@ -293,12 +250,17 @@ export default function Home() {
         }
         await signInOrCreateLandingUser(normalizedEmail, normalizedPassword);
       }
-      const destination = await createAppHandoff("/today/predict", {
-        questionId: liveQuestion.id,
-        selectedOptionId: answerId,
-        predictedShare: prediction,
-      });
-      window.location.href = destination;
+      // Record the three world answers (The World auto-enrolls on first
+      // answer). If they already answered today the lock is a no-op.
+      if (functions) {
+        try {
+          await httpsCallable(functions, "lockRoomAnswers")({ roomId: "world", picks });
+        } catch (lockError) {
+          const code = lockError instanceof FirebaseError ? lockError.code : "";
+          if (!code.includes("already-exists")) console.warn("World lock failed", lockError);
+        }
+      }
+      window.location.href = await createAppHandoff("/today");
     } catch (error) {
       const message = error instanceof FirebaseError ? authErrorMessage(error) : String(error);
       setSubmitError(message);
@@ -347,7 +309,7 @@ export default function Home() {
             <button
               className="darkButton"
               type="button"
-              onClick={() => enterApp(!user ? "/auth" : playedToday ? "/history" : "/today")}
+              onClick={() => enterApp(!user ? "/auth" : "/today")}
               disabled={submitting === "gate"}
             >
               {navCtaLabel} {"\u2192"}
@@ -367,86 +329,47 @@ export default function Home() {
             the world?
           </h1>
           <p>
-            One shared question a day. Answer for yourself, then predict how the
-            world will answer. The closer your prediction, the higher your score.
+            Three shared questions a day. Answer for yourself, then see how the
+            world answers. The closer your read, the higher your score.
           </p>
         </div>
 
         <div className="liveCardColumn">
           <section className="liveCard" aria-label="Live question">
             <div className="questionTop">
-              <span>Today{liveQuestion ? ` · ${liveQuestion.category}` : ""}</span>
+              <span>
+                Today{currentQuestion ? ` · ${currentQuestion.tag}` : ""}
+                {step === "answer" && worldQuestions.length > 0
+                  ? ` · ${Math.min(qIndex + 1, worldQuestions.length)} of ${worldQuestions.length}`
+                  : ""}
+              </span>
               <span className="liveDot"><i />Live</span>
             </div>
-            {step === "predict" ? (
-              <div className="predictQuestionHeader">
-                <p>{liveQuestion?.prompt ?? "Loading today's question..."}</p>
-                <h2 className="serif">{predictPrompt}</h2>
-              </div>
+            {step === "answer" ? (
+              <h2 className="serif">{currentQuestion?.prompt ?? "Loading today's questions..."}</h2>
             ) : (
-              <h2 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h2>
+              <h2 className="serif">That&apos;s your three in.</h2>
             )}
 
-            {playedToday ? (
-              <div className="submittedState">
-                <div>
-                  <span>{"\u2713"}</span>
-                  <strong>Your read is locked.</strong>
-                </div>
-                <p>
-                  You answered {submittedAnswerLabel ?? "today"} and predicted {todayAnswer?.predictedShare ?? "--"}%.
-                  Come back after the reveal to see how close you were.
-                </p>
-                <button className="blueButton" onClick={() => enterApp("/history")} disabled={submitting === "gate"}>
-                  Enter app {"\u2192"}
-                </button>
-              </div>
-            ) : step === "answer" ? (
+            {step === "answer" ? (
               <div className="answerStep">
-                <p>First, where do you stand?</p>
-                {(liveQuestion?.options ?? []).map((option) => (
-                  <button
-                    key={option.id}
-                    className={answerId === option.id ? "selected" : ""}
-                    onClick={() => pick(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {step === "predict" ? (
-              <div className="predictStep">
-                <div className="predictNumber">
-                  <span className="serif">{prediction}</span>
-                  <small className="serif">%</small>
-                </div>
-                <div className="predictWord">{predictionWord(prediction)}</div>
-                <div
-                  ref={trackRef}
-                  className="lpSlider"
-                  onPointerDown={(event) => {
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                    setDragging(true);
-                    setPredictionFromPointer(event.clientX);
-                  }}
-                  onPointerMove={(event) => {
-                    if (dragging) setPredictionFromPointer(event.clientX);
-                  }}
-                  onPointerUp={() => setDragging(false)}
-                >
-                  <div className="lpSliderTrack">
-                    <div className="lpSliderFill" style={{ width: `${prediction}%` }} />
-                    <div className="lpSliderPin" style={{ left: `${prediction}%` }} />
-                  </div>
-                </div>
-                <button className="blueButton" onClick={() => setStep("gate")}>
-                  Lock it in {"\u2192"}
-                </button>
-                <button className="ghostButton" onClick={() => setStep("answer")}>
-                  {"\u2190"} Change my answer
-                </button>
+                <p>{qIndex === 0 ? "First, where do you stand?" : "Where do you stand?"}</p>
+                {currentQuestion ? (
+                  <>
+                    <button
+                      className={sides[currentQuestion.qid] === "a" ? "selected" : ""}
+                      onClick={() => pick("a")}
+                    >
+                      {currentQuestion.optA}
+                    </button>
+                    <button
+                      className={sides[currentQuestion.qid] === "b" ? "selected" : ""}
+                      onClick={() => pick("b")}
+                    >
+                      {currentQuestion.optB}
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : null}
 
@@ -454,12 +377,16 @@ export default function Home() {
               <div className="gateStep">
                 <div className="gateBox">
                   <div>
-                    <span>Your answer &middot; {selectedAnswerLabel(liveQuestion, answerId)}</span>
-                    <span>Your read &middot; {prediction}%</span>
+                    {worldQuestions.map((question) => (
+                      <span key={question.qid}>
+                        {question.tag} &middot;{" "}
+                        {sides[question.qid] === "a" ? question.optA : question.optB}
+                      </span>
+                    ))}
                   </div>
                   <p>
-                    The world&apos;s answer appears tomorrow. Sign in or create a free account
-                    to save this read, see your past answers, and track your score.
+                    The world&apos;s answers appear tomorrow. Sign in or create a free
+                    account to save your reads, keep your streak, and track your score.
                   </p>
                 </div>
                 {user ? (
@@ -496,13 +423,19 @@ export default function Home() {
                   </div>
                 )}
                 {submitError ? <p className="formError">{submitError}</p> : null}
-                <button className="ghostButton left" onClick={() => setStep("predict")}>
-                  {"\u2190"} Change my prediction
+                <button
+                  className="ghostButton left"
+                  onClick={() => {
+                    setQIndex(0);
+                    setStep("answer");
+                  }}
+                >
+                  {"\u2190"} Change my answers
                 </button>
               </div>
             ) : null}
           </section>
-          {liveQuestion ? (
+          {worldQuestions.length > 0 && liveCount > 0 ? (
             <div className="liveCount">{liveCount.toLocaleString()} people have answered today</div>
           ) : null}
         </div>
@@ -621,7 +554,7 @@ export default function Home() {
               runs right in your browser. No download needed.
             </p>
             <a className="darkButton downloadWebButton" href="#play">
-              Play today&apos;s question <span aria-hidden="true">→</span>
+              Play today&apos;s questions <span aria-hidden="true">→</span>
             </a>
           </div>
           <div className="downloadCards" aria-label="Upcoming app downloads">
@@ -652,17 +585,12 @@ export default function Home() {
           <h2 className="serif">Questions worth arguing about.</h2>
         </div>
         <div className="sampleGrid">
-          {recentQuestions.length > 0 ? recentQuestions.map((question) => (
+          {(recentQuestions.length > 0 ? recentQuestions : sampleQuestions).map((question) => (
             <article key={question.id}>
               <div className="eyebrow clay">{question.category}</div>
               <h3 className="serif">{question.prompt}</h3>
             </article>
-          )) : (
-            <article>
-              <div className="eyebrow clay">Live archive</div>
-              <h3 className="serif">Loading recent questions...</h3>
-            </article>
-          )}
+          ))}
         </div>
       </section>
 
@@ -684,8 +612,8 @@ export default function Home() {
       </section>
 
       <footer className="lpWrap lpSection footerCta">
-        <h2 className="serif">Today&apos;s question is waiting.</h2>
-        <p>Join the daily read. Free, one question a day.</p>
+        <h2 className="serif">Today&apos;s questions are waiting.</h2>
+        <p>Join the daily read. Free, three questions a day.</p>
         <form
           onSubmit={async (event) => {
             event.preventDefault();
@@ -714,11 +642,6 @@ export default function Home() {
       </footer>
     </main>
   );
-}
-
-function selectedAnswerLabel(question: LiveQuestion | null, optionId: string | null) {
-  if (!question || !optionId) return null;
-  return question.options.find((option) => option.id === optionId)?.label ?? optionId;
 }
 
 function authErrorMessage(error: FirebaseError) {
