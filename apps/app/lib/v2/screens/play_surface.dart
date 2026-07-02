@@ -1060,101 +1060,153 @@ String _formatThousands(int value) {
 
 // ── ROOM SWITCH SHEET (today banner tap) ────────────────────────────────
 
+/// Room-switch sheet: jump to an upcoming block, or drag upcoming blocks
+/// into a new order (prototype drag reorder — only rooms after the current
+/// one move).
 void _showRoomSwitchSheet(BuildContext context, WidgetRef ref, PlaySession session) {
-  final blocks = <({String roomId, String name, String colorToken, bool isWorld, int start, int size})>[];
-  var i = 0;
-  while (i < session.deck.length) {
-    final roomId = session.deck[i].roomId;
-    var j = i;
-    while (j < session.deck.length && session.deck[j].roomId == roomId) {
-      j++;
-    }
-    final first = session.deck[i];
-    blocks.add((
-      roomId: roomId,
-      name: first.roomName,
-      colorToken: first.roomColorToken,
-      isWorld: first.isWorld,
-      start: i,
-      size: j - i,
-    ));
-    i = j;
-  }
-  final currentBlock = blocks.indexWhere(
-    (block) => session.idx >= block.start && session.idx < block.start + block.size,
-  );
-
   showV2Sheet(context, (sheetContext) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const V2Eyebrow('Today’s rooms'),
-        const SizedBox(height: 14),
-        for (final (index, block) in blocks.indexed) ...[
-          Builder(builder: (context) {
-            final isCurrent = index == currentBlock;
-            final isPast = index < currentBlock;
-            final canSwitch = !isCurrent && !isPast;
-            return GestureDetector(
-              onTap: canSwitch
-                  ? () {
-                      ref.read(roomsControllerProvider).jumpToDeckIndex(block.start);
-                      Navigator.of(sheetContext).pop();
-                    }
-                  : null,
-              child: Opacity(
-                opacity: isPast ? 0.55 : 1,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isCurrent
-                        ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
-                        : RtwV2Colors.card,
-                    border: Border.all(
-                      color: isCurrent ? Colors.transparent : RtwV2Colors.border,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: block.isWorld
-                              ? RtwV2Colors.worldInk
-                              : RtwV2Colors.roomColor(block.colorToken),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: block.isWorld
-                            ? const Icon(Icons.public, size: 17, color: Colors.white)
-                            : Text(
-                                block.name.isEmpty ? '?' : block.name.substring(0, 1),
-                                style: v2Serif(15, color: Colors.white),
-                              ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(child: Text(block.name, style: v2Serif(17))),
-                      Text(
-                        isCurrent
-                            ? 'Playing now'
-                            : isPast
-                                ? 'Done'
-                                : '${block.size - 1} questions',
-                        style: v2Sans(12, color: RtwV2Colors.muted, weight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
+    return Consumer(builder: (context, ref, _) {
+      final rooms = ref.watch(roomsControllerProvider);
+      final live = rooms.play;
+      if (live == null || live.mode != 'today') {
+        return const SizedBox.shrink();
+      }
+      final deck = live.deck;
+      final blocks = <({TodayDeckCard first, int start, int size})>[];
+      var i = 0;
+      while (i < deck.length) {
+        final roomId = deck[i].roomId;
+        var j = i;
+        while (j < deck.length && deck[j].roomId == roomId) {
+          j++;
+        }
+        blocks.add((first: deck[i], start: i, size: j - i));
+        i = j;
+      }
+      final currentBlock = blocks.indexWhere(
+        (block) => live.idx >= block.start && live.idx < block.start + block.size,
+      );
+      final fixed = blocks.sublist(0, currentBlock + 1);
+      final movable = blocks.sublist(currentBlock + 1);
+
+      Widget rowFor(
+        ({TodayDeckCard first, int start, int size}) block, {
+        required bool isCurrent,
+        required bool isPast,
+        Widget? trailing,
+        Key? key,
+      }) {
+        final card = block.first;
+        return GestureDetector(
+          key: key,
+          onTap: !isCurrent && !isPast
+              ? () {
+                  rooms.jumpToDeckIndex(block.start);
+                  Navigator.of(sheetContext).pop();
+                }
+              : null,
+          child: Opacity(
+            opacity: isPast ? 0.55 : 1,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isCurrent
+                    ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+                    : RtwV2Colors.card,
+                border: Border.all(
+                  color: isCurrent ? Colors.transparent : RtwV2Colors.border,
                 ),
+                borderRadius: BorderRadius.circular(14),
               ),
-            );
-          }),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: card.isWorld
+                          ? RtwV2Colors.worldInk
+                          : RtwV2Colors.roomColor(card.roomColorToken),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: card.isWorld
+                        ? const Icon(Icons.public, size: 17, color: Colors.white)
+                        : Text(
+                            card.roomName.isEmpty ? '?' : card.roomName.substring(0, 1),
+                            style: v2Serif(15, color: Colors.white),
+                          ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(child: Text(card.roomName, style: v2Serif(17))),
+                  Text(
+                    isCurrent
+                        ? 'Playing now'
+                        : isPast
+                            ? 'Done'
+                            : '${block.size - 1} questions',
+                    style: v2Sans(12, color: RtwV2Colors.muted, weight: FontWeight.w600),
+                  ),
+                  if (trailing != null) ...[const SizedBox(width: 8), trailing],
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const V2Eyebrow('Today\u2019s rooms'),
+          const SizedBox(height: 14),
+          for (final (index, block) in fixed.indexed)
+            rowFor(
+              block,
+              isCurrent: index == currentBlock,
+              isPast: index < currentBlock,
+            ),
+          if (movable.isNotEmpty) ...[
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              onReorder: (oldIndex, newIndex) {
+                final order = movable.map((block) => block.first.roomId).toList();
+                if (newIndex > oldIndex) newIndex -= 1;
+                final moved = order.removeAt(oldIndex);
+                order.insert(newIndex, moved);
+                rooms.reorderTodayBlocks(order);
+              },
+              children: [
+                for (final (index, block) in movable.indexed)
+                  ReorderableDragStartListener(
+                    key: ValueKey('switch-${block.first.roomId}'),
+                    index: index,
+                    child: rowFor(
+                      block,
+                      isCurrent: false,
+                      isPast: false,
+                      trailing: const Icon(
+                        Icons.drag_indicator,
+                        size: 18,
+                        color: RtwV2Colors.faint,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Drag to reorder what comes next.',
+              style: v2Sans(12, color: RtwV2Colors.faint),
+            ),
+          ],
         ],
-      ],
-    );
+      );
+    });
   });
 }
 

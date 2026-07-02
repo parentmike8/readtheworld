@@ -1303,3 +1303,610 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
     );
   }
 }
+
+// ── QUESTION DETAIL (per-question leaderboard; prototype qdetail) ───────
+
+Future<void> showQuestionDetailSheet(
+  BuildContext context,
+  RoomsController rooms, {
+  required String roomId,
+  required String dailyKey,
+  required RoomDayQuestion question,
+  required RoomDay day,
+}) async {
+  final rows = await rooms.loadDayDetail(roomId, dailyKey);
+  if (!context.mounted) return;
+  final result = day.resultFor(question.qid);
+  final sorted = [...rows]..sort(
+    (a, b) => (b.accuracies[question.qid] ?? -1).compareTo(a.accuracies[question.qid] ?? -1),
+  );
+  await showV2Sheet(context, (context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _sheetEyebrow(question.tag, color: RtwV2Colors.clay),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            question.prompt,
+            style: v2Serif(24, height: 1.2, letterSpacing: -0.3),
+          ),
+        ),
+        if (result != null) ...[
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 48,
+              child: Stack(
+                children: [
+                  Container(color: const Color(0xFFE6E0D3)),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: (result.aPct / 100).clamp(0.0, 1.0),
+                      child: Container(color: RtwV2Colors.blue),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Center(
+                          child: Text(
+                            '${question.optA.toUpperCase()} ${result.aPct}%',
+                            style: v2Mono(11, color: RtwV2Colors.card, letterSpacing: 1),
+                          ),
+                        ),
+                        Center(
+                          child: Text(
+                            question.optB.toUpperCase(),
+                            style: v2Mono(11, color: const Color(0xFF7A7466), letterSpacing: 1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _sheetEyebrow('Who read it best · ${sorted.length} played'),
+        const SizedBox(height: 10),
+        Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: RtwV2Colors.card,
+            border: Border.all(color: RtwV2Colors.border),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              for (final (index, row) in sorted.indexed) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                  color: row.isMe ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 26,
+                        child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
+                      ),
+                      Expanded(
+                        child: Text(
+                          row.isMe ? 'You' : row.displayName,
+                          style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
+                        ),
+                      ),
+                      if (row.reveals &&
+                          row.picks.any((pick) => pick.qid == question.qid)) ...[
+                        Builder(builder: (context) {
+                          final pick =
+                              row.picks.firstWhere((pick) => pick.qid == question.qid);
+                          final isA = pick.side == 'a';
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
+                                  .withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Text(
+                              isA ? question.optA : question.optB,
+                              style: v2Sans(
+                                12,
+                                color: isA
+                                    ? RtwV2Colors.blueTextDeep
+                                    : RtwV2Colors.clayTextDeep,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 10),
+                      ],
+                      SizedBox(
+                        width: 34,
+                        child: Text(
+                          '${row.accuracies[question.qid] ?? '—'}',
+                          textAlign: TextAlign.right,
+                          style: v2Serif(18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (index < sorted.length - 1) const V2Hairline(),
+              ],
+              if (sorted.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('No answers to show.', style: v2Sans(13, color: RtwV2Colors.muted)),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Answers show only for members who share them.',
+          style: v2Sans(11.5, color: RtwV2Colors.faint, height: 1.45),
+        ),
+        _ghostDoneButton(context),
+      ],
+    );
+  });
+}
+
+// ── ROOM HISTORY (calendar + per-question cards) ────────────────────────
+
+Future<void> showRoomHistorySheet(
+  BuildContext context,
+  RoomsController rooms,
+  RtwRoom room,
+) {
+  return showV2Sheet(
+    context,
+    (context) => _RoomHistorySheet(rooms: rooms, room: room),
+  );
+}
+
+class _RoomHistorySheet extends StatefulWidget {
+  const _RoomHistorySheet({required this.rooms, required this.room});
+
+  final RoomsController rooms;
+  final RtwRoom room;
+
+  @override
+  State<_RoomHistorySheet> createState() => _RoomHistorySheetState();
+}
+
+class _RoomHistorySheetState extends State<_RoomHistorySheet> {
+  List<RoomHistoryDay>? history;
+  String catFilter = 'All';
+  DateTime? viewMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.rooms.loadRoomHistory(widget.room.id).then((days) {
+      if (mounted) setState(() => history = days);
+    });
+  }
+
+  DateTime _dateOf(RoomHistoryDay entry) =>
+      DateTime.tryParse(entry.day.dailyKey) ?? DateTime.now();
+
+  @override
+  Widget build(BuildContext context) {
+    final days = history ?? const <RoomHistoryDay>[];
+    final tags = <String>{
+      for (final entry in days)
+        for (final question in entry.day.activeQuestions) question.tag,
+    };
+    final activeMonth = viewMonth ??
+        (days.isEmpty
+            ? DateTime.now()
+            : DateTime(_dateOf(days.first).year, _dateOf(days.first).month));
+    final monthDays = days.where((entry) {
+      final date = _dateOf(entry);
+      return date.year == activeMonth.year && date.month == activeMonth.month;
+    }).toList();
+    final entriesByDay = <int, RoomHistoryDay>{
+      for (final entry in monthDays) _dateOf(entry).day: entry,
+    };
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final firstDow = DateTime(activeMonth.year, activeMonth.month, 1).weekday % 7;
+    final daysInMonth = DateTime(activeMonth.year, activeMonth.month + 1, 0).day;
+
+    final cards = <({RoomHistoryDay entry, RoomDayQuestion question})>[
+      for (final entry in monthDays)
+        for (final question in entry.day.activeQuestions)
+          if (catFilter == 'All' || question.tag == catFilter)
+            (entry: entry, question: question),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('${widget.room.name} history', style: v2Serif(24, letterSpacing: -0.4)),
+        const SizedBox(height: 16),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final tag in ['All', ...tags]) ...[
+                GestureDetector(
+                  onTap: () => setState(() => catFilter = tag),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: catFilter == tag ? RtwV2Colors.blue : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: catFilter == tag ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
+                      ),
+                    ),
+                    child: Text(
+                      tag,
+                      style: v2Sans(
+                        13,
+                        color: catFilter == tag ? Colors.white : RtwV2Colors.subText,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+          decoration: BoxDecoration(
+            color: RtwV2Colors.card,
+            border: Border.all(color: RtwV2Colors.border),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _MonthArrow(
+                    label: '‹',
+                    onTap: () => setState(() => viewMonth =
+                        DateTime(activeMonth.year, activeMonth.month - 1)),
+                  ),
+                  Text(
+                    '${monthNames[activeMonth.month - 1]} ${activeMonth.year}',
+                    style: v2Serif(19),
+                  ),
+                  _MonthArrow(
+                    label: '›',
+                    onTap: () => setState(() => viewMonth =
+                        DateTime(activeMonth.year, activeMonth.month + 1)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              GridView.count(
+                crossAxisCount: 7,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 2,
+                crossAxisSpacing: 2,
+                children: [
+                  for (final dow in const ['S', 'M', 'T', 'W', 'T', 'F', 'S'])
+                    Center(
+                      child: Text(
+                        dow,
+                        style: v2Mono(10, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                      ),
+                    ),
+                  for (var i = 0; i < firstDow; i++) const SizedBox.shrink(),
+                  for (var dayNumber = 1; dayNumber <= daysInMonth; dayNumber++)
+                    Builder(builder: (context) {
+                      final has = entriesByDay.containsKey(dayNumber);
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: has
+                              ? RtwV2Colors.meterBlue.withValues(alpha: 0.07)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$dayNumber',
+                              style: v2Sans(
+                                13,
+                                color: has ? RtwV2Colors.inkSoft : const Color(0xFFC3BDAF),
+                                weight: has ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: has ? RtwV2Colors.blue : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        if (history == null)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Loading history…', style: v2Sans(14, color: RtwV2Colors.faint)),
+            ),
+          )
+        else if (cards.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 24, 10, 24),
+              child: Text('No questions this month.', style: v2Sans(14, color: RtwV2Colors.faint)),
+            ),
+          )
+        else
+          for (final card in cards) ...[
+            _HistoryQuestionCard(
+              entry: card.entry,
+              question: card.question,
+              onTap: () => showQuestionDetailSheet(
+                context,
+                widget.rooms,
+                roomId: widget.room.id,
+                dailyKey: card.entry.day.dailyKey,
+                question: card.question,
+                day: card.entry.day,
+              ),
+            ),
+            const SizedBox(height: 11),
+          ],
+        _ghostDoneButton(context),
+      ],
+    );
+  }
+}
+
+class _MonthArrow extends StatelessWidget {
+  const _MonthArrow({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: RtwV2Colors.hairline,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Text(label, style: v2Sans(16, color: const Color(0xFF5C584F))),
+      ),
+    );
+  }
+}
+
+class _HistoryQuestionCard extends StatelessWidget {
+  const _HistoryQuestionCard({
+    required this.entry,
+    required this.question,
+    required this.onTap,
+  });
+
+  final RoomHistoryDay entry;
+  final RoomDayQuestion question;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final pick = entry.myAnswer?.pickFor(question.qid);
+    final score = entry.myAnswer?.accuracies[question.qid];
+    final result = entry.day.resultFor(question.qid);
+    final youLabel = pick == null
+        ? null
+        : pick.side == 'a'
+            ? question.optA
+            : question.optB;
+    final roomPct = result == null || pick == null
+        ? null
+        : pick.side == 'a'
+            ? result.aPct
+            : 100 - result.aPct;
+    final date = DateTime.tryParse(entry.day.dailyKey);
+    const months = [
+      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    ];
+    final dateLabel =
+        date == null ? entry.day.dailyKey : '${months[date.month - 1]} ${date.day}';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: RtwV2Colors.card,
+          border: Border.all(color: RtwV2Colors.border),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(dateLabel, style: v2Mono(10, letterSpacing: 1.3)),
+                if (score != null)
+                  Text.rich(
+                    TextSpan(
+                      text: '$score',
+                      style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 0),
+                      children: [
+                        TextSpan(
+                          text: '/100',
+                          style: v2Mono(11, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              question.prompt,
+              style: v2Serif(18, color: const Color(0xFF2C2A24), height: 1.28),
+            ),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                if (youLabel != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: RtwV2Colors.meterBlue.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'You said $youLabel',
+                      style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                    ),
+                  ),
+                if (roomPct != null && pick?.prediction != null) ...[
+                  const SizedBox(width: 9),
+                  Text(
+                    'Room $roomPct% · guessed ${pick!.prediction}%',
+                    style: v2Mono(11, color: RtwV2Colors.subText, letterSpacing: 0),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── WORLD BROWSE (recent world questions beyond today) ─────────────────
+
+Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) async {
+  final days = await rooms.loadWorldBrowse();
+  if (!context.mounted) return;
+  await showV2Sheet(context, (context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _sheetEyebrow('More world questions'),
+        _sheetTitle('Waiting on the crowd.'),
+        _sheetBody(
+          "These are outside today's 3 — reveals open as each question "
+          'crosses its answer threshold.',
+        ),
+        const SizedBox(height: 16),
+        if (days.isEmpty)
+          Text('Nothing here yet.', style: v2Sans(14, color: RtwV2Colors.faint))
+        else
+          for (final entry in days)
+            for (final question in entry.day.activeQuestions) ...[
+              Builder(builder: (context) {
+                final answers = entry.day.answerCounts[question.qid] ??
+                    entry.day.resultFor(question.qid)?.answers ??
+                    0;
+                final threshold = question.threshold ?? 1000;
+                final pick = entry.myAnswer?.pickFor(question.qid);
+                final pct = (answers / threshold).clamp(0.0, 1.0);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 11),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: RtwV2Colors.card,
+                    border: Border.all(color: RtwV2Colors.border),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          V2Eyebrow(question.tag, letterSpacing: 1.2),
+                          if (pick != null)
+                            Text(
+                              'YOU SAID ${(pick.side == 'a' ? question.optA : question.optB).toUpperCase()}',
+                              style: v2Mono(10, color: RtwV2Colors.blue, letterSpacing: 1),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        question.prompt,
+                        style: v2Serif(17, color: const Color(0xFF2C2A24), height: 1.28),
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Container(
+                          height: 6,
+                          color: const Color(0xFFE6E0D3),
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: pct,
+                            child: Container(color: RtwV2Colors.blue),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
+                        style: v2Sans(11.5, color: RtwV2Colors.muted),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+        _ghostDoneButton(context),
+      ],
+    );
+  });
+}
+
+String _thousandsSep(int value) {
+  final text = value.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < text.length; i++) {
+    if (i > 0 && (text.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(text[i]);
+  }
+  return buffer.toString();
+}

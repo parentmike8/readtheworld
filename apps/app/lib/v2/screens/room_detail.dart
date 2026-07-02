@@ -149,7 +149,14 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                   question: question,
                   day: reveal!.day,
                   answer: reveal!.myAnswer,
-                  onTap: () => _showDayDetail(context, rooms, room, reveal!, question),
+                  onTap: () => showQuestionDetailSheet(
+                    context,
+                    rooms,
+                    roomId: room.id,
+                    dailyKey: reveal!.dailyKey,
+                    question: question,
+                    day: reveal!.day,
+                  ),
                 ),
                 const SizedBox(height: 11),
               ],
@@ -179,164 +186,9 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   }
 
   void _showHistorySheet(BuildContext context, RoomsController rooms, RtwRoom room) {
-    showV2Sheet(context, (context) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('${room.name} history', style: v2Serif(24, letterSpacing: -0.4)),
-          const SizedBox(height: 16),
-          Text(
-            'Past reveals collect here day by day.',
-            style: v2Sans(13.5, color: RtwV2Colors.muted, height: 1.5),
-          ),
-        ],
-      );
-    });
+    showRoomHistorySheet(context, rooms, room);
   }
 
-  void _showDayDetail(
-    BuildContext context,
-    RoomsController rooms,
-    RtwRoom room,
-    RoomRevealData revealData,
-    RoomDayQuestion question,
-  ) async {
-    final rows = await rooms.loadDayDetail(room.id, revealData.dailyKey);
-    if (!context.mounted) return;
-    final result = revealData.day.resultFor(question.qid);
-    showV2Sheet(context, (context) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          V2Eyebrow(question.tag, color: RtwV2Colors.clay),
-          const SizedBox(height: 8),
-          Text(question.prompt, style: v2Serif(22, height: 1.25, letterSpacing: -0.3)),
-          if (result != null) ...[
-            const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: Container(
-                height: 34,
-                color: const Color(0xFFE6E0D3),
-                child: Stack(
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: (result.aPct / 100).clamp(0.0, 1.0),
-                        child: Container(color: RtwV2Colors.blue),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Center(
-                            child: Text(
-                              '${question.optA} ${result.aPct}%',
-                              style: v2Sans(12, color: Colors.white, weight: FontWeight.w700),
-                            ),
-                          ),
-                          Center(
-                            child: Text(
-                              question.optB,
-                              style: v2Sans(12, color: RtwV2Colors.subText, weight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${result.answers} answered',
-              style: v2Sans(12, color: RtwV2Colors.muted),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: RtwV2Colors.card,
-              border: Border.all(color: RtwV2Colors.border),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                for (final (index, row) in rows.indexed) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-                    color: row.isMe ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 26,
-                          child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
-                        ),
-                        Expanded(
-                          child: Text(
-                            row.displayName,
-                            style: v2Sans(
-                              15,
-                              color: RtwV2Colors.inkSoft,
-                              weight: row.isMe ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        if (row.reveals && row.picks.any((pick) => pick.qid == question.qid)) ...[
-                          Builder(builder: (context) {
-                            final pick = row.picks.firstWhere((pick) => pick.qid == question.qid);
-                            final label = pick.side == 'a' ? question.optA : question.optB;
-                            final isA = pick.side == 'a';
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
-                                    .withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(7),
-                              ),
-                              child: Text(
-                                label,
-                                style: v2Sans(
-                                  12,
-                                  color: isA ? RtwV2Colors.blueTextDeep : RtwV2Colors.clayTextDeep,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                            );
-                          }),
-                          const SizedBox(width: 10),
-                        ],
-                        Text(
-                          '${row.accuracies[question.qid] ?? '—'}',
-                          style: v2Serif(17),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (index < rows.length - 1) const V2Hairline(),
-                ],
-                if (rows.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'No answers to show.',
-                      style: v2Sans(13, color: RtwV2Colors.muted),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      );
-    });
-  }
 }
 
 String _thousands(int value) {
@@ -539,6 +391,14 @@ class _WorldProgressCard extends StatelessWidget {
             'Predicting turns on once the game hits ${_thousands(room.worldGoal)} '
             'players and a question crosses 1,000 answers.',
             style: v2Sans(13, color: RtwV2Colors.subText, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => showWorldBrowseSheet(context, rooms),
+            child: Text(
+              'Browse other world questions →',
+              style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+            ),
           ),
         ],
       ),

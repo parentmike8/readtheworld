@@ -29,6 +29,14 @@ class RoomBinding {
   }
 }
 
+/// One closed day in a room's history: the day doc plus my locked answer.
+class RoomHistoryDay {
+  const RoomHistoryDay({required this.day, this.myAnswer});
+
+  final RoomDay day;
+  final RoomAnswer? myAnswer;
+}
+
 /// Reveal payload for a room's most recently closed day.
 class RoomRevealData {
   const RoomRevealData({
@@ -665,6 +673,115 @@ class RoomsController extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+  }
+
+  /// Closed days for the room-history sheet (newest first).
+  Future<List<RoomHistoryDay>> loadRoomHistory(String roomId, {int limitDays = 90}) async {
+    final currentUid = uid;
+    if (currentUid == null) return const [];
+    try {
+      final daysSnap = await _db
+          .collection('rooms')
+          .doc(roomId)
+          .collection('days')
+          .orderBy('dailyKey', descending: true)
+          .limit(limitDays)
+          .get();
+      final closedDocs = daysSnap.docs
+          .where((doc) => doc.data()['status'] == 'closed')
+          .toList();
+      final answers = await Future.wait([
+        for (final doc in closedDocs)
+          doc.reference.collection('answers').doc(currentUid).get(),
+      ]);
+      return [
+        for (final (index, doc) in closedDocs.indexed)
+          RoomHistoryDay(
+            day: roomDayFromFirestore(doc.id, doc.data()),
+            myAnswer: answers[index].data() == null
+                ? null
+                : roomAnswerFromFirestore(answers[index].data()!),
+          ),
+      ];
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return const [];
+    }
+  }
+
+  /// Recent world questions beyond today's 3 (browse-only), with my answers.
+  Future<List<RoomHistoryDay>> loadWorldBrowse({int limitDays = 5}) async {
+    final currentUid = uid;
+    if (currentUid == null) return const [];
+    final todayKey = worldRoom?.currentDailyKey;
+    try {
+      final daysSnap = await _db
+          .collection('rooms')
+          .doc(worldRoomId)
+          .collection('days')
+          .orderBy('dailyKey', descending: true)
+          .limit(limitDays + 1)
+          .get();
+      final docs = daysSnap.docs.where((doc) => doc.id != todayKey).toList();
+      final answers = await Future.wait([
+        for (final doc in docs)
+          doc.reference.collection('answers').doc(currentUid).get(),
+      ]);
+      return [
+        for (final (index, doc) in docs.indexed)
+          RoomHistoryDay(
+            day: roomDayFromFirestore(doc.id, doc.data()),
+            myAnswer: answers[index].data() == null
+                ? null
+                : roomAnswerFromFirestore(answers[index].data()!),
+          ),
+      ];
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return const [];
+    }
+  }
+
+  /// Reorder the not-yet-played room blocks of the today deck (prototype
+  /// room-switch drag). Past and current blocks stay in place.
+  void reorderTodayBlocks(List<String> movableRoomIdsInOrder) {
+    final session = play;
+    if (session == null || session.mode != 'today') return;
+    final deck = session.deck;
+    final blocks = <List<TodayDeckCard>>[];
+    var i = 0;
+    while (i < deck.length) {
+      final roomId = deck[i].roomId;
+      var j = i;
+      while (j < deck.length && deck[j].roomId == roomId) {
+        j++;
+      }
+      blocks.add(deck.sublist(i, j));
+      i = j;
+    }
+    final currentBlockIndex = blocks.indexWhere((block) {
+      final start = deck.indexOf(block.first);
+      return session.idx >= start && session.idx < start + block.length;
+    });
+    if (currentBlockIndex < 0) return;
+    final fixed = blocks.sublist(0, currentBlockIndex + 1);
+    final movable = blocks.sublist(currentBlockIndex + 1);
+    final byRoomId = {for (final block in movable) block.first.roomId: block};
+    final reordered = [
+      for (final roomId in movableRoomIdsInOrder)
+        if (byRoomId.containsKey(roomId)) byRoomId[roomId]!,
+    ];
+    if (reordered.length != movable.length) return;
+    final currentCard = session.card;
+    session.deck
+      ..clear()
+      ..addAll([...fixed.expand((block) => block), ...reordered.expand((block) => block)]);
+    if (currentCard != null) {
+      session.idx = session.deck.indexOf(currentCard);
+    }
+    notifyListeners();
   }
 
   Future<void> markRevealSeen(String roomId) async {
