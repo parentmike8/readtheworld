@@ -62,6 +62,23 @@ service cloud.firestore {
         request.resource.data.enabled is bool;
     }
 
+    function validAnswerDraft(questionId) {
+      return request.resource.data.keys().hasOnly([
+        "questionId",
+        "dailyKey",
+        "selectedOptionId",
+        "predictedShare",
+        "createdAt",
+        "updatedAt"
+      ]) &&
+        request.resource.data.questionId == questionId &&
+        request.resource.data.dailyKey is string &&
+        request.resource.data.selectedOptionId is string &&
+        request.resource.data.predictedShare is int &&
+        request.resource.data.predictedShare >= 0 &&
+        request.resource.data.predictedShare <= 100;
+    }
+
     match /questions/{questionId} {
       allow read: if isAdmin() || resource.data.status in ["live", "closed"];
       allow create, update, delete: if isAdmin();
@@ -95,6 +112,11 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
+      match /answerDrafts/{questionId} {
+        allow read, delete: if isOwner(uid) || isAdmin();
+        allow create, update: if isOwner(uid) && validAnswerDraft(questionId);
+      }
+
       match /categoryStats/{categoryId} {
         allow read: if isOwner(uid) || isAdmin();
         allow write: if isAdmin();
@@ -115,11 +137,63 @@ service cloud.firestore {
         allow create: if isAdmin() || (isOwner(uid) && validNotificationTokenCreate());
         allow update: if isAdmin() || (isOwner(uid) && validNotificationTokenUpdate());
       }
+
+      // v2: mirror of room membership, maintained by callables.
+      match /memberships/{roomId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if isAdmin();
+      }
     }
 
     match /leaderboards/{boardId}/{document=**} {
       allow read: if signedIn();
       allow write: if isAdmin();
+    }
+
+    // ── v2 Rooms ─────────────────────────────────────────────────────────
+    // All room mutations flow through callables (admin SDK bypasses rules),
+    // so clients get read-only access scoped by membership. The World room
+    // (fixed id "world") is browsable by any signed-in user.
+    function isRoomMember(roomId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid));
+    }
+
+    function isWorldRoom(roomId) {
+      return roomId == "world";
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isAdmin() || isRoomMember(roomId) || (isWorldRoom(roomId) && signedIn());
+      allow write: if isAdmin();
+
+      match /members/{memberUid} {
+        allow read: if isAdmin() || isRoomMember(roomId);
+        allow write: if isAdmin();
+      }
+
+      match /days/{dailyKey} {
+        allow read: if isAdmin() || isRoomMember(roomId) || (isWorldRoom(roomId) && signedIn());
+        allow write: if isAdmin();
+
+        match /answers/{answerUid} {
+          allow read: if isAdmin() || isOwner(answerUid);
+          allow write: if isAdmin();
+        }
+      }
+
+      match /queue/{itemId} {
+        allow read: if isAdmin() || isRoomMember(roomId);
+        allow write: if isAdmin();
+      }
+    }
+
+    match /questionBank/{qid} {
+      allow read, write: if isAdmin();
+    }
+
+    match /flags/{flagId} {
+      allow read, write: if isAdmin();
     }
 
     match /links/{code} {

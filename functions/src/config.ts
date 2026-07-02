@@ -3,7 +3,8 @@ export type AdminFeatureFlagKey =
   | "feature_friends"
   | "feature_friends_leaderboard"
   | "feature_result_sharing"
-  | "feature_onboarding_demographics";
+  | "feature_onboarding_demographics"
+  | "feature_world_room_unlocked";
 
 export type AdminFeatureFlagDefinition = {
   key: AdminFeatureFlagKey;
@@ -42,6 +43,12 @@ export const ADMIN_FEATURE_FLAGS: AdminFeatureFlagDefinition[] = [
     label: "Onboarding demographics",
     description: "Collect optional birthdate, gender, and country profile fields",
     defaultValue: true,
+  },
+  {
+    key: "feature_world_room_unlocked",
+    label: "World Room predictions",
+    description: "Unlock predicting in The World room (manual switch — flip when the player count supports it)",
+    defaultValue: false,
   },
 ];
 

@@ -22,7 +22,8 @@
     "readiness:check": "node scripts/check-deployment-readiness.mjs",
     "rules:test": "npx -y firebase-tools@15.22.3 emulators:exec --only firestore \"vitest run firebase/test\"",
     "test": "npm run functions:test && npm run app:test",
-    "build": "npm run functions:build && npm run web:build && npm run app:build:web"
+    "build": "npm run functions:build && npm run web:build && npm run app:build:web",
+    "bank:seed": "npm run functions:build && node scripts/seed-question-bank.mjs"
   },
   "engines": {
     "node": "20"

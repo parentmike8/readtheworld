@@ -1,6 +1,7 @@
 "use client";
 
 import { FirebaseError, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import Image from "next/image";
 import {
   collection,
   doc,
@@ -20,6 +21,7 @@ import {
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { activateClientAppCheck } from "@/lib/appCheck";
 
 const faqs = [
   [
@@ -28,7 +30,7 @@ const faqs = [
   ],
   [
     "Why don't results show right away?",
-    "Results unlock the next day, when the new question drops. The delay keeps the daily ritual honest: you commit your read before you see how it landed.",
+    "Results arrive the next day, when the new question drops. You commit your read before you see how it landed.",
   ],
   [
     "How is my score calculated?",
@@ -80,9 +82,8 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [footerEmail, setFooterEmail] = useState("");
-  const [footerSubmitted, setFooterSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submitting, setSubmitting] = useState<"" | "gate" | "footer">("");
+  const [submitting, setSubmitting] = useState<"" | "gate">("");
   const [openFaq, setOpenFaq] = useState(0);
   const [liveQuestion, setLiveQuestion] = useState<LiveQuestion | null>(null);
   const [recentQuestions, setRecentQuestions] = useState<PublicQuestion[]>([]);
@@ -96,7 +97,9 @@ export default function Home() {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const app = useMemo<FirebaseApp | null>(() => {
     if (!hasFirebaseConfig()) return null;
-    return getApps()[0] ?? initializeApp(firebaseConfig);
+    const firebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
+    activateClientAppCheck(firebaseApp);
+    return firebaseApp;
   }, []);
   const firestore = useMemo(() => (app ? getFirestore(app) : null), [app]);
   const auth = useMemo(() => (app ? getAuth(app) : null), [app]);
@@ -104,7 +107,12 @@ export default function Home() {
 
   useEffect(() => {
     if (!firestore) return undefined;
-    const liveQuery = query(collection(firestore, "questions"), where("status", "==", "live"), limit(1));
+    const liveQuery = query(
+      collection(firestore, "questions"),
+      where("status", "==", "live"),
+      orderBy("publishAt", "desc"),
+      limit(1),
+    );
     return onSnapshot(liveQuery, (snapshot) => {
       const first = snapshot.docs[0];
       if (!first) {
@@ -298,35 +306,18 @@ export default function Home() {
     }
   }
 
-  async function submitWaitlist(nextEmail: string, source: "landing_gate" | "landing_footer") {
+  function startCreateAccount(nextEmail: string) {
     const normalizedEmail = nextEmail.trim();
     if (!normalizedEmail.includes("@")) {
       setSubmitError("Enter a valid email address.");
-      return false;
-    }
-    if (!functions) {
-      setSubmitError("");
-      return true;
+      return;
     }
 
-    setSubmitError("");
-    setSubmitting(source === "landing_gate" ? "gate" : "footer");
-    try {
-      const callable = httpsCallable(functions, "joinWaitlist");
-      await callable({
-        email: normalizedEmail,
-        source,
-        answer: selectedAnswerLabel(liveQuestion, answerId),
-        predictedShare: prediction,
-      });
-      return true;
-    } catch (error) {
-      const message = error instanceof FirebaseError ? error.message : String(error);
-      setSubmitError(message);
-      return false;
-    } finally {
-      setSubmitting("");
-    }
+    const params = new URLSearchParams({
+      mode: "create",
+      email: normalizedEmail,
+    });
+    window.location.href = `${appBaseUrl}/auth?${params.toString()}`;
   }
 
   return (
@@ -377,7 +368,7 @@ export default function Home() {
           </h1>
           <p>
             One shared question a day. Answer for yourself, then predict how the
-            world will answer. The sharper your read, the higher your score.
+            world will answer. The closer your prediction, the higher your score.
           </p>
         </div>
 
@@ -387,7 +378,14 @@ export default function Home() {
               <span>Today{liveQuestion ? ` · ${liveQuestion.category}` : ""}</span>
               <span className="liveDot"><i />Live</span>
             </div>
-            <h2 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h2>
+            {step === "predict" ? (
+              <div className="predictQuestionHeader">
+                <p>{liveQuestion?.prompt ?? "Loading today's question..."}</p>
+                <h2 className="serif">{predictPrompt}</h2>
+              </div>
+            ) : (
+              <h2 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h2>
+            )}
 
             {playedToday ? (
               <div className="submittedState">
@@ -420,7 +418,6 @@ export default function Home() {
 
             {step === "predict" ? (
               <div className="predictStep">
-                <p>{predictPrompt}</p>
                 <div className="predictNumber">
                   <span className="serif">{prediction}</span>
                   <small className="serif">%</small>
@@ -453,7 +450,7 @@ export default function Home() {
               </div>
             ) : null}
 
-	            {step === "gate" ? (
+            {step === "gate" ? (
               <div className="gateStep">
                 <div className="gateBox">
                   <div>
@@ -461,8 +458,8 @@ export default function Home() {
                     <span>Your read &middot; {prediction}%</span>
                   </div>
                   <p>
-                    The world&apos;s answer unlocks tomorrow. Create a free account or sign in
-                    to carry this read into the app.
+                    The world&apos;s answer appears tomorrow. Sign in or create a free account
+                    to save this read, see your past answers, and track your score.
                   </p>
                 </div>
                 {user ? (
@@ -525,17 +522,17 @@ export default function Home() {
             <article>
               <b className="serif">01</b>
               <h3 className="serif">Answer</h3>
-              <p>Take your own side on today&apos;s question. It stays private {"\u2014"} it is just your input.</p>
+              <p>Take your own side on today&apos;s question. It stays private and starts your read.</p>
             </article>
             <article>
               <b className="serif">02</b>
               <h3 className="serif">Predict</h3>
-              <p>Guess what share of the world answered the same way. This is the real game.</p>
+              <p>Guess what share of the world answered the same way. That prediction is the game.</p>
             </article>
             <article>
               <b className="serif">03</b>
               <h3 className="serif">Reveal</h3>
-              <p>Tomorrow, see how the world really answered and how sharp your read was.</p>
+              <p>Tomorrow, see how the world answered and how close your read was.</p>
             </article>
           </div>
         </div>
@@ -552,21 +549,26 @@ export default function Home() {
           </p>
         </div>
         <div className="leaderboard">
-          <div className="leaderHead">Live in the app</div>
+          <div className="leaderHead">Friends leaderboard</div>
           <div className="me">
-            <span>01</span>
-            <strong>Read Score</strong>
-            <b className="serif">--</b>
+            <span>1</span>
+            <strong>You</strong>
+            <b className="serif">1,840</b>
           </div>
           <div>
-            <span>02</span>
-            <strong>Daily streak</strong>
-            <b className="serif">--</b>
+            <span>2</span>
+            <strong>Dana K.</strong>
+            <b className="serif">1,792</b>
           </div>
           <div>
-            <span>03</span>
-            <strong>Friends leaderboard</strong>
-            <b className="serif">--</b>
+            <span>3</span>
+            <strong>Marcus R.</strong>
+            <b className="serif">1,710</b>
+          </div>
+          <div>
+            <span>4</span>
+            <strong>Priya S.</strong>
+            <b className="serif">1,655</b>
           </div>
         </div>
       </section>
@@ -577,18 +579,69 @@ export default function Home() {
             <div className="eyebrow onDark">Party mode</div>
             <h2 className="serif">Read the room, together.</h2>
             <p>
-              Throw it on a screen and run through past questions as a group.
-              Call each one out loud, then reveal how the world really answered.
-              No scores {"\u2014"} just great debate.
+              Throw it on a screen and run through past questions, solo or with
+              a room. Reveal how the world really answered, one card at a time.
+              No scores, just the read.
             </p>
           </div>
-          <div className="partyCard">
-            <div className="eyebrow onDark">{liveQuestion?.category ?? "Live question"}</div>
-            <h3 className="serif">{liveQuestion?.prompt ?? "Loading today's question..."}</h3>
-            <div className="partyResult">
-              <b>{liveQuestion?.options[0]?.label ?? "Answer"}</b>
-              <em>{liveQuestion?.options[1]?.label ?? "Predict"}</em>
+          <div className="partyDeck" aria-label="Sample party mode question deck">
+            <div className="partyCard partyCardBack partyCardBackLeft">
+              <div className="eyebrow onDark">Philosophy</div>
+              <h3 className="serif">Do you believe in free will?</h3>
+              <div className="partyResult partyResultGhost" />
             </div>
+            <div className="partyCard partyCardBack partyCardBackRight">
+              <div className="eyebrow onDark">Society</div>
+              <h3 className="serif">Should billionaires exist?</h3>
+              <div className="partyResult partyResultGhost" />
+            </div>
+            <div className="partyCard partyCardFront">
+              <div className="partyCardTop">
+                <div className="eyebrow onDark">Culture</div>
+                <span>3 / 56</span>
+              </div>
+              <h3 className="serif">Is it rude to keep your phone on the table at dinner?</h3>
+              <div className="partyResult">
+                <div className="yesFill" />
+                <b>YES 62%</b>
+                <em>NO</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="downloadBand" id="downloads">
+        <div className="lpWrap lpSection lpCols downloadSection">
+          <div>
+            <div className="eyebrow clay">Take it with you</div>
+            <h2 className="serif">The daily read, in your pocket.</h2>
+            <p>
+              Native apps are on the way. Until then, the full daily challenge
+              runs right in your browser. No download needed.
+            </p>
+            <a className="darkButton downloadWebButton" href="#play">
+              Play today&apos;s question <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          <div className="downloadCards" aria-label="Upcoming app downloads">
+            <article className="storeCard">
+              <Image className="storeMark appleMark" src="/apple-mark.svg" width={32} height={32} alt="" aria-hidden="true" />
+              <div>
+                <div className="eyebrow">App Store</div>
+                <h3 className="serif">iPhone &amp; iPad</h3>
+              </div>
+              <b>Soon</b>
+            </article>
+            <article className="storeCard">
+              <Image className="storeMark" src="/google-play-mark.svg" width={30} height={30} alt="" aria-hidden="true" />
+              <div>
+                <div className="eyebrow">Google Play</div>
+                <h3 className="serif">Android</h3>
+              </div>
+              <b>Soon</b>
+            </article>
+            <p>Create an account and we&apos;ll let you know the moment the apps go live.</p>
           </div>
         </div>
       </section>
@@ -636,8 +689,7 @@ export default function Home() {
         <form
           onSubmit={async (event) => {
             event.preventDefault();
-            const ok = await submitWaitlist(footerEmail, "landing_footer");
-            if (ok) setFooterSubmitted(true);
+            startCreateAccount(footerEmail);
           }}
         >
           <input
@@ -646,13 +698,11 @@ export default function Home() {
             placeholder="you@email.com"
             type="email"
           />
-          <button type="submit" disabled={submitting === "footer"}>
-            {submitting === "footer" ? "Saving..." : footerSubmitted ? "You're in" : "Get started"}
+          <button type="submit">
+            Get started
           </button>
         </form>
-        {footerSubmitted ? (
-          <div className="footerSuccess">You&apos;re in. We&apos;ll send your invite when beta opens.</div>
-        ) : submitError ? (
+        {submitError ? (
           <div className="footerSuccess error">{submitError}</div>
         ) : null}
         <div className="footerBottom">

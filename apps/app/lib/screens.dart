@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'app_state.dart';
 import 'firestore_mappers.dart';
@@ -15,10 +17,20 @@ import 'scoring.dart';
 import 'theme/tokens.dart';
 import 'widgets.dart';
 
+final Uri _marketingSiteUri = Uri.parse('https://readtheworld.today');
+
 double _screenTopPadding(BuildContext context, double designTop) {
   if (kIsWeb) return designTop;
   final safeTop = MediaQuery.paddingOf(context).top;
   return math.max(20.0, designTop - safeTop);
+}
+
+Future<void> _openMarketingSite() async {
+  await launchUrl(
+    _marketingSiteUri,
+    mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+    webOnlyWindowName: '_self',
+  );
 }
 
 Future<void> _showInviteSheet(BuildContext context, String url) {
@@ -427,6 +439,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   void initState() {
     super.initState();
+    final mode = Uri.base.queryParameters['mode']?.trim().toLowerCase();
+    if (mode == 'create' || mode == 'signup') {
+      creating = true;
+      obscure = false;
+    }
     final email = Uri.base.queryParameters['email'];
     if (email != null && email.isNotEmpty) {
       emailController.text = email;
@@ -482,7 +499,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final width = size.width;
     final isWide = width >= 820;
     final useWebPhoneSurface = kIsWeb && !isWide;
-    final mobileWidth = math.min(width, 393.0);
+    final mobileWidth = rtwMobileSurfaceWidth(size);
 
     Widget authForm({bool mobile = false}) {
       return _AuthForm(
@@ -647,7 +664,21 @@ class _AuthBrandPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const RtwLogo(onDark: true),
+          Semantics(
+            button: true,
+            label: 'Read the World marketing site',
+            child: Tooltip(
+              message: 'Back to readtheworld.today',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _openMarketingSite,
+                  child: const RtwLogo(onDark: true),
+                ),
+              ),
+            ),
+          ),
           const Spacer(),
           if (creating)
             UnconstrainedBox(
@@ -1029,6 +1060,13 @@ class _SocialButton extends StatelessWidget {
         children: [
           if (mark == 'Apple')
             Icon(Icons.apple, size: compact ? 18 : 19)
+          else if (mark == 'G')
+            Image.asset(
+              'assets/icons/google.png',
+              width: compact ? 18 : 19,
+              height: compact ? 18 : 19,
+              filterQuality: FilterQuality.high,
+            )
           else
             Text(
               mark,
@@ -1201,7 +1239,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   child: CalendarDatePicker(
                                     initialDate: pending,
                                     firstDate: DateTime(1900),
-                                    lastDate: DateTime(2026, 6, 27),
+                                    lastDate: DateTime.now(),
                                     onDateChanged: (value) {
                                       sheetSetState(() => pending = value);
                                     },
@@ -1858,7 +1896,12 @@ class PredictScreen extends ConsumerWidget {
                       ),
                     ),
                   const Eyebrow('Read the world'),
-                  const SizedBox(height: 13),
+                  const SizedBox(height: 12),
+                  _PredictionQuestionReference(
+                    question: controller.today.prompt,
+                    isWide: isWide,
+                  ),
+                  const SizedBox(height: 18),
                   Text(
                     'What share of people also said “${controller.selectedLabel}”?',
                     style: Theme.of(context).textTheme.headlineMedium!.copyWith(
@@ -1908,14 +1951,15 @@ class PredictScreen extends ConsumerWidget {
                     label: controller.submitting
                         ? 'Locking...'
                         : 'Lock in my prediction',
-                    onPressed: controller.selectedOptionId == null
+                    onPressed:
+                        controller.selectedOptionId == null ||
+                            controller.submitting
                         ? null
-                        : () async {
-                            await ref
-                                .read(rtwControllerProvider)
-                                .lockPrediction();
-                            if (context.mounted &&
-                                ref.read(rtwControllerProvider).lockedToday) {
+                        : () {
+                            unawaited(
+                              ref.read(rtwControllerProvider).lockPrediction(),
+                            );
+                            if (context.mounted) {
                               context.go('/today/locked');
                             }
                           },
@@ -1942,6 +1986,47 @@ class PredictScreen extends ConsumerWidget {
   }
 }
 
+class _PredictionQuestionReference extends StatelessWidget {
+  const _PredictionQuestionReference({
+    required this.question,
+    required this.isWide,
+  });
+
+  final String question;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? 18 : 16,
+        vertical: isWide ? 14 : 13,
+      ),
+      decoration: BoxDecoration(
+        color: RtwColors.card,
+        border: Border.all(color: RtwColors.border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Eyebrow('The question', fontSize: 10),
+          const SizedBox(height: 7),
+          Text(
+            question,
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+              color: RtwColors.subText,
+              fontSize: isWide ? 15 : 14,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class LockedScreen extends ConsumerWidget {
   const LockedScreen({super.key});
 
@@ -1957,6 +2042,17 @@ class LockedScreen extends ConsumerWidget {
         onAction: () => context.go('/today'),
       );
     }
+    if (!controller.lockedToday) {
+      return _LiveDataEmptyState(
+        location: '/today/locked',
+        title: 'Lock did not save.',
+        body:
+            controller.lastError ??
+            'Your answer is still saved. Try locking it in again.',
+        actionLabel: 'Try again',
+        onAction: () => context.go('/today/predict'),
+      );
+    }
     final selectedLabel = controller.selectedLabel.isEmpty
         ? 'No'
         : controller.selectedLabel;
@@ -1964,6 +2060,10 @@ class LockedScreen extends ConsumerWidget {
       RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"),
       (m) => "${m[1]},",
     );
+    final countdown = controller.nextRevealCountdownText;
+    final countdownSuffix = countdown == 'Ready'
+        ? ' for the next question & reveal'
+        : ' until the next question & reveal';
     final isWide = MediaQuery.sizeOf(context).width >= 820;
     return AppScaffold(
       location: '/today/locked',
@@ -2094,14 +2194,14 @@ class LockedScreen extends ConsumerWidget {
                   const SizedBox(height: 10),
                   Text.rich(
                     TextSpan(
-                      text: '06:12:44',
+                      text: countdown,
                       style: Theme.of(context).textTheme.labelSmall!.copyWith(
                         color: RtwColors.clay,
                         fontSize: 13,
                       ),
                       children: [
                         TextSpan(
-                          text: ' until the next question & reveal',
+                          text: countdownSuffix,
                           style: Theme.of(context).textTheme.bodyMedium!
                               .copyWith(color: const Color(0xFF5C584F)),
                         ),
@@ -2196,13 +2296,34 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
       );
     }
     final entry = controller.revealEntryFor(widget.questionId);
-    final selected = entry.selectedOptionId ?? 'yes';
+    final hasGuess = entry.hasAnswer;
+    final selected = hasGuess
+        ? entry.selectedOptionId!
+        : _majorityOptionId(entry.question);
+    final selectedLabel = entry.question.option(selected).label;
     final world = entry.question.worldShareFor(selected);
     final guess = entry.prediction ?? 0;
-    final score =
-        entry.readAccuracy ??
-        calculateReadAccuracy(predictedShare: guess, actualShare: world);
-    final scoreGap = (world - guess).abs();
+    final score = hasGuess
+        ? entry.readAccuracy ??
+              calculateReadAccuracy(predictedShare: guess, actualShare: world)
+        : null;
+    final scoreGap = hasGuess ? (world - guess).abs() : null;
+    final hasFriendRows =
+        settings.friends && controller.friends.any((friend) => !friend.me);
+    final friendComparisons =
+        controller.friendAnswerComparisonQuestionId == entry.question.id
+        ? controller.friendAnswerComparisons
+        : const <FriendAnswerComparison>[];
+    if (hasFriendRows &&
+        controller.friendAnswerComparisonQuestionId != entry.question.id &&
+        !controller.loadingFriendAnswerComparisons) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref
+            .read(rtwControllerProvider)
+            .loadFriendAnswerComparisons(entry.question.id);
+      });
+    }
     final isWide = MediaQuery.sizeOf(context).width >= 820;
     return AppScaffold(
       location: '/reveal',
@@ -2232,6 +2353,7 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
                 worldShare: world,
                 guess: guess,
                 progress: progress.value,
+                showGuess: hasGuess,
               ),
               const SizedBox(height: 14),
               Text(
@@ -2242,160 +2364,212 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
                 ),
               ),
               const SizedBox(height: 30),
-              Text.rich(
-                TextSpan(
-                  text:
-                      '${(world * progress.value).round()}% also said ${entry.question.option(selected).label}.',
-                  style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                    color: RtwColors.clay,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
+              if (hasGuess)
+                Text.rich(
+                  TextSpan(
+                    text:
+                        '${(world * progress.value).round()}% also said $selectedLabel.',
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: RtwColors.clay,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: '\nYou guessed ',
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                          fontSize: 22,
+                          height: 1.35,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '$guess%.',
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                          color: RtwColors.blue,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
-                  children: [
-                    TextSpan(
-                      text: '\nYou guessed ',
-                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                        fontSize: 22,
-                        height: 1.35,
-                      ),
+                )
+              else
+                Text.rich(
+                  TextSpan(
+                    text:
+                        '${(world * progress.value).round()}% of the world said $selectedLabel.',
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: RtwColors.clay,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
                     ),
-                    TextSpan(
-                      text: '$guess%.',
-                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                        color: RtwColors.blue,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
+                    children: [
+                      TextSpan(
+                        text: "\nYou didn't answer this one.",
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                          fontSize: 22,
+                          height: 1.35,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              RtwCard(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Eyebrow('Read Accuracy'),
-                              const SizedBox(height: 6),
-                              Text.rich(
-                                TextSpan(
-                                  text: '${(score * progress.value).round()}',
-                                  children: [
-                                    TextSpan(
-                                      text: ' / 100',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge!
-                                          .copyWith(
-                                            fontSize: 19,
-                                            color: RtwColors.muted,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineLarge!
-                                    .copyWith(fontSize: 44, height: 1),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 18),
-                          child: Text(
-                            _readVerdict(scoreGap),
-                            style: Theme.of(context).textTheme.titleLarge!
-                                .copyWith(
-                                  fontStyle: FontStyle.italic,
-                                  color: RtwColors.clay,
-                                  fontSize: 18,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SectionRule(top: 18, bottom: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Eyebrow('Read Score'),
-                              const SizedBox(height: 3),
-                              Text.rich(
-                                TextSpan(
-                                  text: formattedReadScore(
-                                    controller.readScore +
-                                        (((entry.readScoreDelta ?? 0) *
-                                                progress.value)
-                                            .round()),
-                                  ),
-                                  children: [
-                                    if (entry.readScoreDelta != null)
+              if (hasGuess && score != null && scoreGap != null) ...[
+                const SizedBox(height: 24),
+                RtwCard(
+                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Eyebrow('Read Accuracy'),
+                                const SizedBox(height: 6),
+                                Text.rich(
+                                  TextSpan(
+                                    text: '${(score * progress.value).round()}',
+                                    children: [
                                       TextSpan(
-                                        text:
-                                            ' ${entry.readScoreDelta! >= 0 ? '+' : ''}${entry.readScoreDelta}',
+                                        text: ' / 100',
                                         style: Theme.of(context)
                                             .textTheme
-                                            .labelSmall!
+                                            .titleLarge!
                                             .copyWith(
-                                              color: RtwColors.clay,
-                                              fontSize: 12,
+                                              fontSize: 19,
+                                              color: RtwColors.muted,
                                             ),
                                       ),
-                                  ],
+                                    ],
+                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineLarge!
+                                      .copyWith(fontSize: 44, height: 1),
                                 ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 18),
+                            child: Text(
+                              _readVerdict(scoreGap),
+                              style: Theme.of(context).textTheme.titleLarge!
+                                  .copyWith(
+                                    fontStyle: FontStyle.italic,
+                                    color: RtwColors.clay,
+                                    fontSize: 18,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SectionRule(top: 18, bottom: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Eyebrow('Read Score'),
+                                const SizedBox(height: 3),
+                                Text.rich(
+                                  TextSpan(
+                                    text: formattedReadScore(
+                                      controller.readScore +
+                                          (((entry.readScoreDelta ?? 0) *
+                                                  progress.value)
+                                              .round()),
+                                    ),
+                                    children: [
+                                      if (entry.readScoreDelta != null)
+                                        TextSpan(
+                                          text:
+                                              ' ${entry.readScoreDelta! >= 0 ? '+' : ''}${entry.readScoreDelta}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall!
+                                              .copyWith(
+                                                color: RtwColors.clay,
+                                                fontSize: 12,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
+                                  style: Theme.of(context).textTheme.titleLarge!
+                                      .copyWith(fontSize: 24),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Eyebrow('Streak'),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${controller.currentStreak} ${controller.currentStreak == 1 ? 'day' : 'days'}',
                                 style: Theme.of(
                                   context,
                                 ).textTheme.titleLarge!.copyWith(fontSize: 24),
                               ),
                             ],
                           ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Eyebrow('Streak'),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${controller.currentStreak} ${controller.currentStreak == 1 ? 'day' : 'days'}',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.titleLarge!.copyWith(fontSize: 24),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (settings.friends &&
-                  controller.friends.any((friend) => !friend.me)) ...[
-                const SizedBox(height: 24),
-                const Eyebrow('Among your friends'),
-                const SizedBox(height: 10),
-                Text(
-                  'Friend answer comparisons appear here after friends share answers for this question.',
-                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                    fontSize: 12,
-                    color: RtwColors.faint,
+                        ],
+                      ),
+                    ],
                   ),
                 ),
+                if (hasFriendRows) ...[
+                  const SizedBox(height: 24),
+                  const Eyebrow('Among your friends'),
+                  const SizedBox(height: 10),
+                  if (controller.loadingFriendAnswerComparisons)
+                    Text(
+                      'Loading shared friend reads...',
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        fontSize: 12,
+                        color: RtwColors.faint,
+                      ),
+                    )
+                  else if (friendComparisons.isEmpty)
+                    Text(
+                      'No shared friend reads for this question yet.',
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        fontSize: 12,
+                        color: RtwColors.faint,
+                      ),
+                    )
+                  else
+                    RtwCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (
+                            var i = 0;
+                            i < friendComparisons.length;
+                            i++
+                          ) ...[
+                            _FriendAnswerComparisonRow(
+                              comparison: friendComparisons[i],
+                              question: entry.question,
+                            ),
+                            if (i != friendComparisons.length - 1)
+                              const SectionRule(top: 0, bottom: 0),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
               ],
               const SizedBox(height: 30),
-              if (settings.resultSharing)
+              if (hasGuess && settings.resultSharing && score != null)
                 TextButton.icon(
                   style: TextButton.styleFrom(
                     foregroundColor: RtwColors.muted,
@@ -2435,6 +2609,18 @@ class _RevealScreenState extends ConsumerState<RevealScreen>
   }
 }
 
+String _majorityOptionId(RtwQuestion question) {
+  if (question.options.isEmpty) return '';
+  var majority = question.options.first;
+  for (final option in question.options.skip(1)) {
+    if (question.worldShareFor(option.id) >
+        question.worldShareFor(majority.id)) {
+      majority = option;
+    }
+  }
+  return majority.id;
+}
+
 String _readVerdict(int gap) {
   if (gap <= 4) return 'Nailed it.';
   if (gap <= 9) return 'Sharp read.';
@@ -2451,7 +2637,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  DateTime viewMonth = DateTime(2026, 6);
+  DateTime? viewMonth;
 
   DateTime _entryDate(HistoryEntry entry) => DateTime.parse(
     entry.question.dailyKey.length == 10
@@ -2459,9 +2645,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         : '${entry.question.dailyKey}-01',
   );
 
+  DateTime _defaultViewMonth(List<HistoryEntry> entries) {
+    if (entries.isNotEmpty) {
+      final date = _entryDate(entries.first);
+      return DateTime(date.year, date.month);
+    }
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
+  }
+
   void _shiftMonth(int delta) {
     setState(() {
-      viewMonth = DateTime(viewMonth.year, viewMonth.month + delta);
+      final base =
+          viewMonth ??
+          _defaultViewMonth(ref.read(rtwControllerProvider).filteredHistory);
+      viewMonth = DateTime(base.year, base.month + delta);
     });
   }
 
@@ -2471,9 +2669,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final settings = ref.watch(appSettingsProvider);
     final isWide = MediaQuery.sizeOf(context).width >= 820;
     final categories = controller.categories;
+    final activeMonth =
+        viewMonth ?? _defaultViewMonth(controller.filteredHistory);
     final visibleEntries = controller.filteredHistory.where((entry) {
       final date = _entryDate(entry);
-      return date.year == viewMonth.year && date.month == viewMonth.month;
+      return date.year == activeMonth.year && date.month == activeMonth.month;
     }).toList();
     return AppScaffold(
       location: '/history',
@@ -2542,7 +2742,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
           const SizedBox(height: 20),
           _HistoryCalendar(
-            viewMonth: viewMonth,
+            viewMonth: activeMonth,
             entries: controller.filteredHistory,
             entryDate: _entryDate,
             onPrevious: () => _shiftMonth(-1),
@@ -4564,6 +4764,58 @@ class _FriendScoreRow extends StatelessWidget {
   }
 }
 
+class _FriendAnswerComparisonRow extends StatelessWidget {
+  const _FriendAnswerComparisonRow({
+    required this.comparison,
+    required this.question,
+  });
+
+  final FriendAnswerComparison comparison;
+  final RtwQuestion question;
+
+  @override
+  Widget build(BuildContext context) {
+    final option = question.option(comparison.selectedOptionId);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  comparison.name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: RtwColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${option.label} · guessed ${comparison.predictedShare}%',
+                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                    fontSize: 12,
+                    color: RtwColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (comparison.readAccuracy != null)
+            Text(
+              '${comparison.readAccuracy}/100',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge!.copyWith(fontSize: 17),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
 
@@ -4766,7 +5018,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Clearing data erases your scores, streak, and history on this device.',
+            'Clearing data erases your scores, streak, saved answers, friends, and notification tokens.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall!.copyWith(
               color: const Color(0xFFBCB6A8),

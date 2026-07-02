@@ -16,7 +16,10 @@ describe("Short links", () => {
     expect(shortLinkExpiresAt("result", createdAt).toISOString()).toBe(
       "2026-07-28T12:00:00.000Z",
     );
-    expect(SHORT_LINK_TTL_DAYS).toEqual({ invite: 90, result: 30 });
+    expect(shortLinkExpiresAt("room", createdAt).toISOString()).toBe(
+      "2027-06-28T12:00:00.000Z",
+    );
+    expect(SHORT_LINK_TTL_DAYS).toEqual({ invite: 90, result: 30, room: 365 });
   });
 
   it("treats missing expirations as legacy active links", () => {
@@ -37,6 +40,7 @@ describe("Short links", () => {
   it("accepts only first-party link types", () => {
     expect(isShortLinkType("invite")).toBe(true);
     expect(isShortLinkType("result")).toBe(true);
+    expect(isShortLinkType("room")).toBe(true);
     expect(isShortLinkType("today")).toBe(false);
   });
 });

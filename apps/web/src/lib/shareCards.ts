@@ -110,6 +110,7 @@ async function readLiveQuestion() {
   const db = serverFirestore();
   const snapshot = await db.collection("questions")
     .where("status", "==", "live")
+    .orderBy("publishAt", "desc")
     .limit(1)
     .get();
   const doc = snapshot.docs[0];

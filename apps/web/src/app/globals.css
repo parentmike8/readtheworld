@@ -18,6 +18,7 @@
 html {
   min-height: 100%;
   background: var(--paper);
+  scroll-behavior: smooth;
 }
 
 html,
@@ -33,6 +34,12 @@ body {
   font-family: var(--font-hanken), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 * {
@@ -324,6 +331,21 @@ button.darkButton,
   letter-spacing: -0.4px;
 }
 
+.predictQuestionHeader {
+  margin-top: 16px;
+}
+
+.predictQuestionHeader p {
+  max-width: 92%;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.predictQuestionHeader h2 {
+  margin-top: 10px;
+}
+
 .answerStep,
 .predictStep,
 .gateStep {
@@ -331,8 +353,7 @@ button.darkButton,
   animation: lpFade 0.3s ease both;
 }
 
-.answerStep p,
-.predictStep p {
+.answerStep p {
   margin-bottom: 12px;
   color: var(--muted);
   font-size: 13px;
@@ -678,21 +699,22 @@ button.darkButton,
 }
 
 .leaderHead {
-  padding: 18px 22px;
+  padding: 20px 22px;
   border-bottom: 1px solid #efeae0;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
 }
 
 .leaderboard > div:not(.leaderHead) {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 34px 1fr auto;
+  gap: 16px;
   align-items: center;
-  padding: 14px 20px;
+  min-height: 58px;
+  padding: 14px 22px;
   border-bottom: 1px solid #efeae0;
 }
 
@@ -706,16 +728,15 @@ button.darkButton,
 
 .leaderboard span {
   color: #a29c90;
-  font-family: var(--font-mono), monospace;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .leaderboard strong {
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .leaderboard b {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
 }
 
@@ -726,19 +747,102 @@ button.darkButton,
 
 .partyBand p {
   color: #b7b1a4;
+  max-width: 440px;
+  font-size: 17px;
+}
+
+.partyDeck {
+  position: relative;
+  isolation: isolate;
+  min-height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .partyCard {
+  position: absolute;
+  width: min(88%, 420px);
   border: 1px solid #3a372f;
   border-radius: 22px;
-  padding: 30px;
+  padding: 26px 28px;
   background: var(--ink-2);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  transform-origin: 50% 130%;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .partyCard h3 {
+  margin-top: 11px;
+  color: var(--paper);
+  font-size: 23px;
+  line-height: 1.2;
+}
+
+.partyCardBack .eyebrow {
+  color: #8e887c;
+}
+
+.partyCardBack h3 {
+  color: #b7b1a4;
+}
+
+.partyCardBackLeft {
+  z-index: 1;
+  background: #26231c;
+  transform: rotate(-8deg) translateY(-6px);
+}
+
+.partyCardBackRight {
+  z-index: 2;
+  background: #29261f;
+  transform: rotate(7deg) translateY(-4px);
+}
+
+.partyCardBackRight h3 {
+  color: #c9c2b2;
+}
+
+.partyCardFront {
+  position: relative;
+  z-index: 3;
+  width: min(92%, 440px);
+  padding: 30px;
+  border-color: rgba(68, 64, 54, 0.38);
+  background: var(--ink-2);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+}
+
+.partyCardFront h3 {
   margin-top: 12px;
   font-size: 26px;
-  line-height: 1.2;
+}
+
+.partyDeck:hover .partyCardFront {
+  transform: translateY(-4px);
+  box-shadow: 0 36px 82px rgba(0, 0, 0, 0.54);
+}
+
+.partyDeck:hover .partyCardBackLeft {
+  transform: rotate(-10deg) translate(-8px, -8px);
+}
+
+.partyDeck:hover .partyCardBackRight {
+  transform: rotate(9deg) translate(8px, -6px);
+}
+
+.partyCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.partyCardTop span {
+  color: #6e6a60;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
 }
 
 .partyResult {
@@ -755,7 +859,18 @@ button.darkButton,
   inset: 0 auto 0 0;
   width: 62%;
   border-radius: 11px 0 0 11px;
-  background: #c58a5e;
+  background: #bd7449;
+}
+
+.partyResultGhost {
+  height: 44px;
+  margin-top: 22px;
+  border-radius: 10px;
+  background: #33302a;
+}
+
+.partyCardBackRight .partyResultGhost {
+  background: #36332b;
 }
 
 .partyResult b,
@@ -769,7 +884,7 @@ button.darkButton,
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 1px;
 }
 
@@ -781,6 +896,103 @@ button.darkButton,
 .partyResult em {
   right: 14px;
   color: #8e887c;
+}
+
+.downloadBand {
+  background: var(--paper-alt);
+  border-top: 1px solid #e2dcd0;
+  border-bottom: 1px solid #e2dcd0;
+}
+
+.downloadSection {
+  align-items: center;
+}
+
+.downloadSection h2 {
+  max-width: 460px;
+}
+
+.downloadSection p {
+  max-width: 430px;
+  font-size: 17px;
+}
+
+.downloadWebButton {
+  margin-top: 26px;
+  gap: 9px;
+  min-height: 58px;
+  border-radius: 13px;
+  padding: 0 26px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.downloadCards {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.storeCard {
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border-radius: 16px;
+  padding: 18px 22px;
+  background: var(--ink);
+  color: var(--paper);
+  opacity: 0.96;
+}
+
+.storeMark {
+  width: 30px;
+  height: 30px;
+  justify-self: center;
+  object-fit: contain;
+}
+
+.appleMark {
+  width: 32px;
+  height: 32px;
+}
+
+.storeCard .eyebrow {
+  color: #8e887c;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+
+.storeCard h3 {
+  margin-top: 3px;
+  color: var(--paper);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.storeCard b {
+  border: 1px solid #44403e;
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: var(--clay);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.downloadCards > p {
+  margin: 4px 0 0;
+  color: #9a9181;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .sampleGrid {
@@ -1669,7 +1881,8 @@ button.darkButton,
 }
 
 .adminFilterPills button,
-.adminSegment button {
+.adminSegment button,
+.adminSegment span {
   min-height: 34px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1680,8 +1893,14 @@ button.darkButton,
   font-weight: 800;
 }
 
+.adminSegment span {
+  display: inline-flex;
+  align-items: center;
+}
+
 .adminFilterPills button.active,
-.adminSegment button.active {
+.adminSegment button.active,
+.adminSegment span.active {
   border-color: var(--ink);
   background: var(--ink);
   color: white;
@@ -2135,6 +2354,18 @@ button.darkButton,
   line-height: 1.25;
 }
 
+.adminSettingRow .adminStaticPill {
+  margin-top: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fffefa;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .adminToggle {
   width: 44px;
   height: 26px;
@@ -2367,6 +2598,57 @@ pre {
 
   .lpStats {
     flex-wrap: wrap;
+  }
+
+  .partyDeck {
+    min-height: 300px;
+  }
+
+  .partyCard {
+    width: min(90%, 360px);
+    padding: 22px 24px;
+  }
+
+  .partyCardFront {
+    width: min(96%, 380px);
+    padding: 24px;
+  }
+
+  .partyCard h3 {
+    font-size: 21px;
+  }
+
+  .partyCardFront h3 {
+    font-size: 24px;
+  }
+
+  .downloadCards {
+    gap: 12px;
+  }
+
+  .storeCard {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 14px;
+    min-height: 0;
+    padding: 16px 18px;
+  }
+
+  .storeMark {
+    width: 27px;
+    height: 27px;
+  }
+
+  .appleMark {
+    width: 29px;
+    height: 29px;
+  }
+
+  .storeCard h3 {
+    font-size: 20px;
+  }
+
+  .downloadCards > p {
+    font-size: 12px;
   }
 
   .liveCount {

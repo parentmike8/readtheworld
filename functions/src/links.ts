@@ -1,8 +1,9 @@
-export type ShortLinkType = "invite" | "result";
+export type ShortLinkType = "invite" | "result" | "room";
 
 export const SHORT_LINK_TTL_DAYS: Record<ShortLinkType, number> = {
   invite: 90,
   result: 30,
+  room: 365,
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,5 +24,5 @@ export function shortLinkExpired(
 }
 
 export function isShortLinkType(value: unknown): value is ShortLinkType {
-  return value === "invite" || value === "result";
+  return value === "invite" || value === "result" || value === "room";
 }

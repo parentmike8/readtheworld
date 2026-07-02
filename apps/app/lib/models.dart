@@ -20,6 +20,7 @@ class RtwQuestion {
     required this.worldShares,
     this.type = QuestionType.binary,
     this.totalAnswers = 0,
+    this.closeAt,
   });
 
   final String id;
@@ -31,6 +32,7 @@ class RtwQuestion {
   final Map<String, int> worldShares;
   final QuestionType type;
   final int totalAnswers;
+  final DateTime? closeAt;
 
   int worldShareFor(String optionId) => worldShares[optionId] ?? 0;
   RtwOption option(String optionId) => options.firstWhere(
@@ -132,4 +134,20 @@ class FriendRow {
       answersShared: answersShared ?? this.answersShared,
     );
   }
+}
+
+class FriendAnswerComparison {
+  const FriendAnswerComparison({
+    required this.uid,
+    required this.name,
+    required this.selectedOptionId,
+    required this.predictedShare,
+    this.readAccuracy,
+  });
+
+  final String uid;
+  final String name;
+  final String selectedOptionId;
+  final int predictedShare;
+  final int? readAccuracy;
 }

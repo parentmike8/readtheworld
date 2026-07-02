@@ -40,6 +40,33 @@ import {
 } from "./links";
 import { decideDailyOpen } from "./lifecycle";
 import {
+  CUSTOM_QUEUE_CAP_PER_MEMBER,
+  ROOM_QUESTIONS_PER_DAY,
+  ROOM_STARTING_SCORE,
+  RoomValidationError,
+  WORLD_PLAYER_GOAL,
+  WORLD_ROOM_ID,
+  customInjectionCount,
+  normalizeCustomOption,
+  normalizeCustomQuestionText,
+  normalizePrediction,
+  normalizeRoomCats,
+  normalizeRoomColor,
+  normalizeRoomName,
+  normalizeRoomTier,
+  roomDailyScoreDeltas,
+  selectDailyQuestions,
+  type CandidateQuestion,
+  type RoomMemberDayResult,
+} from "./rooms";
+import {
+  BankValidationError,
+  bankQuestionIdForPrompt,
+  normalizeBankRow,
+  type BankShape,
+  type BankTier,
+} from "./bank";
+import {
   QuestionValidationError,
   normalizeDailyKey,
   normalizeQuestionOptions,
@@ -81,6 +108,7 @@ const MARKETING_URL = "https://readtheworld.today";
 const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
+const callableOptions = { enforceAppCheck: true };
 
 class ShortCodeCollisionError extends Error {}
 
@@ -183,6 +211,23 @@ async function requireAdmin(uid: string): Promise<void> {
   }
 }
 
+async function assertNoOtherLiveQuestion(questionId: string): Promise<void> {
+  const liveSnap = await db
+    .collection("questions")
+    .where("status", "==", "live")
+    .limit(5)
+    .get();
+  const otherLiveQuestionIds = liveSnap.docs
+    .map((doc) => doc.id)
+    .filter((id) => id !== questionId);
+  if (otherLiveQuestionIds.length > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "A live question already exists. Close it before making another question live.",
+    );
+  }
+}
+
 function assertString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new HttpsError("invalid-argument", `${field} is required.`);
@@ -246,6 +291,10 @@ function assertAppRoute(value: unknown, fallback = "/today"): string {
     "/history",
     "/insights",
     "/account",
+    "/rooms",
+    "/join",
+    "/party",
+    "/profile",
   ].some((path) => route === path || route.startsWith(`${path}/`))) {
     throw new HttpsError("invalid-argument", "targetRoute is not an allowed app path.");
   }
@@ -298,6 +347,7 @@ async function requireAppFeature(
 }
 
 async function shortLinkFeatureEnabled(type: ShortLinkType): Promise<boolean> {
+  if (type === "room") return true; // Rooms are core in v2 — no flag.
   if (type === "invite") return appFeatureEnabled("feature_friends");
   return appFeatureEnabled("feature_result_sharing");
 }
@@ -616,6 +666,9 @@ async function recomputeGlobalLeaderboard(limit = LEADERBOARD_LIMIT): Promise<{
     }, { merge: true }));
   }
   await commitBatchedWrites(writes);
+  for (const row of allRows) {
+    await fanOutFriendProfile(row);
+  }
   return { rows: rows.length };
 }
 
@@ -688,6 +741,25 @@ async function friendProfileFields(uid: string, authDisplayName?: string | null)
     currentStreak: Number(data.currentStreak ?? 0),
     officialQuestionsAnswered: Number(data.officialQuestionsAnswered ?? 0),
   };
+}
+
+async function fanOutFriendProfile(row: LeaderboardInput): Promise<number> {
+  const friendsSnap = await db
+    .collectionGroup("friends")
+    .where("uid", "==", row.uid)
+    .get();
+  const writes = friendsSnap.docs
+    .filter((doc) => doc.data().status !== "removed")
+    .map((doc) => (batch: WriteBatch) => batch.set(doc.ref, {
+      displayName: row.displayName ?? "Reader",
+      avatarColor: row.avatarColor ?? "blue",
+      readScore: row.readScore,
+      currentStreak: row.currentStreak ?? 0,
+      officialQuestionsAnswered: row.officialQuestionsAnswered,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  await commitBatchedWrites(writes);
+  return writes.length;
 }
 
 async function disableInvalidNotificationTokens(
@@ -1194,7 +1266,7 @@ async function closeQuestion(questionId: string, force = false): Promise<{
   return { questionId, totalAnswers, scoredAnswers: scored.length };
 }
 
-export const submitPrediction = onCall(async (request) => {
+export const submitPrediction = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const questionId = assertString(request.data?.questionId, "questionId");
   const selectedOptionId = assertString(request.data?.selectedOptionId, "selectedOptionId");
@@ -1279,7 +1351,7 @@ export const submitPrediction = onCall(async (request) => {
   return result;
 });
 
-export const createAuthHandoff = onCall(async (request) => {
+export const createAuthHandoff = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const targetRoute = assertAppRoute(request.data?.targetRoute, "/today");
   const rawQuestionId = typeof request.data?.questionId === "string"
@@ -1342,7 +1414,7 @@ export const createAuthHandoff = onCall(async (request) => {
   };
 });
 
-export const redeemAuthHandoff = onCall(async (request) => {
+export const redeemAuthHandoff = onCall(callableOptions, async (request) => {
   const code = assertString(request.data?.code, "code").toUpperCase();
   let payload: AuthHandoffPayload | null = null;
 
@@ -1396,7 +1468,7 @@ export const redeemAuthHandoff = onCall(async (request) => {
   };
 });
 
-export const savePracticeAnswer = onCall(async (request) => {
+export const savePracticeAnswer = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const questionId = assertString(request.data?.questionId, "questionId");
   const selectedOptionId = assertString(request.data?.selectedOptionId, "selectedOptionId");
@@ -1469,7 +1541,7 @@ export const savePracticeAnswer = onCall(async (request) => {
   return { saved, officialPreserved: !saved, questionId, readAccuracy, predictionBias };
 });
 
-export const clearMyData = onCall(async (request) => {
+export const clearMyData = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const userRef = db.collection("users").doc(uid);
   const answersSnap = await userRef.collection("answers").get();
@@ -1516,6 +1588,7 @@ export const clearMyData = onCall(async (request) => {
     readScorePercentile: FieldValue.delete(),
     lastScoredQuestionId: FieldValue.delete(),
     lastAnsweredDailyKey: FieldValue.delete(),
+    dailyReminder: false,
     leaderboardRank: FieldValue.delete(),
     leaderboardUpdatedAt: FieldValue.delete(),
     clearedAt: FieldValue.serverTimestamp(),
@@ -1526,9 +1599,11 @@ export const clearMyData = onCall(async (request) => {
 
   const deleted = {
     answers: await deleteUserSubcollection(uid, "answers"),
+    answerDrafts: await deleteUserSubcollection(uid, "answerDrafts"),
     scoreHistory: await deleteUserSubcollection(uid, "scoreHistory"),
     categoryStats: await deleteUserSubcollection(uid, "categoryStats"),
     friends: await deleteUserSubcollection(uid, "friends"),
+    notificationTokens: await deleteUserSubcollection(uid, "notificationTokens"),
     links: shareData.links,
     invitesCreated: shareData.invitesCreated,
     invitesAcceptedUpdated: shareData.invitesAcceptedUpdated,
@@ -1537,7 +1612,7 @@ export const clearMyData = onCall(async (request) => {
   return { cleared: true, deleted };
 });
 
-export const joinWaitlist = onCall(async (request) => {
+export const joinWaitlist = onCall(callableOptions, async (request) => {
   const email = normalizeEmail(request.data?.email);
   const source = assertString(request.data?.source ?? "landing", "source").slice(0, 80);
   const answer = typeof request.data?.answer === "string" ? request.data.answer.slice(0, 80) : null;
@@ -1567,7 +1642,7 @@ export const joinWaitlist = onCall(async (request) => {
   return { joined: true };
 });
 
-export const listWaitlist = onCall(async (request) => {
+export const listWaitlist = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const requestedLimit = Number(request.data?.limit ?? 100);
@@ -1598,7 +1673,7 @@ export const listWaitlist = onCall(async (request) => {
   };
 });
 
-export const getAdminOverview = onCall(async (request) => {
+export const getAdminOverview = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const requestedFocusQuestionId = typeof request.data?.questionId === "string"
@@ -1753,7 +1828,7 @@ export const getAdminOverview = onCall(async (request) => {
   };
 });
 
-export const getAdminAppConfig = onCall(async (request) => {
+export const getAdminAppConfig = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const template = await getRemoteConfig().getTemplate();
@@ -1771,7 +1846,7 @@ export const getAdminAppConfig = onCall(async (request) => {
   };
 });
 
-export const setAdminFeatureFlag = onCall(async (request) => {
+export const setAdminFeatureFlag = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const flag = adminFeatureFlagDefinition(request.data?.key);
@@ -1855,7 +1930,7 @@ export const closeAndOpenDaily = onSchedule({
   logger.info("Opened daily question", { questionId: nextQuestion.id });
 });
 
-export const createInvite = onCall(async (request) => {
+export const createInvite = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_friends", "Friend invites are currently disabled.");
   const { code } = await createShortLink({
@@ -1871,7 +1946,7 @@ export const createInvite = onCall(async (request) => {
   };
 });
 
-export const createShareLink = onCall(async (request) => {
+export const createShareLink = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_result_sharing", "Result sharing is currently disabled.");
   const questionId = assertString(request.data?.questionId, "questionId");
@@ -1888,7 +1963,7 @@ export const createShareLink = onCall(async (request) => {
   };
 });
 
-export const acceptInvite = onCall(async (request) => {
+export const acceptInvite = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_friends", "Friend invites are currently disabled.");
   const code = assertString(request.data?.code, "code").toUpperCase();
@@ -1950,7 +2025,7 @@ export const acceptInvite = onCall(async (request) => {
   return { accepted: true, inviterUid };
 });
 
-export const resolveShortCode = onCall(async (request) => {
+export const resolveShortCode = onCall(callableOptions, async (request) => {
   const code = assertString(request.data?.code, "code").toUpperCase();
   const ref = db.collection("links").doc(code);
   const snap = await ref.get();
@@ -1988,7 +2063,48 @@ export const resolveShortCode = onCall(async (request) => {
   return { code, type, targetId, route };
 });
 
-export const setFriendAnswerVisibility = onCall(async (request) => {
+async function friendAnswerComparisonsForUser(uid: string, questionId: string) {
+  await requireAppFeature("feature_friends", "Friends are currently disabled.");
+  await requireRevealedResult(questionId, "Friend answers are available after reveal.");
+
+  const friendsSnap = await db.collection("users").doc(uid).collection("friends").get();
+  const visibleFriends = friendsSnap.docs
+    .filter((doc) => {
+      const data = doc.data();
+      return data.status !== "removed" && data.answersSharedByFriend === true;
+    })
+    .slice(0, 50);
+  if (visibleFriends.length === 0) {
+    return { questionId, rows: [] };
+  }
+
+  const answerRefs = visibleFriends.map((doc) =>
+    db.collection("users").doc(doc.id).collection("answers").doc(questionId),
+  );
+  const rows: Array<Record<string, unknown>> = [];
+  for (let index = 0; index < answerRefs.length; index += 100) {
+    const answerSnaps = await db.getAll(...answerRefs.slice(index, index + 100));
+    answerSnaps.forEach((answerSnap, offset) => {
+      if (!answerSnap.exists) return;
+      const answer = answerSnap.data() ?? {};
+      if (answer.official !== true) return;
+      const friend = visibleFriends[index + offset];
+      const friendData = friend.data();
+      rows.push({
+        uid: friend.id,
+        displayName: String(friendData.displayName ?? "Reader"),
+        selectedOptionId: String(answer.selectedOptionId ?? ""),
+        predictedShare: Number(answer.predictedShare ?? 0),
+        readAccuracy: typeof answer.readAccuracy === "number" ? answer.readAccuracy : null,
+      });
+    });
+  }
+
+  rows.sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+  return { questionId, rows };
+}
+
+export const setFriendAnswerVisibility = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_friends", "Friends are currently disabled.");
   const friendUid = assertString(request.data?.friendUid, "friendUid");
@@ -2017,7 +2133,7 @@ export const setFriendAnswerVisibility = onCall(async (request) => {
   return { friendUid, answersShared };
 });
 
-export const removeFriend = onCall(async (request) => {
+export const removeFriend = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_friends", "Friends are currently disabled.");
   const friendUid = assertString(request.data?.friendUid, "friendUid");
@@ -2041,8 +2157,13 @@ export const removeFriend = onCall(async (request) => {
   return { removed: true, friendUid };
 });
 
-export const getLeaderboard = onCall(async (request) => {
-  requireUid(request.auth);
+export const getLeaderboard = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  if (request.data?.mode === "friendAnswerComparisons") {
+    const questionId = assertString(request.data?.questionId, "questionId");
+    return friendAnswerComparisonsForUser(uid, questionId);
+  }
+
   const limit = Math.min(Number(request.data?.limit ?? 50), LEADERBOARD_LIMIT);
   const rowsSnap = await db
     .collection("leaderboards")
@@ -2057,7 +2178,7 @@ export const getLeaderboard = onCall(async (request) => {
   };
 });
 
-export const recomputeLeaderboardsNow = onCall(async (request) => {
+export const recomputeLeaderboardsNow = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   return recomputeGlobalLeaderboard();
@@ -2101,7 +2222,7 @@ export const sendRevealReadyNotifications = onSchedule({
   });
 });
 
-export const sendBroadcastNotification = onCall(async (request) => {
+export const sendBroadcastNotification = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const title = assertNotificationText(request.data?.title, "title", 80);
@@ -2181,9 +2302,11 @@ export const resolveShortLink = onRequest(async (req, res) => {
   }, { merge: true });
 
   const encodedTargetId = encodeURIComponent(targetId);
-  const destination = type === "invite"
-    ? `${APP_URL}/invite/${code}`
-    : `${APP_URL}/reveal/${encodedTargetId}?code=${code}`;
+  const destination = type === "room"
+    ? `${APP_URL}/join/${code}`
+    : type === "invite"
+      ? `${APP_URL}/invite/${code}`
+      : `${APP_URL}/reveal/${encodedTargetId}?code=${code}`;
   res.redirect(302, destination);
 });
 
@@ -2232,7 +2355,7 @@ export const androidAssetLinks = onRequest((_, res) => {
   ]);
 });
 
-export const upsertQuestion = onCall(async (request) => {
+export const upsertQuestion = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const questionId = assertString(request.data?.questionId, "questionId");
@@ -2254,6 +2377,10 @@ export const upsertQuestion = onCall(async (request) => {
     mapQuestionValidationError(error);
   }
 
+  if (status === "live") {
+    await assertNoOtherLiveQuestion(questionId);
+  }
+
   await db.collection("questions").doc(questionId).set({
     prompt,
     category,
@@ -2269,21 +2396,21 @@ export const upsertQuestion = onCall(async (request) => {
   return { questionId, saved: true };
 });
 
-export const closeQuestionNow = onCall(async (request) => {
+export const closeQuestionNow = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const questionId = assertString(request.data?.questionId, "questionId");
   return closeQuestion(questionId, true);
 });
 
-export const recomputeQuestion = onCall(async (request) => {
+export const recomputeQuestion = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
   const questionId = assertString(request.data?.questionId, "questionId");
   return closeQuestion(questionId, true);
 });
 
-export const seedInitialQuestions = onCall(async (request) => {
+export const seedInitialQuestions = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
 
@@ -2386,4 +2513,1117 @@ export const seedInitialQuestions = onCall(async (request) => {
     todayDailyKey: seedQuestions.find((question) => question.status === "live")?.dailyKey ?? null,
     liveQuestionId,
   };
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// v2 — ROOMS (docs/v2-implementation-spec.md)
+// All room mutations flow through callables; Firestore rules deny client
+// writes so these handlers are the single source of invariants.
+// ════════════════════════════════════════════════════════════════════════════
+
+type RoomDayQuestion = {
+  qid: string;
+  prompt: string;
+  optA: string;
+  optB: string;
+  tag: string;
+  shape: string;
+  tier: string;
+  custom: boolean;
+  authorUid: string | null;
+  authorName: string | null;
+  pulled: boolean;
+  threshold: number | null;
+};
+
+type RoomPick = {
+  qid: string;
+  side: "a" | "b";
+  prediction: number | null;
+};
+
+const WORLD_ROOM_NAME = "The World";
+const ROOM_MEMBER_SEEN_SCAN_CAP = 25;
+
+function roomRef(roomId: string) {
+  return db.collection("rooms").doc(roomId);
+}
+
+function roomDayRef(roomId: string, dailyKey: string) {
+  return roomRef(roomId).collection("days").doc(dailyKey);
+}
+
+function assertRoomId(value: unknown): string {
+  const roomId = assertString(value, "roomId");
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(roomId)) {
+    throw new HttpsError("invalid-argument", "roomId is invalid.");
+  }
+  return roomId;
+}
+
+function mapRoomValidationError(error: unknown): never {
+  if (error instanceof RoomValidationError || error instanceof BankValidationError) {
+    throw new HttpsError("invalid-argument", error.message);
+  }
+  throw error;
+}
+
+async function requireRoomAndMember(
+  roomId: string,
+  uid: string,
+): Promise<{ room: DocumentData; member: DocumentData }> {
+  const [roomSnap, memberSnap] = await db.getAll(
+    roomRef(roomId),
+    roomRef(roomId).collection("members").doc(uid),
+  );
+  if (!roomSnap.exists) {
+    throw new HttpsError("not-found", "Room not found.");
+  }
+  if (!memberSnap.exists || memberSnap.data()?.status === "removed") {
+    throw new HttpsError("permission-denied", "You are not a member of this room.");
+  }
+  return { room: roomSnap.data() ?? {}, member: memberSnap.data() ?? {} };
+}
+
+async function requireRoomCreator(roomId: string, uid: string): Promise<DocumentData> {
+  const { room, member } = await requireRoomAndMember(roomId, uid);
+  if (member.role !== "creator") {
+    throw new HttpsError("permission-denied", "Only the room creator can do this.");
+  }
+  return room;
+}
+
+async function displayNameForUid(uid: string): Promise<string> {
+  const snap = await db.collection("users").doc(uid).get();
+  const name = snap.data()?.displayName;
+  return typeof name === "string" && name.trim().length > 0 ? name.trim() : "Reader";
+}
+
+async function ensureWorldRoom(): Promise<void> {
+  const snap = await roomRef(WORLD_ROOM_ID).get();
+  if (snap.exists) return;
+  await roomRef(WORLD_ROOM_ID).set({
+    name: WORLD_ROOM_NAME,
+    color: "oklch(0.40 0.11 256)",
+    tier: "normal",
+    cats: ["All"],
+    customEnabled: false,
+    revealAnswersDefault: false,
+    createdBy: "system",
+    isWorld: true,
+    worldGoal: WORLD_PLAYER_GOAL,
+    memberCount: 0,
+    usedQuestionIds: [],
+    inviteCode: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function bankCandidates(): Promise<CandidateQuestion[]> {
+  const snap = await db.collection("questionBank").where("active", "==", true).get();
+  return snap.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      prompt: String(data.prompt ?? ""),
+      optA: String(data.optA ?? "Yes"),
+      optB: String(data.optB ?? "No"),
+      tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
+      tier: (data.tier ?? "normal") as BankTier,
+      shape: (data.shape ?? "TASTE") as BankShape,
+      timesUsed: Number(data.timesUsed ?? 0),
+    };
+  }).filter((candidate) => candidate.prompt.length > 0);
+}
+
+function dayQuestionFromCandidate(candidate: CandidateQuestion): RoomDayQuestion {
+  return {
+    qid: candidate.id,
+    prompt: candidate.prompt,
+    optA: candidate.optA,
+    optB: candidate.optB,
+    tag: candidate.tags[0] ?? "Everyday",
+    shape: candidate.shape,
+    tier: candidate.tier,
+    custom: false,
+    authorUid: null,
+    authorName: null,
+    pulled: false,
+    threshold: null,
+  };
+}
+
+/**
+ * Assigns a room's daily set: dynamic custom-queue injection first
+ * (1-4 queued → 1, 5-9 → 2, 10+ → 3), bank selection for the rest.
+ * Safe to call repeatedly — no-ops if the day doc already exists.
+ */
+async function assembleRoomDay(
+  roomId: string,
+  room: DocumentData,
+  dailyKey: string,
+): Promise<boolean> {
+  const dayRef = roomDayRef(roomId, dailyKey);
+  const existing = await dayRef.get();
+  if (existing.exists) {
+    const status = existing.data()?.status;
+    if (status === "scheduled") {
+      await dayRef.set({ status: "live", activatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return true;
+    }
+    return false;
+  }
+
+  const questions: RoomDayQuestion[] = [];
+  const usedQueueRefs: DocumentReference[] = [];
+
+  if (room.customEnabled !== false && room.isWorld !== true) {
+    const queueSnap = await roomRef(roomId).collection("queue")
+      .orderBy("createdAt", "asc")
+      .get();
+    const customCount = Math.min(
+      customInjectionCount(queueSnap.size),
+      ROOM_QUESTIONS_PER_DAY,
+    );
+    for (const doc of queueSnap.docs.slice(0, customCount)) {
+      const data = doc.data();
+      questions.push({
+        qid: `custom-${doc.id}`,
+        prompt: String(data.text ?? ""),
+        optA: String(data.optA ?? "Yes"),
+        optB: String(data.optB ?? "No"),
+        tag: "Custom",
+        shape: "CUSTOM",
+        tier: String(room.tier ?? "normal"),
+        custom: true,
+        authorUid: String(data.authorUid ?? ""),
+        authorName: String(data.authorName ?? "A member"),
+        pulled: false,
+        threshold: null,
+      });
+      usedQueueRefs.push(doc.ref);
+    }
+  }
+
+  const bankCount = ROOM_QUESTIONS_PER_DAY - questions.length;
+  if (bankCount > 0) {
+    const membersSnap = await roomRef(roomId).collection("members")
+      .limit(ROOM_MEMBER_SEEN_SCAN_CAP)
+      .get();
+    const memberUids = membersSnap.docs.map((doc) => doc.id);
+    const seenByMemberIds = new Set<string>();
+    for (const chunk of chunkArray(memberUids, 50)) {
+      const userSnaps = await db.getAll(
+        ...chunk.map((uid) => db.collection("users").doc(uid)),
+      );
+      for (const snap of userSnaps) {
+        const seen = snap.data()?.seenQuestionIds;
+        if (Array.isArray(seen)) seen.forEach((qid) => seenByMemberIds.add(String(qid)));
+      }
+    }
+
+    const picked = selectDailyQuestions({
+      roomId,
+      dailyKey,
+      roomTier: (room.tier ?? "normal") as BankTier,
+      roomCats: Array.isArray(room.cats) ? room.cats.map(String) : ["All"],
+      candidates: await bankCandidates(),
+      usedQuestionIds: new Set(
+        Array.isArray(room.usedQuestionIds) ? room.usedQuestionIds.map(String) : [],
+      ),
+      seenByMemberIds,
+      count: bankCount,
+    });
+    if (picked.length < bankCount) {
+      logger.warn("Question bank ran short for room", {
+        roomId,
+        dailyKey,
+        requested: bankCount,
+        picked: picked.length,
+      });
+    }
+    picked.forEach((candidate) => questions.push(dayQuestionFromCandidate(candidate)));
+
+    const bankBatch = db.batch();
+    picked.forEach((candidate) => {
+      bankBatch.set(db.collection("questionBank").doc(candidate.id), {
+        timesUsed: FieldValue.increment(1),
+        lastUsedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    memberUids.forEach((uid) => {
+      bankBatch.set(db.collection("users").doc(uid), {
+        seenQuestionIds: FieldValue.arrayUnion(...picked.map((candidate) => candidate.id)),
+      }, { merge: true });
+    });
+    if (picked.length > 0) await bankBatch.commit();
+  }
+
+  if (questions.length === 0) {
+    logger.warn("No questions available for room day", { roomId, dailyKey });
+    return false;
+  }
+
+  await dayRef.set({
+    dailyKey,
+    status: "live",
+    questions,
+    answerCount: 0,
+    answerCounts: {},
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  const roomUpdates: Record<string, unknown> = {
+    currentDailyKey: dailyKey,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  const bankQids = questions.filter((question) => !question.custom).map((question) => question.qid);
+  if (bankQids.length > 0) {
+    roomUpdates.usedQuestionIds = FieldValue.arrayUnion(...bankQids);
+  }
+  await roomRef(roomId).set(roomUpdates, { merge: true });
+  if (usedQueueRefs.length > 0) {
+    const queueBatch = db.batch();
+    usedQueueRefs.forEach((ref) => queueBatch.delete(ref));
+    await queueBatch.commit();
+  }
+  return true;
+}
+
+/**
+ * Closes a room day: per-member actuals are "share of the *other* answering
+ * members who matched your side" (the prototype's prompt), accuracy via the
+ * existing formula, deltas ranked within the room, streak preserved from lock.
+ */
+async function closeRoomDay(
+  roomId: string,
+  dayId: string,
+  day: DocumentData,
+): Promise<void> {
+  const dayRef = roomDayRef(roomId, dayId);
+  const answersSnap = await dayRef.collection("answers").get();
+  const questions = (Array.isArray(day.questions) ? day.questions : []) as RoomDayQuestion[];
+  const activeQids = questions
+    .filter((question) => question.pulled !== true)
+    .map((question) => question.qid);
+
+  const picksByUid = new Map<string, RoomPick[]>();
+  answersSnap.docs.forEach((doc) => {
+    const picks = (Array.isArray(doc.data().picks) ? doc.data().picks : []) as RoomPick[];
+    picksByUid.set(doc.id, picks.filter((pick) => activeQids.includes(pick.qid)));
+  });
+
+  const sideCounts = new Map<string, { a: number; b: number }>();
+  activeQids.forEach((qid) => sideCounts.set(qid, { a: 0, b: 0 }));
+  for (const picks of picksByUid.values()) {
+    for (const pick of picks) {
+      const counts = sideCounts.get(pick.qid);
+      if (!counts) continue;
+      if (pick.side === "a") counts.a += 1;
+      else counts.b += 1;
+    }
+  }
+
+  const memberRefs = [...picksByUid.keys()].map(
+    (uid) => roomRef(roomId).collection("members").doc(uid),
+  );
+  const memberSnaps = memberRefs.length > 0 ? await db.getAll(...memberRefs) : [];
+  const memberDataByUid = new Map<string, DocumentData>();
+  memberSnaps.forEach((snap) => {
+    if (snap.exists) memberDataByUid.set(snap.id, snap.data() ?? {});
+  });
+
+  const results: RoomMemberDayResult[] = [];
+  const accuracyByUid = new Map<string, Map<string, number>>();
+  for (const [uid, picks] of picksByUid.entries()) {
+    const accuracies: number[] = [];
+    const perQuestion = new Map<string, number>();
+    for (const pick of picks) {
+      if (pick.prediction == null) continue;
+      const counts = sideCounts.get(pick.qid);
+      if (!counts) continue;
+      const total = counts.a + counts.b;
+      const others = total - 1;
+      if (others <= 0) continue;
+      const sameSide = (pick.side === "a" ? counts.a : counts.b) - 1;
+      const actualShare = Math.round((sameSide / others) * 100);
+      const accuracy = calculateReadAccuracy(pick.prediction, actualShare);
+      accuracies.push(accuracy);
+      perQuestion.set(pick.qid, accuracy);
+    }
+    accuracyByUid.set(uid, perQuestion);
+    results.push({
+      uid,
+      accuracies,
+      questionsAnswered: Number(memberDataByUid.get(uid)?.questionsAnswered ?? 0),
+    });
+  }
+
+  const deltas = roomDailyScoreDeltas(results);
+  const deltaByUid = new Map(deltas.map((delta) => [delta.uid, delta]));
+
+  const writes: Array<(batch: WriteBatch) => void> = [];
+  for (const [uid] of picksByUid.entries()) {
+    const delta = deltaByUid.get(uid);
+    const memberDocRef = roomRef(roomId).collection("members").doc(uid);
+    if (delta && memberDataByUid.has(uid)) {
+      // Skip members who left between lock and close — a merge write here
+      // would resurrect a ghost member doc.
+      writes.push((batch) => batch.set(memberDocRef, {
+        roomScore: FieldValue.increment(delta.delta),
+        lastDelta: delta.delta,
+        lastScoredDailyKey: dayId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }));
+    }
+    const perQuestion = accuracyByUid.get(uid) ?? new Map();
+    writes.push((batch) => batch.set(dayRef.collection("answers").doc(uid), {
+      scored: !!delta,
+      scoreDelta: delta?.delta ?? 0,
+      avgAccuracy: delta?.avgAccuracy ?? null,
+      accuracies: Object.fromEntries(perQuestion),
+      scoredAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  }
+
+  const questionResults = activeQids.map((qid) => {
+    const counts = sideCounts.get(qid) ?? { a: 0, b: 0 };
+    const total = counts.a + counts.b;
+    return {
+      qid,
+      answers: total,
+      aCount: counts.a,
+      bCount: counts.b,
+      aPct: total > 0 ? Math.round((counts.a / total) * 100) : 0,
+    };
+  });
+  writes.push((batch) => batch.set(dayRef, {
+    status: "closed",
+    results: questionResults,
+    scoredMembers: deltas.length,
+    closedAt: FieldValue.serverTimestamp(),
+  }, { merge: true }));
+  writes.push((batch) => batch.set(roomRef(roomId), {
+    lastClosedDailyKey: dayId,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true }));
+  await commitBatchedWrites(writes);
+}
+
+export const rolloverRooms = onSchedule({
+  schedule: "0 0 * * *",
+  timeZone: EASTERN_TIME_ZONE,
+}, async () => {
+  const todayKey = dailyKeyForEasternDate(new Date());
+  await ensureWorldRoom();
+  const roomsSnap = await db.collection("rooms").get();
+  let closed = 0;
+  let assigned = 0;
+  for (const roomDoc of roomsSnap.docs) {
+    try {
+      const liveDays = await roomDoc.ref.collection("days")
+        .where("status", "==", "live")
+        .get();
+      for (const dayDoc of liveDays.docs) {
+        if (dayDoc.id >= todayKey) continue;
+        await closeRoomDay(roomDoc.id, dayDoc.id, dayDoc.data());
+        closed += 1;
+      }
+      if (await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
+        assigned += 1;
+      }
+    } catch (error) {
+      logger.error("Room rollover failed", { roomId: roomDoc.id, error: String(error) });
+    }
+  }
+  logger.info("Room rollover complete", { todayKey, rooms: roomsSnap.size, closed, assigned });
+});
+
+export const createRoom = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  let name: string;
+  let tier: BankTier;
+  let color: string;
+  let cats: string[];
+  try {
+    name = normalizeRoomName(request.data?.name);
+    tier = normalizeRoomTier(request.data?.tier ?? "normal");
+    color = normalizeRoomColor(request.data?.color);
+    cats = normalizeRoomCats(request.data?.cats);
+  } catch (error) {
+    mapRoomValidationError(error);
+  }
+  const customEnabled = request.data?.customEnabled !== false;
+  const revealAnswersDefault = request.data?.revealAnswers !== false;
+
+  const newRoomRef = db.collection("rooms").doc();
+  const { code } = await createShortLink({
+    type: "room",
+    targetId: newRoomRef.id,
+    createdBy: uid,
+  });
+  const displayName = await displayNameForUid(uid);
+  const batch = db.batch();
+  batch.set(newRoomRef, {
+    name,
+    color,
+    tier,
+    cats,
+    customEnabled,
+    revealAnswersDefault,
+    createdBy: uid,
+    isWorld: false,
+    memberCount: 1,
+    usedQuestionIds: [],
+    inviteCode: code,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(newRoomRef.collection("members").doc(uid), {
+    role: "creator",
+    displayName,
+    revealMine: revealAnswersDefault,
+    roomScore: ROOM_STARTING_SCORE,
+    streak: 0,
+    questionsAnswered: 0,
+    joinedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.collection("users").doc(uid).collection("memberships").doc(newRoomRef.id), {
+    roomId: newRoomRef.id,
+    joinedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+
+  const todayKey = dailyKeyForEasternDate(new Date());
+  await assembleRoomDay(newRoomRef.id, {
+    name, color, tier, cats, customEnabled, isWorld: false, usedQuestionIds: [],
+  }, todayKey);
+  return { roomId: newRoomRef.id, inviteCode: code, name };
+});
+
+export const joinRoom = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const code = assertString(request.data?.code, "code").toUpperCase();
+  const linkSnap = await db.collection("links").doc(code).get();
+  const link = linkSnap.data();
+  if (!linkSnap.exists || link?.type !== "room") {
+    throw new HttpsError("not-found", "That room code is not valid.");
+  }
+  if (shortLinkExpired(timestampDate(link?.expiresAt))) {
+    throw new HttpsError("failed-precondition", "That room code has expired.");
+  }
+  const roomId = String(link?.targetId ?? "");
+  const targetRoomRef = roomRef(roomId);
+  const displayName = await displayNameForUid(uid);
+  const tier = await db.runTransaction(async (tx) => {
+    const roomSnap = await tx.get(targetRoomRef);
+    if (!roomSnap.exists) {
+      throw new HttpsError("not-found", "Room not found.");
+    }
+    const memberRef = targetRoomRef.collection("members").doc(uid);
+    const memberSnap = await tx.get(memberRef);
+    if (memberSnap.exists) {
+      return String(roomSnap.data()?.tier ?? "normal");
+    }
+    tx.set(memberRef, {
+      role: "member",
+      displayName,
+      revealMine: roomSnap.data()?.revealAnswersDefault !== false,
+      roomScore: ROOM_STARTING_SCORE,
+      streak: 0,
+      questionsAnswered: 0,
+      joinedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.collection("users").doc(uid).collection("memberships").doc(roomId), {
+      roomId,
+      joinedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(targetRoomRef, {
+      memberCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return String(roomSnap.data()?.tier ?? "normal");
+  });
+  return { joined: true, roomId, tier };
+});
+
+export const leaveRoom = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const { room, member } = await requireRoomAndMember(roomId, uid);
+  if (room.isWorld === true) {
+    throw new HttpsError("failed-precondition", "The World room cannot be left.");
+  }
+
+  const membersSnap = await roomRef(roomId).collection("members").get();
+  const others = membersSnap.docs.filter((doc) => doc.id !== uid);
+  const batch = db.batch();
+  batch.delete(roomRef(roomId).collection("members").doc(uid));
+  batch.delete(db.collection("users").doc(uid).collection("memberships").doc(roomId));
+
+  if (others.length === 0) {
+    batch.delete(roomRef(roomId));
+    await batch.commit();
+    await db.recursiveDelete(roomRef(roomId));
+    return { left: true, roomDeleted: true };
+  }
+
+  if (member.role === "creator") {
+    // Transfer creator to the longest-standing remaining member.
+    const successor = [...others].sort((a, b) => {
+      const aJoined = timestampDate(a.data().joinedAt)?.getTime() ?? 0;
+      const bJoined = timestampDate(b.data().joinedAt)?.getTime() ?? 0;
+      return aJoined - bJoined;
+    })[0];
+    batch.set(successor.ref, { role: "creator" }, { merge: true });
+  }
+  batch.set(roomRef(roomId), {
+    memberCount: FieldValue.increment(-1),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await batch.commit();
+  return { left: true, roomDeleted: false };
+});
+
+export const deleteRoom = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const room = await requireRoomCreator(roomId, uid);
+  if (room.isWorld === true) {
+    throw new HttpsError("failed-precondition", "The World room cannot be deleted.");
+  }
+  const membersSnap = await roomRef(roomId).collection("members").get();
+  const batch = db.batch();
+  membersSnap.docs.forEach((doc) => {
+    batch.delete(db.collection("users").doc(doc.id).collection("memberships").doc(roomId));
+  });
+  if (typeof room.inviteCode === "string" && room.inviteCode.length > 0) {
+    batch.delete(db.collection("links").doc(room.inviteCode));
+  }
+  await batch.commit();
+  await db.recursiveDelete(roomRef(roomId));
+  return { deleted: true, roomId };
+});
+
+export const updateRoomSettings = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const room = await requireRoomCreator(roomId, uid);
+  if (room.isWorld === true) {
+    throw new HttpsError("failed-precondition", "The World room is managed by the game.");
+  }
+  const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+  try {
+    if (request.data?.name != null) updates.name = normalizeRoomName(request.data.name);
+    if (request.data?.tier != null) updates.tier = normalizeRoomTier(request.data.tier);
+    if (request.data?.color != null) updates.color = normalizeRoomColor(request.data.color);
+    if (request.data?.cats != null) updates.cats = normalizeRoomCats(request.data.cats);
+    if (request.data?.customEnabled != null) updates.customEnabled = request.data.customEnabled === true;
+  } catch (error) {
+    mapRoomValidationError(error);
+  }
+  await roomRef(roomId).set(updates, { merge: true });
+  return { updated: true, roomId };
+});
+
+export const setRoomQuestionEnabled = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const qid = assertString(request.data?.qid, "qid");
+  const enabled = request.data?.enabled === true;
+  await requireRoomCreator(roomId, uid);
+  const todayKey = dailyKeyForEasternDate(new Date());
+  const dayRef = roomDayRef(roomId, todayKey);
+  await db.runTransaction(async (tx) => {
+    const daySnap = await tx.get(dayRef);
+    if (!daySnap.exists || daySnap.data()?.status !== "live") {
+      throw new HttpsError("failed-precondition", "No live question set for today.");
+    }
+    const questions = (daySnap.data()?.questions ?? []) as RoomDayQuestion[];
+    const next = questions.map((question) =>
+      question.qid === qid ? { ...question, pulled: !enabled } : question);
+    if (!questions.some((question) => question.qid === qid)) {
+      throw new HttpsError("not-found", "That question is not in today's set.");
+    }
+    tx.set(dayRef, { questions: next }, { merge: true });
+  });
+  return { qid, enabled };
+});
+
+export const setRoomAnswerVisibility = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const revealMine = request.data?.revealMine === true;
+  await requireRoomAndMember(roomId, uid);
+  await roomRef(roomId).collection("members").doc(uid).set({
+    revealMine,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { roomId, revealMine };
+});
+
+export const markRoomRevealSeen = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const { room } = await requireRoomAndMember(roomId, uid);
+  const lastClosed = typeof room.lastClosedDailyKey === "string" ? room.lastClosedDailyKey : null;
+  await roomRef(roomId).collection("members").doc(uid).set({
+    revealSeenDailyKey: lastClosed,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { roomId, revealSeenDailyKey: lastClosed };
+});
+
+export const lockRoomAnswers = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const todayKey = dailyKeyForEasternDate(new Date());
+
+  const roomSnap = await roomRef(roomId).get();
+  if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+  const room = roomSnap.data() ?? {};
+  const isWorld = room.isWorld === true;
+
+  const memberDocRef = roomRef(roomId).collection("members").doc(uid);
+  let memberSnap = await memberDocRef.get();
+  if (!memberSnap.exists && isWorld) {
+    // The World auto-enrolls on first answer.
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(memberDocRef);
+      if (fresh.exists) return;
+      tx.set(memberDocRef, {
+        role: "member",
+        displayName: await displayNameForUid(uid),
+        revealMine: false,
+        roomScore: ROOM_STARTING_SCORE,
+        streak: 0,
+        questionsAnswered: 0,
+        joinedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(db.collection("users").doc(uid).collection("memberships").doc(roomId), {
+        roomId,
+        joinedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(roomRef(roomId), {
+        memberCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    memberSnap = await memberDocRef.get();
+  }
+  if (!memberSnap.exists) {
+    throw new HttpsError("permission-denied", "You are not a member of this room.");
+  }
+  const member = memberSnap.data() ?? {};
+
+  const dayRef = roomDayRef(roomId, todayKey);
+  const daySnap = await dayRef.get();
+  if (!daySnap.exists || daySnap.data()?.status !== "live") {
+    throw new HttpsError("failed-precondition", "Today's questions are not open yet.");
+  }
+  const day = daySnap.data() ?? {};
+  const activeQuestions = ((day.questions ?? []) as RoomDayQuestion[])
+    .filter((question) => question.pulled !== true);
+  const activeQids = new Set(activeQuestions.map((question) => question.qid));
+
+  const worldLocked = isWorld && !(await appFeatureEnabled("feature_world_room_unlocked"));
+  const solo = Number(room.memberCount ?? 1) <= 1 && !isWorld;
+  const answerOnly = worldLocked || solo;
+
+  const rawPicks = Array.isArray(request.data?.picks) ? request.data.picks : [];
+  let picks: RoomPick[];
+  try {
+    picks = rawPicks.map((raw: Record<string, unknown>) => {
+      const qid = assertString(raw?.qid, "picks.qid");
+      const side = raw?.side === "a" || raw?.side === "b" ? raw.side : null;
+      if (!side) throw new HttpsError("invalid-argument", "picks.side must be 'a' or 'b'.");
+      if (!activeQids.has(qid)) {
+        throw new HttpsError("invalid-argument", `Question ${qid} is not in today's set.`);
+      }
+      return {
+        qid,
+        side,
+        prediction: answerOnly ? null : normalizePrediction(raw?.prediction),
+      };
+    });
+  } catch (error) {
+    mapRoomValidationError(error);
+  }
+  if (picks.length !== activeQids.size ||
+      new Set(picks.map((pick) => pick.qid)).size !== picks.length) {
+    throw new HttpsError("invalid-argument", "Answers must cover each of today's questions exactly once.");
+  }
+  if (!answerOnly && picks.some((pick) => pick.prediction == null)) {
+    throw new HttpsError("invalid-argument", "Each answer needs a prediction in this room.");
+  }
+
+  const predictedCount = picks.filter((pick) => pick.prediction != null).length;
+  const streak = nextStreakForDailyKey(
+    typeof member.lastPlayedDailyKey === "string" ? member.lastPlayedDailyKey : null,
+    todayKey,
+    Number(member.streak ?? 0),
+  );
+
+  try {
+    const batch = db.batch();
+    batch.create(dayRef.collection("answers").doc(uid), {
+      picks,
+      answerOnly,
+      lockedAt: FieldValue.serverTimestamp(),
+      scored: false,
+    });
+    const counterUpdates: Record<string, unknown> = {
+      answerCount: FieldValue.increment(1),
+    };
+    picks.forEach((pick) => {
+      counterUpdates[`answerCounts.${pick.qid}`] = FieldValue.increment(1);
+    });
+    batch.update(dayRef, counterUpdates);
+    batch.set(memberDocRef, {
+      streak,
+      lastPlayedDailyKey: todayKey,
+      questionsAnswered: FieldValue.increment(predictedCount),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    if (predictedCount > 0) {
+      batch.set(db.collection("users").doc(uid), {
+        officialQuestionsAnswered: FieldValue.increment(predictedCount),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    await batch.commit();
+  } catch (error) {
+    if ((error as { code?: number | string }).code === 6 ||
+        String(error).includes("ALREADY_EXISTS")) {
+      throw new HttpsError("already-exists", "You already locked this room today.");
+    }
+    throw error;
+  }
+  return { locked: true, roomId, dailyKey: todayKey, answerOnly, streak };
+});
+
+export const queueCustomQuestion = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const { room } = await requireRoomAndMember(roomId, uid);
+  if (room.isWorld === true || room.customEnabled === false) {
+    throw new HttpsError("failed-precondition", "Custom questions are off in this room.");
+  }
+  let text: string;
+  let optA: string;
+  let optB: string;
+  try {
+    text = normalizeCustomQuestionText(request.data?.text);
+    optA = normalizeCustomOption(request.data?.optA, "Yes");
+    optB = normalizeCustomOption(request.data?.optB, "No");
+  } catch (error) {
+    mapRoomValidationError(error);
+  }
+  const queueRef = roomRef(roomId).collection("queue");
+  const mineSnap = await queueRef.where("authorUid", "==", uid).get();
+  if (mineSnap.size >= CUSTOM_QUEUE_CAP_PER_MEMBER) {
+    throw new HttpsError("resource-exhausted",
+      `You can queue up to ${CUSTOM_QUEUE_CAP_PER_MEMBER} questions per room.`);
+  }
+  const displayName = await displayNameForUid(uid);
+  const itemRef = await queueRef.add({
+    text,
+    optA,
+    optB,
+    authorUid: uid,
+    authorName: displayName,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { queued: true, itemId: itemRef.id, remaining: CUSTOM_QUEUE_CAP_PER_MEMBER - mineSnap.size - 1 };
+});
+
+export const deleteCustomQuestion = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const itemId = assertString(request.data?.itemId, "itemId");
+  const { member } = await requireRoomAndMember(roomId, uid);
+  const itemRef = roomRef(roomId).collection("queue").doc(itemId);
+  const itemSnap = await itemRef.get();
+  if (!itemSnap.exists) return { deleted: false };
+  if (itemSnap.data()?.authorUid !== uid && member.role !== "creator") {
+    throw new HttpsError("permission-denied", "Only the author or room creator can remove this.");
+  }
+  await itemRef.delete();
+  return { deleted: true };
+});
+
+export const flagRoomQuestion = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const qid = assertString(request.data?.qid, "qid");
+  const { room } = await requireRoomAndMember(roomId, uid);
+  const todayKey = dailyKeyForEasternDate(new Date());
+  const dayRef = roomDayRef(roomId, todayKey);
+
+  const flagged = await db.runTransaction(async (tx) => {
+    const daySnap = await tx.get(dayRef);
+    if (!daySnap.exists || daySnap.data()?.status !== "live") {
+      throw new HttpsError("failed-precondition", "Flags apply to today's live questions.");
+    }
+    const questions = (daySnap.data()?.questions ?? []) as RoomDayQuestion[];
+    const target = questions.find((question) => question.qid === qid);
+    if (!target) throw new HttpsError("not-found", "That question is not in today's set.");
+    if (target.custom !== true) {
+      throw new HttpsError("failed-precondition", "Only custom questions can be flagged.");
+    }
+    if (target.pulled === true) return target;
+    tx.set(dayRef, {
+      questions: questions.map((question) =>
+        question.qid === qid ? { ...question, pulled: true } : question),
+    }, { merge: true });
+    return target;
+  });
+
+  await db.collection("flags").add({
+    roomId,
+    roomName: String(room.name ?? ""),
+    dailyKey: todayKey,
+    qid,
+    prompt: flagged.prompt,
+    authorUid: flagged.authorUid,
+    flaggedBy: uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  // "The author is notified" — best-effort push, never blocks the pull.
+  try {
+    if (flagged.authorUid && flagged.authorUid !== uid) {
+      const tokensSnap = await db.collection("users").doc(flagged.authorUid)
+        .collection("notificationTokens")
+        .where("enabled", "==", true)
+        .get();
+      const tokens = tokensSnap.docs
+        .map((doc) => ({
+          uid: flagged.authorUid ?? "",
+          refPath: doc.ref.path,
+          token: String(doc.data().token ?? ""),
+        }))
+        .filter((token) => token.token.length > 0);
+      if (tokens.length > 0) {
+        await sendNotificationToTokens(tokens, {
+          title: "A question was removed",
+          body: `Your question in ${String(room.name ?? "a room")} was flagged and pulled for today.`,
+          route: "/rooms",
+          type: "custom_question_flagged",
+        });
+      }
+    }
+  } catch (error) {
+    logger.warn("Flag notification failed", { roomId, qid, error: String(error) });
+  }
+  return { flagged: true, qid };
+});
+
+export const getRoomDayDetail = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  if (!dailyKey) throw new HttpsError("invalid-argument", "dailyKey is required.");
+  await requireRoomAndMember(roomId, uid);
+
+  const dayRef = roomDayRef(roomId, dailyKey);
+  const daySnap = await dayRef.get();
+  if (!daySnap.exists || daySnap.data()?.status !== "closed") {
+    throw new HttpsError("failed-precondition", "Results are available after the reveal.");
+  }
+  const [answersSnap, membersSnap] = await Promise.all([
+    dayRef.collection("answers").get(),
+    roomRef(roomId).collection("members").get(),
+  ]);
+  const memberByUid = new Map(membersSnap.docs.map((doc) => [doc.id, doc.data()]));
+  const rows = answersSnap.docs.map((doc) => {
+    const data = doc.data();
+    const member = memberByUid.get(doc.id) ?? {};
+    const reveals = member.revealMine === true || doc.id === uid;
+    const picks = (Array.isArray(data.picks) ? data.picks : []) as RoomPick[];
+    return {
+      uid: doc.id,
+      displayName: String(member.displayName ?? "Reader"),
+      isMe: doc.id === uid,
+      scoreDelta: typeof data.scoreDelta === "number" ? data.scoreDelta : null,
+      avgAccuracy: typeof data.avgAccuracy === "number" ? data.avgAccuracy : null,
+      accuracies: data.accuracies ?? {},
+      reveals,
+      picks: reveals
+        ? picks.map((pick) => ({ qid: pick.qid, side: pick.side, prediction: pick.prediction }))
+        : [],
+    };
+  });
+  rows.sort((a, b) => (b.avgAccuracy ?? -1) - (a.avgAccuracy ?? -1));
+  return {
+    roomId,
+    dailyKey,
+    questions: daySnap.data()?.questions ?? [],
+    results: daySnap.data()?.results ?? [],
+    rows,
+  };
+});
+
+export const getPartyPool = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAppFeature("feature_party_mode", "Party mode is currently disabled.");
+  const requestedCount = Number(request.data?.count ?? 60);
+  const count = Math.max(1, Math.min(100, Number.isFinite(requestedCount) ? requestedCount : 60));
+  const excludeIds = new Set(
+    (Array.isArray(request.data?.excludeIds) ? request.data.excludeIds : [])
+      .slice(0, 500)
+      .map(String),
+  );
+  const userSnap = await db.collection("users").doc(uid).get();
+  const allowMature = userSnap.data()?.matureContent === true;
+
+  const candidates = (await bankCandidates())
+    .filter((candidate) => allowMature || candidate.tier !== "mature");
+  const fresh = candidates.filter((candidate) => !excludeIds.has(candidate.id));
+  const pool = fresh.length >= count ? fresh : candidates;
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return {
+    questions: pool.slice(0, count).map((candidate) => ({
+      qid: candidate.id,
+      prompt: candidate.prompt,
+      optA: candidate.optA,
+      optB: candidate.optB,
+      tag: candidate.tags[0] ?? "Everyday",
+      shape: candidate.shape,
+      tier: candidate.tier,
+    })),
+    exhausted: fresh.length < count,
+  };
+});
+
+export const importQuestionBank = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAdmin(uid);
+  const rawRows = Array.isArray(request.data?.rows) ? request.data.rows : [];
+  if (rawRows.length === 0 || rawRows.length > 500) {
+    throw new HttpsError("invalid-argument", "Provide 1-500 rows per import call.");
+  }
+  let imported = 0;
+  const errors: Array<{ index: number; message: string }> = [];
+  const writes: Array<(batch: WriteBatch) => void> = [];
+  rawRows.forEach((raw: Record<string, unknown>, index: number) => {
+    try {
+      const question = normalizeBankRow(raw ?? {});
+      writes.push((batch) => batch.set(db.collection("questionBank").doc(question.id), {
+        prompt: question.prompt,
+        optA: question.optA,
+        optB: question.optB,
+        tags: question.tags,
+        tier: question.tier,
+        shape: question.shape,
+        active: question.active,
+        timesUsed: FieldValue.increment(0),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }));
+      imported += 1;
+    } catch (error) {
+      errors.push({ index, message: error instanceof Error ? error.message : String(error) });
+    }
+  });
+  await commitBatchedWrites(writes);
+  return { imported, errors };
+});
+
+export const setBankQuestionActive = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAdmin(uid);
+  const qid = assertString(request.data?.qid, "qid");
+  const active = request.data?.active === true;
+  await db.collection("questionBank").doc(qid).set({
+    active,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { qid, active };
+});
+
+export const curateWorldDay = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAdmin(uid);
+  const dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  if (!dailyKey) throw new HttpsError("invalid-argument", "dailyKey is required.");
+  const todayKey = dailyKeyForEasternDate(new Date());
+  if (dailyKey < todayKey) {
+    throw new HttpsError("invalid-argument", "World days can only be curated for today or later.");
+  }
+  const rawQuestions = Array.isArray(request.data?.questions) ? request.data.questions : [];
+  if (rawQuestions.length !== ROOM_QUESTIONS_PER_DAY) {
+    throw new HttpsError("invalid-argument",
+      `Curate exactly ${ROOM_QUESTIONS_PER_DAY} world questions.`);
+  }
+  await ensureWorldRoom();
+
+  const questions: RoomDayQuestion[] = [];
+  for (const raw of rawQuestions as Array<Record<string, unknown>>) {
+    const qid = typeof raw?.qid === "string" && raw.qid.length > 0 ? raw.qid : null;
+    const requestedThreshold = Number(raw?.threshold ?? 1000);
+    const threshold = Math.max(1, Math.min(1000000,
+      Number.isFinite(requestedThreshold) ? Math.round(requestedThreshold) : 1000));
+    if (qid) {
+      const bankSnap = await db.collection("questionBank").doc(qid).get();
+      if (!bankSnap.exists) throw new HttpsError("not-found", `Bank question ${qid} not found.`);
+      const data = bankSnap.data() ?? {};
+      questions.push({
+        qid,
+        prompt: String(data.prompt ?? ""),
+        optA: String(data.optA ?? "Yes"),
+        optB: String(data.optB ?? "No"),
+        tag: Array.isArray(data.tags) ? String(data.tags[0] ?? "Everyday") : "Everyday",
+        shape: String(data.shape ?? "TASTE"),
+        tier: String(data.tier ?? "normal"),
+        custom: false,
+        authorUid: null,
+        authorName: null,
+        pulled: false,
+        threshold,
+      });
+    } else {
+      try {
+        const prompt = normalizeCustomQuestionText(raw?.prompt);
+        questions.push({
+          qid: bankQuestionIdForPrompt(prompt),
+          prompt,
+          optA: normalizeCustomOption(raw?.optA, "Yes"),
+          optB: normalizeCustomOption(raw?.optB, "No"),
+          tag: typeof raw?.tag === "string" && raw.tag.trim().length > 0
+            ? raw.tag.trim().slice(0, 40)
+            : "Everyday",
+          shape: "TASTE",
+          tier: "normal",
+          custom: false,
+          authorUid: null,
+          authorName: null,
+          pulled: false,
+          threshold,
+        });
+      } catch (error) {
+        mapRoomValidationError(error);
+      }
+    }
+  }
+
+  const status = dailyKey === todayKey ? "live" : "scheduled";
+  await roomDayRef(WORLD_ROOM_ID, dailyKey).set({
+    dailyKey,
+    status,
+    curatedBy: uid,
+    questions,
+    answerCount: 0,
+    answerCounts: {},
+    createdAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  if (status === "live") {
+    await roomRef(WORLD_ROOM_ID).set({
+      currentDailyKey: dailyKey,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  return { dailyKey, status, questions: questions.length };
 });

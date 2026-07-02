@@ -8,6 +8,13 @@ import 'package:go_router/go_router.dart';
 import 'models.dart';
 import 'theme/tokens.dart';
 
+const double _rtwMobilePreviewWidth = 393.0;
+
+double rtwMobileSurfaceWidth(Size size) {
+  if (kIsWeb) return math.min(size.width, _rtwMobilePreviewWidth);
+  return size.width;
+}
+
 class RtwLogo extends StatelessWidget {
   const RtwLogo({
     super.key,
@@ -344,12 +351,14 @@ class SpectrumBar extends StatelessWidget {
     required this.guess,
     this.progress = 1,
     this.height = 64,
+    this.showGuess = true,
   });
 
   final int worldShare;
   final int guess;
   final double progress;
   final double height;
+  final bool showGuess;
 
   @override
   Widget build(BuildContext context) {
@@ -358,27 +367,29 @@ class SpectrumBar extends StatelessWidget {
         final width = constraints.maxWidth;
         final guessLeft = width * guess / 100;
         final fillWidth = width * worldShare / 100 * progress;
+        const barTop = 60.0;
         return SizedBox(
-          height: height + 44,
+          height: height + 72,
           child: Stack(
             children: [
-              Positioned(
-                top: 30,
-                left: (guessLeft - 38).clamp(0, width - 76),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+              if (showGuess)
+                Positioned(
+                  top: 30,
+                  left: (guessLeft - 38).clamp(0, width - 76),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: RtwColors.blueTint,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Eyebrow('YOU $guess%', color: RtwColors.blue),
                   ),
-                  decoration: BoxDecoration(
-                    color: RtwColors.blueTint,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Eyebrow('YOU $guess%', color: RtwColors.blue),
                 ),
-              ),
               Positioned(
-                top: 60,
+                top: barTop,
                 left: 0,
                 right: 0,
                 child: ClipRRect(
@@ -410,18 +421,19 @@ class SpectrumBar extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                top: 55,
-                bottom: 0,
-                left: guessLeft.clamp(0, width - 3),
-                child: Container(
-                  width: 3,
-                  decoration: BoxDecoration(
-                    color: RtwColors.blue,
-                    borderRadius: BorderRadius.circular(2),
+              if (showGuess)
+                Positioned(
+                  top: barTop - 5,
+                  height: height + 10,
+                  left: guessLeft.clamp(0, width - 3),
+                  child: Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      color: RtwColors.blue,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         );
@@ -478,7 +490,7 @@ class _AppScaffoldState extends State<AppScaffold> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isWide = size.width >= 820;
-    final mobileWidth = math.min(size.width, 393.0);
+    final mobileWidth = rtwMobileSurfaceWidth(size);
     final constrainedChild = isWide
         ? Center(
             child: SizedBox(width: widget.maxWidth, child: widget.child),
@@ -713,7 +725,7 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final mobileWidth = math.min(size.width, 393.0);
+    final mobileWidth = rtwMobileSurfaceWidth(size);
     const navHeight = 84.0;
     final current = location == '/history' || location == '/party'
         ? 1

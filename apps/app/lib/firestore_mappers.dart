@@ -42,6 +42,7 @@ RtwQuestion questionFromFirestore(
     totalAnswers: _intValue(
       data['totalAnswers'] ?? resultData?['totalAnswers'],
     ),
+    closeAt: _dateTimeValue(data['closeAt'] ?? resultData?['closedAt']),
   );
 }
 
@@ -127,6 +128,23 @@ FriendRow friendFromLeaderboardRow(
     score: _intValue(data['readScore'], fallback: 1500),
     me: uid == currentUid,
     answersShared: _boolValue(data['answersShared']) ?? false,
+  );
+}
+
+FriendAnswerComparison friendAnswerComparisonFromData(
+  Map<String, dynamic> data,
+) {
+  return FriendAnswerComparison(
+    uid: _stringValue(data['uid']) ?? '',
+    name: _stringValue(data['displayName'])?.trim().isNotEmpty == true
+        ? _stringValue(data['displayName'])!.trim()
+        : 'Reader',
+    selectedOptionId: _stringValue(data['selectedOptionId']) ?? '',
+    predictedShare: _intValue(
+      data['predictedShare'],
+      fallback: 0,
+    ).clamp(0, 100),
+    readAccuracy: _nullableIntValue(data['readAccuracy'])?.clamp(0, 100),
   );
 }
 
@@ -229,6 +247,13 @@ bool? _boolValue(Object? value) {
     if (value == 'true') return true;
     if (value == 'false') return false;
   }
+  return null;
+}
+
+DateTime? _dateTimeValue(Object? value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
   return null;
 }
 

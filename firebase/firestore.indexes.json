@@ -43,7 +43,7 @@
       ]
     },
     {
-      "collectionId": "questions",
+      "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -57,7 +57,21 @@
       ]
     },
     {
-      "collectionId": "questions",
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publishAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -71,7 +85,7 @@
       ]
     },
     {
-      "collectionId": "questions",
+      "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -85,7 +99,7 @@
       ]
     },
     {
-      "collectionId": "dailyResults",
+      "collectionGroup": "dailyResults",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -100,6 +114,16 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "friends",
+      "fieldPath": "uid",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
     {
       "collectionGroup": "notificationTokens",
       "fieldPath": "enabled",

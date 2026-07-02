@@ -26,3 +26,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY
+    value: "6LctEjotAAAAAOcMs_-4Exr-PrKl5e3YcUS9Szwp"
+    availability:
+      - BUILD
+      - RUNTIME

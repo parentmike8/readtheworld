@@ -36,7 +36,8 @@ import {
   SlidersHorizontal,
   UploadCloud,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { activateClientAppCheck } from "@/lib/appCheck";
 
 type AdminState = "missing-config" | "signed-out" | "checking" | "authorized" | "unauthorized";
 export type AdminView = "today" | "schedule" | "library" | "analytics" | "results" | "notifications" | "settings";
@@ -455,10 +456,13 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const broadcastRoute = "/today";
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState("");
+  const questionEditorRef = useRef<HTMLElement | null>(null);
 
   const app = useMemo(() => {
     if (!hasFirebaseConfig()) return null;
-    return getApps()[0] ?? initializeApp(firebaseConfig);
+    const firebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
+    activateClientAppCheck(firebaseApp);
+    return firebaseApp;
   }, []);
 
   const auth = app ? getAuth(app) : null;
@@ -590,6 +594,11 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     );
   }, [firestore, state]);
 
+  useEffect(() => {
+    if (activeView !== "library" || !questionEditorOpen) return;
+    questionEditorRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [activeQuestionId, activeView, questionEditorOpen]);
+
   async function runCallable(name: string, payload: Record<string, unknown> = {}) {
     if (!functions) return;
     const validation = validatePayload(name, payload);
@@ -603,6 +612,14 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       const callable = httpsCallable(functions, name);
       const result = await callable(payload);
       setMessage(JSON.stringify(result.data, null, 2));
+      if (name === "upsertQuestion") {
+        const savedQuestionId = stringValue(objectValue(result.data).questionId) || stringValue(payload.questionId);
+        if (savedQuestionId) {
+          setActiveQuestionId(savedQuestionId);
+          setQuestionId(savedQuestionId);
+          setQuestionEditorOpen(true);
+        }
+      }
       if (name !== "listWaitlist") {
         await loadOverview(activeQuestionId);
       }
@@ -628,7 +645,8 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }
 
   function startNewQuestion() {
-    resetQuestionForm();
+    resetQuestionForm(makeDraftQuestionId());
+    setLibraryFilter("All");
     setQuestionEditorOpen(true);
   }
 
@@ -649,11 +667,11 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       .filter((option) => option.id && option.label);
   }
 
-  function resetQuestionForm() {
+  function resetQuestionForm(nextQuestionId = "") {
     setActiveQuestionId("");
-    setQuestionId("");
+    setQuestionId(nextQuestionId);
     setPrompt("");
-    setCategory("");
+    setCategory("CULTURE");
     setStatus("draft");
     setDailyKey("");
     setPublishAt("");
@@ -920,8 +938,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <p>Assign one question to each day. Gaps are flagged in red.</p>
           </div>
           <div className="adminToolbar">
-            <button>Current schedule</button>
-              <button className="adminBlueButton" onClick={() => {
+            <button className="adminBlueButton" onClick={() => {
               startNewQuestion();
               setActiveView("library");
             }}>
@@ -966,7 +983,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           <aside className="adminDrafts">
             <div className="adminDraftsIntro">
               <span>Unscheduled drafts</span>
-              <p>Drag onto a day to schedule.</p>
+              <p>Select a draft to edit and schedule it.</p>
             </div>
             {rows.filter((question) => question.status === "draft").slice(0, 3).map((question) => (
               <button key={`draft-${question.id}`} onClick={() => applyQuestion(question)}>
@@ -996,6 +1013,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           </div>
           <button className="adminBlueButton" onClick={startNewQuestion}>+ New question</button>
         </div>
+        {questionEditorOpen ? renderQuestionEditor() : null}
         <div className="adminFilterPills">
           {(["All", "Live", "Scheduled", "Used", "Draft"] as LibraryFilter[]).map((label) => (
             <button
@@ -1030,7 +1048,6 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             </button>
           ))}
         </section>
-        {questionEditorOpen ? renderQuestionEditor() : null}
       </>
     );
   }
@@ -1061,9 +1078,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <p>Last 30 days · engagement, retention and audience.</p>
           </div>
           <div className="adminSegment">
-            <button className="active">30D</button>
-            <button>90D</button>
-            <button>All</button>
+            <span className="active">30D</span>
           </div>
         </div>
         <div className="adminMetricGrid adminAnalyticsMetrics">
@@ -1278,11 +1293,11 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           <PanelHeader label="Timing" />
           <div className="adminSettingRow">
             <div><strong>New question drops</strong><span>When today&apos;s question goes live</span></div>
-            <button>00:00 local</button>
+            <span className="adminStaticPill">00:00 Eastern</span>
           </div>
           <div className="adminSettingRow">
             <div><strong>Results reveal</strong><span>When the world&apos;s answer unlocks</span></div>
-            <button>Next day 00:00</button>
+            <span className="adminStaticPill">Next day 00:00 Eastern</span>
           </div>
         </section>
         <section className="adminSettingsList adminCategoryPanel">
@@ -1291,7 +1306,6 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             {Object.keys(categoryColors).map((cat) => (
               <span key={cat}><CategoryDot category={cat} /> {displayCategory(cat)}</span>
             ))}
-            <button className="adminGhostButton">+ Add category</button>
           </div>
         </section>
         {user ? (
@@ -1315,13 +1329,13 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
 
   function renderQuestionEditor() {
     return (
-      <section className="adminEditor">
+      <section className="adminEditor" ref={questionEditorRef}>
         <div className="adminViewHead compact">
           <div>
             <div className="adminKicker">Question editor</div>
             <h2 className="adminSerif">{activeQuestionId ? "Edit question" : "New question"}</h2>
           </div>
-          <button onClick={resetQuestionForm}>Clear</button>
+          <button onClick={() => resetQuestionForm()}>Clear</button>
         </div>
         <div className="adminEditorGrid">
           <label>
@@ -2064,6 +2078,10 @@ function timeUntil(value: string) {
   return `${hours}h ${minutes}m`;
 }
 
+function makeDraftQuestionId() {
+  return `draft-${Date.now().toString(36)}`;
+}
+
 function validatePayload(name: string, payload: Record<string, unknown>) {
   if (name !== "upsertQuestion") {
     if ((name === "closeQuestionNow" || name === "recomputeQuestion") && !stringValue(payload.questionId)) {
@@ -2074,7 +2092,13 @@ function validatePayload(name: string, payload: Record<string, unknown>) {
   if (!stringValue(payload.questionId)) return "Question ID is required.";
   if (!stringValue(payload.prompt)) return "Prompt is required.";
   if (!stringValue(payload.category)) return "Category is required.";
-  if (!stringValue(payload.dailyKey)) return "Daily key is required.";
+  const status = stringValue(payload.status) || "draft";
+  if (status !== "draft" && !stringValue(payload.dailyKey)) {
+    return "Daily key is required before a question is scheduled.";
+  }
+  if (status !== "draft" && (!stringValue(payload.publishAt) || !stringValue(payload.closeAt))) {
+    return "Publish and close dates are required before scheduling.";
+  }
   if (!Array.isArray(payload.options) || payload.options.length < 2) {
     return "At least two complete options are required.";
   }

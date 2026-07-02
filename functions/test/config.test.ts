@@ -14,6 +14,7 @@ describe("Admin app config", () => {
       "feature_friends_leaderboard",
       "feature_result_sharing",
       "feature_onboarding_demographics",
+      "feature_world_room_unlocked",
     ]);
     expect(adminFeatureFlagDefinition("feature_party_mode")?.label).toBe("Party mode");
     expect(adminFeatureFlagDefinition("feature_unknown")).toBeNull();

@@ -375,13 +375,13 @@ function checkFirebaseFiles() {
       },
       {
         label: "scheduled questions publish",
-        collectionId: "questions",
+        collectionGroup: "questions",
         queryScope: "COLLECTION",
         fields: ["status:ASCENDING", "publishAt:ASCENDING"],
       },
       {
         label: "live questions close",
-        collectionId: "questions",
+        collectionGroup: "questions",
         queryScope: "COLLECTION",
         fields: ["status:ASCENDING", "closeAt:ASCENDING"],
       },

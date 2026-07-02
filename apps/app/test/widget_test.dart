@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:read_the_world/main.dart';
 import 'package:read_the_world/models.dart';
 import 'package:read_the_world/scoring.dart';
 import 'package:read_the_world/screens.dart';
+import 'package:read_the_world/widgets.dart';
 
 import 'fixtures/demo_data.dart';
 
@@ -17,13 +20,16 @@ Widget _testApp({
   required List<RouteBase> routes,
   AppSettings appSettings = AppSettings.defaults,
   bool useDemoController = true,
+  RtwController? controller,
 }) {
+  final activeController =
+      controller ?? (useDemoController ? _demoController() : null);
   return ProviderScope(
     overrides: [
       firebaseReadyProvider.overrideWithValue(false),
       appSettingsProvider.overrideWithValue(appSettings),
-      if (useDemoController)
-        rtwControllerProvider.overrideWith((_) => _demoController()),
+      if (activeController != null)
+        rtwControllerProvider.overrideWith((_) => activeController),
       rtwRouterProvider.overrideWithValue(
         GoRouter(
           initialLocation: initialLocation,
@@ -37,6 +43,11 @@ Widget _testApp({
             }
             if (!appSettings.friends && state.uri.path.startsWith('/invite')) {
               return '/insights';
+            }
+            if (activeController?.lockedToday == true &&
+                (state.uri.path == '/today' ||
+                    state.uri.path == '/today/predict')) {
+              return '/today/locked';
             }
             return null;
           },
@@ -104,6 +115,22 @@ class _FixtureRtwController extends RtwController {
   }
 }
 
+class _SlowLockRtwController extends _FixtureRtwController {
+  final completer = Completer<void>();
+
+  @override
+  Future<void> lockPrediction() async {
+    if (selectedOptionId == null) return;
+    submitting = true;
+    lockedToday = true;
+    lastError = null;
+    notifyListeners();
+    await completer.future;
+    submitting = false;
+    notifyListeners();
+  }
+}
+
 List<RouteBase> _demoRoutes() {
   return [
     GoRoute(path: '/auth', builder: (_, _) => const AuthScreen()),
@@ -138,6 +165,22 @@ List<RouteBase> _demoRoutes() {
 }
 
 void main() {
+  test('app router stays stable across controller notifications', () {
+    final container = ProviderContainer(
+      overrides: [
+        firebaseReadyProvider.overrideWithValue(false),
+        appSettingsProvider.overrideWithValue(AppSettings.defaults),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final router = container.read(rtwRouterProvider);
+    final controller = container.read(rtwControllerProvider);
+    controller.setPrediction(67);
+
+    expect(identical(container.read(rtwRouterProvider), router), isTrue);
+  });
+
   test('Read Accuracy uses absolute percentage-point error', () {
     expect(calculateReadAccuracy(predictedShare: 5, actualShare: 16), 89);
     expect(calculateReadAccuracy(predictedShare: 42, actualShare: 35), 93);
@@ -299,6 +342,28 @@ void main() {
       find.text("Would you want to know the exact date you'll die?"),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Native mobile scaffold fills wider iPhone viewports', (
+    tester,
+  ) async {
+    const surfaceKey = Key('native-mobile-surface');
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AppScaffold(
+          location: '/today',
+          showBottomNav: false,
+          child: SizedBox(key: surfaceKey, width: double.infinity, height: 100),
+        ),
+      ),
+    );
+
+    expect(tester.getSize(find.byKey(surfaceKey)).width, 430);
   });
 
   testWidgets('Onboarding about step opens DOB and country pickers', (
@@ -640,6 +705,10 @@ void main() {
       find.textContaining('What share of people also said “Yes”?'),
       findsOneWidget,
     );
+    expect(
+      find.text("Would you want to know the exact date you'll die?"),
+      findsOneWidget,
+    );
     await tester.ensureVisible(
       find.widgetWithText(ElevatedButton, 'Lock in my prediction'),
     );
@@ -652,6 +721,108 @@ void main() {
     expect(find.text('Locked in\nfor today.'), findsOneWidget);
     expect(find.text('Yes'), findsOneWidget);
     expect(find.text('50% say Yes'), findsOneWidget);
+  });
+
+  testWidgets('Today route redirects locked users to locked state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = _demoController()
+      ..selectedOptionId = 'yes'
+      ..prediction = 68
+      ..lockedToday = true;
+
+    await tester.pumpWidget(
+      _testApp(
+        initialLocation: '/today',
+        routes: _demoRoutes(),
+        controller: controller,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Locked in\nfor today.'), findsOneWidget);
+    expect(find.text('68% say Yes'), findsOneWidget);
+    expect(find.text('Can you read the world today?'), findsNothing);
+  });
+
+  testWidgets('Lock button routes while prediction submit is still pending', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = _SlowLockRtwController()
+      ..today = todayQuestion
+      ..liveCount = todayQuestion.totalAnswers
+      ..selectedOptionId = 'yes'
+      ..prediction = 62
+      ..lastError = null;
+    addTearDown(() {
+      if (!controller.completer.isCompleted) {
+        controller.completer.complete();
+      }
+    });
+
+    await tester.pumpWidget(
+      _testApp(
+        initialLocation: '/today/predict',
+        routes: _demoRoutes(),
+        controller: controller,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.widgetWithText(ElevatedButton, 'Lock in my prediction'),
+    );
+    await tester.tap(
+      find.widgetWithText(ElevatedButton, 'Lock in my prediction'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Locked in\nfor today.'), findsOneWidget);
+    expect(controller.submitting, isTrue);
+
+    controller.completer.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Skipped reveal does not show a fake user guess', (tester) async {
+    tester.view.physicalSize = const Size(393, 1300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final skipped = buildDemoHistory().firstWhere(
+      (entry) => entry.status == HistoryStatus.skipped,
+    );
+
+    await tester.pumpWidget(
+      _testApp(
+        initialLocation: '/reveal/${skipped.question.id}',
+        routes: _demoRoutes(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(skipped.question.prompt), findsOneWidget);
+    expect(
+      find.textContaining("You didn't answer this one", findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('You guessed', findRichText: true),
+      findsNothing,
+    );
+    expect(find.textContaining('YOU 0%'), findsNothing);
+    expect(find.text('READ ACCURACY'), findsNothing);
   });
 
   testWidgets('History review opens the selected reveal entry', (tester) async {

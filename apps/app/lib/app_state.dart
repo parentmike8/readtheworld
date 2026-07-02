@@ -35,7 +35,7 @@ class RtwController extends ChangeNotifier {
   int liveCount = 0;
   String displayName = 'Reader';
   String email = '';
-  bool dailyReminder = true;
+  bool dailyReminder = false;
   int avatarIndex = 0;
   DateTime? birthdate;
   String? gender;
@@ -53,6 +53,9 @@ class RtwController extends ChangeNotifier {
   String? selectedRevealQuestionId;
   List<HistoryEntry> history = const [];
   List<FriendRow> friends = const [];
+  List<FriendAnswerComparison> friendAnswerComparisons = const [];
+  bool loadingFriendAnswerComparisons = false;
+  String? friendAnswerComparisonQuestionId;
   List<CategoryInsight> categoryInsights = const [];
   Timer? _liveTimer;
   Timer? _profileWriteDebounce;
@@ -62,8 +65,10 @@ class RtwController extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _todayCounterSub;
   final List<StreamSubscription<dynamic>> _userSubscriptions = [];
   final Map<String, Map<String, dynamic>> _answerCache = {};
+  final Map<String, Map<String, dynamic>> _answerDraftCache = {};
   final Map<String, Map<String, dynamic>> _scoreHistoryCache = {};
   final Map<String, Map<String, dynamic>> _resultCache = {};
+  Timer? _draftWriteDebounce;
   String? _boundUid;
   String? _pendingHandoffQuestionId;
   String? _pendingHandoffOptionId;
@@ -183,11 +188,28 @@ class RtwController extends ChangeNotifier {
     return 'Nearly everyone, you say';
   }
 
+  String get nextRevealCountdownText {
+    final closeAt = today.closeAt;
+    if (closeAt == null) return 'Soon';
+    final diff = closeAt.difference(DateTime.now());
+    if (diff.inSeconds <= 0) return 'Ready';
+    if (diff.inHours >= 24) {
+      final days = diff.inDays;
+      final hours = diff.inHours.remainder(24);
+      return '${days}d ${hours}h';
+    }
+    final hours = diff.inHours.toString().padLeft(2, '0');
+    final minutes = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
+  }
+
   void _hydrateFromFirebase() {
     final firestore = FirebaseFirestore.instance;
     _liveQuestionSub = firestore
         .collection('questions')
         .where('status', isEqualTo: 'live')
+        .orderBy('publishAt', descending: true)
         .limit(1)
         .snapshots()
         .listen(
@@ -202,6 +224,9 @@ class RtwController extends ChangeNotifier {
             }
             _bindQuestionCounter(nextToday.id);
             if (isNewQuestion && !_answerCache.containsKey(nextToday.id)) {
+              // _syncTodayAnswerFromCache below restores any draft for the
+              // new question; the previous question's lock must not carry
+              // over or the draft is ignored and the app stays on /locked.
               selectedOptionId = null;
               prediction = 50;
               lockedToday = false;
@@ -249,8 +274,12 @@ class RtwController extends ChangeNotifier {
     _clearUserSubscriptions();
     _boundUid = uid;
     _answerCache.clear();
+    _answerDraftCache.clear();
     _scoreHistoryCache.clear();
     _resultCache.clear();
+    friendAnswerComparisons = const [];
+    friendAnswerComparisonQuestionId = null;
+    loadingFriendAnswerComparisons = false;
     if (user == null) return;
     _applyAuthUserDefaults(user);
 
@@ -300,8 +329,20 @@ class RtwController extends ChangeNotifier {
           ..addEntries(
             snapshot.docs.map((doc) => MapEntry(doc.id, doc.data())),
           );
-        _syncTodayAnswerFromCache();
+        final changed = _syncTodayAnswerFromCache();
         _rebuildHistoryFromCache();
+        if (changed) notifyListeners();
+      }, onError: _handleReadError),
+    );
+
+    _userSubscriptions.add(
+      userRef.collection('answerDrafts').snapshots().listen((snapshot) {
+        _answerDraftCache
+          ..clear()
+          ..addEntries(
+            snapshot.docs.map((doc) => MapEntry(doc.id, doc.data())),
+          );
+        if (_syncTodayAnswerFromCache()) notifyListeners();
       }, onError: _handleReadError),
     );
 
@@ -392,7 +433,7 @@ class RtwController extends ChangeNotifier {
         _displayNameFromEmail(user.email) ??
         'Reader';
     email = _nonEmptyString(user.email) ?? '';
-    dailyReminder = true;
+    dailyReminder = false;
     avatarIndex = 0;
     birthdate = null;
     gender = null;
@@ -486,13 +527,33 @@ class RtwController extends ChangeNotifier {
           ..sort((a, b) => b.score.compareTo(a.score));
   }
 
-  void _syncTodayAnswerFromCache() {
+  bool _syncTodayAnswerFromCache() {
+    final beforeOptionId = selectedOptionId;
+    final beforePrediction = prediction;
+    final beforeLockedToday = lockedToday;
     final answer = _answerCache[today.id];
-    if (answer == null) return;
-    selectedOptionId = answer['selectedOptionId']?.toString();
-    prediction = _intValue(answer['predictedShare'], fallback: prediction);
-    lockedToday = true;
-    _startLiveTimer();
+    if (answer != null) {
+      selectedOptionId = answer['selectedOptionId']?.toString();
+      prediction = _intValue(answer['predictedShare'], fallback: prediction);
+      lockedToday = true;
+      _startLiveTimer();
+      return beforeOptionId != selectedOptionId ||
+          beforePrediction != prediction ||
+          beforeLockedToday != lockedToday;
+    }
+
+    final draft = _answerDraftCache[today.id];
+    if (draft == null || lockedToday) return false;
+    final draftOptionId = _nonEmptyString(draft['selectedOptionId']);
+    if (draftOptionId == null) return false;
+    selectedOptionId = draftOptionId;
+    prediction = _intValue(
+      draft['predictedShare'],
+      fallback: prediction,
+    ).clamp(0, 100);
+    return beforeOptionId != selectedOptionId ||
+        beforePrediction != prediction ||
+        beforeLockedToday != lockedToday;
   }
 
   void _applyPendingHandoffAnswer() {
@@ -541,7 +602,9 @@ class RtwController extends ChangeNotifier {
   }
 
   void selectOption(String optionId) {
+    if (lockedToday) return;
     selectedOptionId = optionId;
+    unawaited(_writeTodayDraft());
     unawaited(
       _logEvent('submit_answer', {
         'question_id': today.id,
@@ -554,7 +617,58 @@ class RtwController extends ChangeNotifier {
 
   void setPrediction(int value) {
     prediction = value.clamp(0, 100);
+    if (!lockedToday && selectedOptionId != null) {
+      _scheduleTodayDraftWrite();
+    }
     notifyListeners();
+  }
+
+  void _scheduleTodayDraftWrite() {
+    _draftWriteDebounce?.cancel();
+    _draftWriteDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_writeTodayDraft());
+    });
+  }
+
+  Future<void> _writeTodayDraft() async {
+    if (!firebaseReady || lockedToday || today.id.isEmpty) return;
+    final optionId = selectedOptionId;
+    if (optionId == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('answerDrafts')
+          .doc(today.id)
+          .set({
+            'questionId': today.id,
+            'dailyKey': today.dailyKey,
+            'selectedOptionId': optionId,
+            'predictedShare': prediction,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> _deleteTodayDraft() async {
+    if (!firebaseReady || today.id.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('answerDrafts')
+          .doc(today.id)
+          .delete();
+    } catch (_) {
+      // Draft cleanup must not block the locked answer state.
+    }
   }
 
   Future<bool> authenticateWithEmail({
@@ -927,8 +1041,11 @@ class RtwController extends ChangeNotifier {
 
   Future<void> lockPrediction() async {
     if (selectedOptionId == null) return;
+    _draftWriteDebounce?.cancel();
     submitting = true;
+    lockedToday = true;
     lastError = null;
+    _startLiveTimer();
     notifyListeners();
     try {
       if (!firebaseReady) {
@@ -959,16 +1076,20 @@ class RtwController extends ChangeNotifier {
           'predicted_share': prediction,
         }),
       );
-      lockedToday = true;
-      _startLiveTimer();
+      unawaited(_deleteTodayDraft());
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'already-exists') {
         lockedToday = true;
         _startLiveTimer();
+        unawaited(_deleteTodayDraft());
       } else {
+        lockedToday = false;
+        _stopLiveTimer();
         lastError = error.message ?? error.code;
       }
     } catch (error) {
+      lockedToday = false;
+      _stopLiveTimer();
       lastError = error.toString();
     } finally {
       submitting = false;
@@ -977,9 +1098,9 @@ class RtwController extends ChangeNotifier {
   }
 
   void restartToday() {
+    if (lockedToday) return;
     selectedOptionId = null;
     prediction = 50;
-    lockedToday = false;
     _stopLiveTimer();
     notifyListeners();
   }
@@ -1097,6 +1218,45 @@ class RtwController extends ChangeNotifier {
     }
   }
 
+  Future<void> loadFriendAnswerComparisons(String questionId) async {
+    if (!firebaseReady || questionId.isEmpty) return;
+    if (loadingFriendAnswerComparisons ||
+        friendAnswerComparisonQuestionId == questionId) {
+      return;
+    }
+    loadingFriendAnswerComparisons = true;
+    friendAnswerComparisonQuestionId = questionId;
+    friendAnswerComparisons = const [];
+    notifyListeners();
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('getLeaderboard');
+      final result = await callable.call({
+        'mode': 'friendAnswerComparisons',
+        'questionId': questionId,
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final rows = data['rows'] as List? ?? const [];
+      friendAnswerComparisons = rows
+          .whereType<Map>()
+          .map(
+            (row) =>
+                friendAnswerComparisonFromData(Map<String, dynamic>.from(row)),
+          )
+          .where((row) => row.uid.isNotEmpty && row.selectedOptionId.isNotEmpty)
+          .toList();
+    } catch (error) {
+      lastError = error.toString();
+      // Keep friendAnswerComparisonQuestionId set: the reveal screen requests
+      // a load whenever it differs from the shown question, so clearing it
+      // here would retry a failing callable on every rebuild.
+    } finally {
+      loadingFriendAnswerComparisons = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> removeFriend(FriendRow target) async {
     final friendUid = target.uid;
     friends = friends
@@ -1163,7 +1323,7 @@ class RtwController extends ChangeNotifier {
       return;
     }
     if (!firebaseReady) {
-      dailyReminder = true;
+      dailyReminder = false;
       notifyListeners();
       return;
     }
@@ -1289,7 +1449,7 @@ class RtwController extends ChangeNotifier {
       ).httpsCallable('createShareLink');
       final result = await callable.call({'questionId': questionId});
       final data = Map<String, dynamic>.from(result.data as Map);
-      return data['url']?.toString() ?? '';
+      return data['shortUrl']?.toString() ?? data['url']?.toString() ?? '';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
@@ -1310,7 +1470,7 @@ class RtwController extends ChangeNotifier {
       ).httpsCallable('createInvite');
       final result = await callable.call();
       final data = Map<String, dynamic>.from(result.data as Map);
-      return data['url']?.toString() ?? '';
+      return data['shortUrl']?.toString() ?? data['url']?.toString() ?? '';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
@@ -1391,7 +1551,7 @@ class RtwController extends ChangeNotifier {
       _boundUid = null;
       displayName = 'Reader';
       email = '';
-      dailyReminder = true;
+      dailyReminder = false;
       avatarIndex = 0;
       birthdate = null;
       gender = null;
@@ -1434,8 +1594,14 @@ class RtwController extends ChangeNotifier {
   }
 
   void _startLiveTimer() {
-    // Live counts come from question counter shards. Keep this as a no-op for
-    // older call sites that mark a question locked.
+    if (_liveTimer?.isActive == true) return;
+    _liveTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!lockedToday) {
+        _stopLiveTimer();
+        return;
+      }
+      notifyListeners();
+    });
   }
 
   void _stopLiveTimer() {
@@ -1483,12 +1649,16 @@ class RtwController extends ChangeNotifier {
     partyPrediction = 50;
     selectedRevealQuestionId = null;
     _answerCache.clear();
+    _answerDraftCache.clear();
     _scoreHistoryCache.clear();
     _stopLiveTimer();
     history = const [];
     if (_resultCache.isNotEmpty) _rebuildHistoryFromCache();
     categoryInsights = const [];
     friends = const [FriendRow(name: 'You', score: 1500, me: true)];
+    friendAnswerComparisons = const [];
+    friendAnswerComparisonQuestionId = null;
+    loadingFriendAnswerComparisons = false;
   }
 
   void _clearUserSubscriptions() {
@@ -1501,6 +1671,7 @@ class RtwController extends ChangeNotifier {
   @override
   void dispose() {
     _profileWriteDebounce?.cancel();
+    _draftWriteDebounce?.cancel();
     _authSub?.cancel();
     _liveQuestionSub?.cancel();
     _todayCounterSub?.cancel();

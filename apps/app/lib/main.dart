@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_settings.dart';
@@ -20,6 +23,9 @@ import 'theme/rtw_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
   final bootstrap = await _configureFirebase();
   runApp(
     ProviderScope(
@@ -159,24 +165,45 @@ GoRoute _appRoute(
   String path,
   Widget Function(BuildContext context, GoRouterState state) builder, {
   bool mobileSlide = false,
+  bool mainFade = false,
 }) {
   return GoRoute(
     path: path,
-    pageBuilder: (context, state) =>
-        _rtwPage(context, state, builder(context, state), mobileSlide),
+    pageBuilder: (context, state) => _rtwPage(
+      context,
+      state,
+      builder(context, state),
+      mobileSlide: mobileSlide,
+      mainFade: mainFade,
+    ),
   );
 }
 
 Page<void> _rtwPage(
   BuildContext context,
   GoRouterState state,
-  Widget child,
-  bool mobileSlide,
-) {
+  Widget child, {
+  required bool mobileSlide,
+  required bool mainFade,
+}) {
   final mobileNative =
       mobileSlide && !kIsWeb && MediaQuery.sizeOf(context).width < 820;
-  if (!mobileNative) {
+  final nativeMainFade = mainFade && !kIsWeb;
+  if (!mobileNative && !nativeMainFade) {
     return NoTransitionPage<void>(key: state.pageKey, child: child);
+  }
+
+  if (nativeMainFade) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 180),
+      reverseTransitionDuration: const Duration(milliseconds: 140),
+      transitionsBuilder: (_, animation, _, child) {
+        final opacity = animation.drive(CurveTween(curve: Curves.easeOutCubic));
+        return FadeTransition(opacity: opacity, child: child);
+      },
+    );
   }
 
   return CustomTransitionPage<void>(
@@ -199,7 +226,7 @@ Page<void> _rtwPage(
 final rtwRouterProvider = Provider<GoRouter>((ref) {
   final firebaseReady = ref.watch(firebaseReadyProvider);
   final appSettings = ref.watch(appSettingsProvider);
-  final controller = ref.watch(rtwControllerProvider);
+  final controller = ref.read(rtwControllerProvider);
   final browserPath = Uri.base.path;
   final isAppPath = [
     '/auth',
@@ -240,6 +267,10 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (!appSettings.friends && state.uri.path.startsWith('/invite')) {
         return '/insights';
       }
+      if (controller.lockedToday &&
+          (state.uri.path == '/today' || state.uri.path == '/today/predict')) {
+        return '/today/locked';
+      }
       return null;
     },
     routes: [
@@ -250,7 +281,7 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         '/onboarding/about',
         (_, _) => const OnboardingScreen(initialStep: 1),
       ),
-      _appRoute('/today', (_, _) => const TodayScreen()),
+      _appRoute('/today', (_, _) => const TodayScreen(), mainFade: true),
       _appRoute(
         '/today/predict',
         (_, _) => const PredictScreen(),
@@ -259,7 +290,7 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       _appRoute(
         '/today/locked',
         (_, _) => const LockedScreen(),
-        mobileSlide: true,
+        mainFade: true,
       ),
       _appRoute('/reveal', (_, _) => const RevealScreen()),
       _appRoute(
@@ -268,9 +299,9 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
             RevealScreen(questionId: state.pathParameters['questionId']),
         mobileSlide: true,
       ),
-      _appRoute('/history', (_, _) => const HistoryScreen()),
-      _appRoute('/party', (_, _) => const PartyScreen()),
-      _appRoute('/insights', (_, _) => const InsightsScreen()),
+      _appRoute('/history', (_, _) => const HistoryScreen(), mainFade: true),
+      _appRoute('/party', (_, _) => const PartyScreen(), mainFade: true),
+      _appRoute('/insights', (_, _) => const InsightsScreen(), mainFade: true),
       _appRoute('/account', (_, _) => const AccountScreen(), mobileSlide: true),
       _appRoute(
         '/invite/:code',
@@ -286,11 +317,65 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class ReadTheWorldApp extends ConsumerWidget {
+class ReadTheWorldApp extends ConsumerStatefulWidget {
   const ReadTheWorldApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReadTheWorldApp> createState() => _ReadTheWorldAppState();
+}
+
+class _ReadTheWorldAppState extends ConsumerState<ReadTheWorldApp> {
+  StreamSubscription<RemoteMessage>? _notificationOpenSub;
+  bool _notificationRoutingStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startNotificationRouting(ref.read(rtwRouterProvider));
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_notificationOpenSub?.cancel());
+    super.dispose();
+  }
+
+  void _startNotificationRouting(GoRouter router) {
+    if (_notificationRoutingStarted || !ref.read(firebaseReadyProvider)) {
+      return;
+    }
+    _notificationRoutingStarted = true;
+    _notificationOpenSub = FirebaseMessaging.onMessageOpenedApp.listen(
+      (message) => _openNotificationRoute(router, message),
+      onError: (Object error) {
+        debugPrint('Firebase notification-open routing failed: $error');
+      },
+    );
+    unawaited(
+      FirebaseMessaging.instance
+          .getInitialMessage()
+          .then((message) {
+            if (!mounted || message == null) return;
+            _openNotificationRoute(ref.read(rtwRouterProvider), message);
+          })
+          .catchError((Object error) {
+            debugPrint('Firebase initial notification route failed: $error');
+            return null;
+          }),
+    );
+  }
+
+  void _openNotificationRoute(GoRouter router, RemoteMessage message) {
+    final route = _notificationRouteFromData(message.data);
+    if (route == null) return;
+    router.go(route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(rtwRouterProvider);
     return MaterialApp.router(
       title: 'Read the World',
@@ -299,4 +384,25 @@ class ReadTheWorldApp extends ConsumerWidget {
       routerConfig: router,
     );
   }
+}
+
+String? _notificationRouteFromData(Map<String, dynamic> data) {
+  final rawRoute = data['route'];
+  if (rawRoute is! String || rawRoute.isEmpty) return null;
+  final uri = Uri.tryParse(rawRoute);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  final path = uri.path;
+  const allowedPaths = [
+    '/today',
+    '/reveal',
+    '/history',
+    '/party',
+    '/insights',
+    '/account',
+    '/invite',
+  ];
+  final allowed = allowedPaths.any(
+    (prefix) => path == prefix || path.startsWith('$prefix/'),
+  );
+  return allowed ? uri.toString() : null;
 }

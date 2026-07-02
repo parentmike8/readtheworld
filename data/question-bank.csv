@@ -1,0 +1,311 @@
+Question,Option A,Option B,Categories,Work Safe,Mature,Shape
+"Is a hot dog a sandwich?",Yes,No,"Food & Drink; Debate",TRUE,FALSE,TASTE
+"Is cereal a type of soup?",Yes,No,"Food & Drink; Humor",TRUE,FALSE,TASTE
+"Is ketchup acceptable on eggs?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is pineapple on pizza good?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is a burrito just a wrapped sandwich?",Yes,No,"Food & Drink; Debate",TRUE,FALSE,TASTE
+"Is water wet?",Yes,No,"Science; Debate",TRUE,FALSE,TASTE
+"Is it 'the GIF' with a hard G?",Hard G,Soft G,"Technology; Debate",TRUE,FALSE,TASTE
+"Are subtitles better than dubbing?",Yes,No,"Entertainment; Media",TRUE,FALSE,TASTE
+"Is a window seat better than an aisle seat?",Window,Aisle,"Travel; Preferences",TRUE,FALSE,TASTE
+"Is tea better than coffee?",Tea,Coffee,"Food & Drink; Culture",TRUE,FALSE,TASTE
+"Is binge-watching better than one episode a week?",Binge,Weekly,"Entertainment; Habits",TRUE,FALSE,TASTE
+"Is camping better than a hotel?",Camping,Hotel,"Travel; Lifestyle",TRUE,FALSE,TASTE
+"Is renting better than owning a home?",Rent,Own,"Work & Money; Housing",TRUE,FALSE,TASTE
+"Is Die Hard a Christmas movie?",Yes,No,"Entertainment; Debate",TRUE,FALSE,TASTE
+"Should you put milk in the cup before the tea?",Milk first,Tea first,"Food & Drink; Culture",TRUE,FALSE,TASTE
+"Is a straw one hole or two?",One,Two,"Humor; Debate",TRUE,FALSE,TASTE
+"Is candy corn actually good?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is the movie usually better than the book?",Movie,Book,"Entertainment; Media",TRUE,FALSE,TASTE
+"Is autumn the best season?",Yes,No,"Lifestyle; Taste",TRUE,FALSE,TASTE
+"Is it fine to wear socks with sandals?",Yes,No,"Style; Debate",TRUE,FALSE,TASTE
+"Have you ever pretended to be busy to avoid someone?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you talk to yourself when you're alone?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Do you re-read your own texts after sending them?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Have you cried at a movie or ad in the last year?",Yes,No,"Emotion; Confession",TRUE,FALSE,CONFESS
+"Would you eat food you dropped on your own kitchen floor?",Yes,No,"Food & Drink; Confession",TRUE,FALSE,CONFESS
+"Do you check the back seat of your car at night?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Have you ever practiced a conversation in the shower?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Do you sometimes read texts and forget to reply for days?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Have you ever lied about having read a famous book?",Yes,No,"Culture; Confession",TRUE,FALSE,CONFESS
+"Do you sing in the car when alone?",Yes,No,"Music; Confession",TRUE,FALSE,CONFESS
+"Have you googled your own name in the last month?",Yes,No,"Technology; Confession",TRUE,FALSE,CONFESS
+"Do you keep tabs open you'll never read again?",Yes,No,"Technology; Habits",TRUE,FALSE,CONFESS
+"Have you ever left a group chat on mute for weeks?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you eat in bed?",Yes,No,"Home; Confession",TRUE,FALSE,CONFESS
+"Have you ever ghosted a conversation mid-thread?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you snoop in people's bathroom cabinets?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Have you ever faked a laugh to be polite this week?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you save screenshots you never look at again?",Yes,No,"Technology; Habits",TRUE,FALSE,CONFESS
+"Have you ever pretended to know a song you didn't?",Yes,No,"Music; Confession",TRUE,FALSE,CONFESS
+"Do you replay awkward memories from years ago?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Have you ever taken a nap to avoid dealing with something?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Do you check your phone within a minute of waking up?",Yes,No,"Technology; Habits",TRUE,FALSE,CONFESS
+"Have you ever regifted a present?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you talk to pets like they understand you?",Yes,No,"Lifestyle; Confession",TRUE,FALSE,CONFESS
+"Do you think you're an above-average driver?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Are you a better listener than most people you know?",Yes,No,"Relationships; Self",TRUE,FALSE,MIRROR
+"Do you have better taste than average?",Yes,No,"Culture; Self",TRUE,FALSE,MIRROR
+"Are you funnier than the average person?",Yes,No,"Humor; Self",TRUE,FALSE,MIRROR
+"Do you think you'd stay calm in a real emergency?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Are you a good judge of character?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Do you think you're more honest than most people?",Yes,No,"Ethics; Self",TRUE,FALSE,MIRROR
+"Could you spot a scam better than most people?",Yes,No,"Technology; Self",TRUE,FALSE,MIRROR
+"Do you think you'd be good in a crisis at work?",Yes,No,"Work & Money; Self",TRUE,FALSE,MIRROR
+"Are you better than average at reading people's emotions?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Do you think you're less addicted to your phone than most?",Yes,No,"Technology; Self",TRUE,FALSE,MIRROR
+"Would your friends describe you the way you describe yourself?",Yes,No,"Relationships; Self",TRUE,FALSE,MIRROR
+"Do you think you'd survive a month in the wilderness?",Yes,No,"Adventure; Self",TRUE,FALSE,MIRROR
+"Are you better at your job than your coworkers think?",Yes,No,"Work & Money; Self",TRUE,FALSE,MIRROR
+"Do you think you handle criticism well?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Are you more patient than the average person?",Yes,No,"Psychology; Self",TRUE,FALSE,MIRROR
+"Do you think you could tell cheap wine from expensive?",Yes,No,"Food & Drink; Self",TRUE,FALSE,MIRROR
+"Would you tell a friend if their partner was cheating?",Yes,No,"Ethics; Relationships",TRUE,FALSE,GREY
+"Would you read your partner's phone if you'd never get caught?",Yes,No,"Ethics; Trust",TRUE,FALSE,GREY
+"Would you return extra change a cashier gave you by mistake?",Yes,No,"Ethics; Money",TRUE,FALSE,GREY
+"Is it ever okay to ghost someone you've dated?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Would you keep a wallet full of cash with no ID?",Keep,Hand in,"Ethics; Money",TRUE,FALSE,GREY
+"Is it okay to lie about liking a gift?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Would you report a friend for cheating on taxes?",Yes,No,"Ethics; Money",TRUE,FALSE,GREY
+"Is it okay to recline your seat on a short flight?",Yes,No,"Travel; Etiquette",TRUE,FALSE,GREY
+"Would you take credit for a group's work if no one objected?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Is it okay to break a small promise for a better offer?",Yes,No,"Ethics; Social",TRUE,FALSE,GREY
+"Would you tell a white lie to get out of a social event?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Is it wrong to peek at someone's phone notification on a table?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Would you accept a refund the store gave you by mistake?",Keep it,Return it,"Ethics; Money",TRUE,FALSE,GREY
+"Is it okay to unfollow a friend who posts too much?",Yes,No,"Social; Etiquette",TRUE,FALSE,GREY
+"Would you tell someone they have food in their teeth?",Yes,No,"Social; Etiquette",TRUE,FALSE,GREY
+"Is it okay to date a friend's ex?",Yes,No,"Relationships; Ethics",TRUE,FALSE,GREY
+"Would you snitch to save yourself from blame at work?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Is it okay to check a partner's location without telling them?",Yes,No,"Relationships; Trust",TRUE,FALSE,GREY
+"Would you keep quiet if undercharged at a restaurant?",Yes,No,"Ethics; Money",TRUE,FALSE,GREY
+"Is it okay to leave a bad review over one small thing?",Yes,No,"Consumer; Ethics",TRUE,FALSE,GREY
+"Would you tell your boss a coworker is job hunting?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Is it okay to fake enthusiasm at your own surprise party?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Would you want to know the exact date you'll die?",Yes,No,"Deep; Values",TRUE,FALSE,TRADE
+"Would you rather be famous than rich?",Famous,Rich,"Values; Deep",TRUE,FALSE,TRADE
+"Would you rather be feared than loved?",Feared,Loved,"Values; Deep",TRUE,FALSE,TRADE
+"Would you give up your sense of taste to keep your phone forever?",Yes,No,"Technology; Values",TRUE,FALSE,TRADE
+"Would you rather relive your best day or erase your worst?",Relive best,Erase worst,"Deep; Psychology",TRUE,FALSE,TRADE
+"Would you take $1M to never use the internet again?",Yes,No,"Technology; Money",TRUE,FALSE,TRADE
+"Would you want to read minds if you couldn't turn it off?",Yes,No,"Deep; Psychology",TRUE,FALSE,TRADE
+"Would you rather always be 10 minutes early or never rushed?",Early,Never rushed,"Lifestyle; Values",TRUE,FALSE,TRADE
+"Would you rather have more time or more money?",Time,Money,"Values; Lifestyle",TRUE,FALSE,TRADE
+"Would you accept a boring job you love the life around?",Yes,No,"Work & Money; Values",TRUE,FALSE,TRADE
+"Would you rather be the smartest or the kindest in the room?",Smartest,Kindest,"Values; Deep",TRUE,FALSE,TRADE
+"Would you erase one embarrassing memory if you could?",Yes,No,"Psychology; Deep",TRUE,FALSE,TRADE
+"Would you want to live to 150 if you stayed healthy?",Yes,No,"Health & Wellness; Deep",TRUE,FALSE,TRADE
+"Would you rather never feel bored or never feel stressed?",Never bored,Never stressed,"Psychology; Values",TRUE,FALSE,TRADE
+"Would you trade 10 years of life for perfect health in the rest?",Yes,No,"Health & Wellness; Deep",TRUE,FALSE,TRADE
+"Would you rather know all of history or all of the future?",Past,Future,"Deep; Knowledge",TRUE,FALSE,TRADE
+"Would you rather be great at one thing or good at many?",One thing,Many things,"Values; Career",TRUE,FALSE,TRADE
+"Would you rather your kids be happy or successful?",Happy,Successful,"Values; Family",TRUE,FALSE,TRADE
+"Would you rather work your dream job for low pay or a dull job for high pay?",Dream job,High pay,"Work & Money; Values",TRUE,FALSE,TRADE
+"Would you rather lose all your photos or all your messages?",Photos,Messages,"Technology; Deep",TRUE,FALSE,TRADE
+"Would you rather be underestimated or overestimated?",Underestimated,Overestimated,"Psychology; Values",TRUE,FALSE,TRADE
+"Would you rather have a rewind button or a pause button for life?",Rewind,Pause,"Deep; Fun",TRUE,FALSE,TRADE
+"Would you rather always know when someone is lying, or always get away with lying?",Detect lies,Get away with lying,"Ethics; Deep",TRUE,FALSE,TRADE
+"Would you take a pill that removed your need for sleep?",Yes,No,"Health & Wellness; Deep",TRUE,FALSE,TRADE
+"Is it rude to leave someone on read?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Is it okay to leave a party without saying goodbye?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Is it rude to cancel plans by text?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Should you take your shoes off in someone's home?",Yes,No,"Home; Culture",TRUE,FALSE,NORM
+"Is it okay to text 'we need to talk' with no context?",Yes,No,"Relationships; Etiquette",TRUE,FALSE,NORM
+"Do you answer calls from unknown numbers?",Yes,No,"Technology; Habits",TRUE,FALSE,NORM
+"Is being 15 minutes late to a casual hangout fine?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Should the last slice be offered before you take it?",Yes,No,"Food & Drink; Etiquette",TRUE,FALSE,NORM
+"Is it okay to put your bare feet up on a train seat area?",Yes,No,"Travel; Etiquette",TRUE,FALSE,NORM
+"Should you tip for takeout you pick up yourself?",Yes,No,"Money; Etiquette",TRUE,FALSE,NORM
+"Is it rude to wear headphones during a checkout chat?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Should you always reply to a party invite even if it's no?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Is it okay to bring a plus-one who wasn't invited?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Should you stand on the right and walk on the left on escalators?",Yes,No,"Cities; Etiquette",TRUE,FALSE,NORM
+"Is it acceptable to double-dip at a shared snack?",Yes,No,"Food & Drink; Etiquette",TRUE,FALSE,NORM
+"Should you always let people exit before you board?",Yes,No,"Cities; Etiquette",TRUE,FALSE,NORM
+"Is it okay to save seats for late friends at an event?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Should you mute yourself by default on video calls?",Yes,No,"Work & Money; Etiquette",TRUE,FALSE,NORM
+"Is it rude to take a phone call on speaker in public?",Yes,No,"Cities; Etiquette",TRUE,FALSE,NORM
+"Should you warn people before sending a voice message?",Yes,No,"Technology; Etiquette",TRUE,FALSE,NORM
+"Do you make your bed every morning?",Yes,No,"Habits; Lifestyle",TRUE,FALSE,HABIT
+"Is 'over' the correct way to hang toilet paper?",Over,Under,"Home; Debate",TRUE,FALSE,HABIT
+"Do you shower at night rather than in the morning?",Night,Morning,"Habits; Lifestyle",TRUE,FALSE,HABIT
+"Do you keep your phone on silent all the time?",Yes,No,"Technology; Habits",TRUE,FALSE,HABIT
+"Do you sleep with a foot outside the blanket?",Yes,No,"Lifestyle; Confession",TRUE,FALSE,HABIT
+"Do you fold laundry right away or live out of the basket?",Fold,Basket,"Home; Habits",TRUE,FALSE,HABIT
+"Do you eat the crust of your pizza?",Yes,No,"Food & Drink; Habits",TRUE,FALSE,HABIT
+"Do you use a to-do list every day?",Yes,No,"Productivity; Habits",TRUE,FALSE,HABIT
+"Do you leave read receipts on?",Yes,No,"Technology; Habits",TRUE,FALSE,HABIT
+"Do you keep the TV or a sound on to fall asleep?",Yes,No,"Health & Wellness; Habits",TRUE,FALSE,HABIT
+"Do you plan trips in detail or wing it?",Plan,Wing it,"Travel; Habits",TRUE,FALSE,HABIT
+"Do you read the reviews before buying almost everything?",Yes,No,"Consumer; Habits",TRUE,FALSE,HABIT
+"Do you keep old clothes 'just in case'?",Yes,No,"Home; Habits",TRUE,FALSE,HABIT
+"Do you charge your phone overnight every night?",Yes,No,"Technology; Habits",TRUE,FALSE,HABIT
+"Do you drink coffee before doing anything else in the morning?",Yes,No,"Food & Drink; Habits",TRUE,FALSE,HABIT
+"Do you walk faster than most people around you?",Yes,No,"Cities; Self",TRUE,FALSE,HABIT
+"Do you reply to emails as they arrive or in batches?",As they arrive,In batches,"Work & Money; Habits",TRUE,FALSE,HABIT
+"Do you keep your camera roll under control?",Yes,No,"Technology; Habits",TRUE,FALSE,HABIT
+"Does everything happen for a reason?",Yes,No,"Belief; Deep",TRUE,FALSE,BELIEF
+"Do you trust a gut feeling over the data?",Gut,Data,"Psychology; Values",TRUE,FALSE,BELIEF
+"Do you believe people can truly change?",Yes,No,"Psychology; Deep",TRUE,FALSE,BELIEF
+"Is luck a bigger factor in success than hard work?",Luck,Hard work,"Values; Society",TRUE,FALSE,BELIEF
+"Do first impressions usually turn out to be right?",Yes,No,"Psychology; Social",TRUE,FALSE,BELIEF
+"Are people basically good?",Yes,No,"Ethics; Deep",TRUE,FALSE,BELIEF
+"Is it better to follow your head than your heart?",Head,Heart,"Psychology; Values",TRUE,FALSE,BELIEF
+"Can money buy happiness?",Yes,No,"Money; Deep",TRUE,FALSE,BELIEF
+"Do opposites actually attract in relationships?",Yes,No,"Relationships; Belief",TRUE,FALSE,BELIEF
+"Is the customer always right?",Yes,No,"Work & Money; Society",TRUE,FALSE,BELIEF
+"Is honesty always better than politeness?",Honesty,Politeness,"Ethics; Social",TRUE,FALSE,BELIEF
+"Do you believe in second chances by default?",Yes,No,"Relationships; Values",TRUE,FALSE,BELIEF
+"Is a hunch about a stranger usually accurate?",Yes,No,"Psychology; Belief",TRUE,FALSE,BELIEF
+"Should you always follow your passion for a career?",Yes,No,"Work & Money; Values",TRUE,FALSE,BELIEF
+"Is it better to aim high and risk failing than play it safe?",Aim high,Play safe,"Values; Risk",TRUE,FALSE,BELIEF
+"Is breakfast food better at dinner than in the morning?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is a burger better with or without lettuce and tomato?",With,Without,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is chunky peanut butter better than smooth?",Chunky,Smooth,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Are you a morning person rather than a night owl?",Morning person,Night owl,"Lifestyle; Debate",TRUE,FALSE,TASTE
+"Is texting better than calling?",Texting,Calling,"Technology; Communication",TRUE,FALSE,TASTE
+"Is it better to travel to the same place you love or somewhere new?",Same,New,"Travel; Lifestyle",TRUE,FALSE,TASTE
+"Are physical books better than e-books?",Physical,E-book,"Entertainment; Media",TRUE,FALSE,TASTE
+"Is silence better than background music while working?",Silence,Music,"Work & Money; Habits",TRUE,FALSE,TASTE
+"Is dark mode better than light mode?",Dark,Light,"Technology; Design",TRUE,FALSE,TASTE
+"Is a road trip better than flying to the same destination?",Road trip,Fly,"Travel; Lifestyle",TRUE,FALSE,TASTE
+"Have you ever left a store without buying to avoid the salesperson?",Yes,No,"Consumer; Confession",TRUE,FALSE,CONFESS
+"Do you rehearse how you'll order before reaching the counter?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Have you ever kept a gift you hated on display for a visit?",Yes,No,"Social; Confession",TRUE,FALSE,CONFESS
+"Do you skip the intro when calling and just start talking fast?",Yes,No,"Communication; Confession",TRUE,FALSE,CONFESS
+"Have you ever pretended a call dropped to end it?",Yes,No,"Communication; Confession",TRUE,FALSE,CONFESS
+"Do you count steps or tiles when bored?",Yes,No,"Psychology; Confession",TRUE,FALSE,CONFESS
+"Have you ever worn something twice to look different in photos?",Yes,No,"Style; Confession",TRUE,FALSE,CONFESS
+"Do you think you'd be a good spy?",Yes,No,"Fun; Self",TRUE,FALSE,MIRROR
+"Are you better at keeping secrets than most people?",Yes,No,"Relationships; Self",TRUE,FALSE,MIRROR
+"Do you think you'd make a good boss?",Yes,No,"Work & Money; Self",TRUE,FALSE,MIRROR
+"Are you more organized than the people you live or work with?",Yes,No,"Home; Self",TRUE,FALSE,MIRROR
+"Would you keep quiet if you saw a friend shoplift a small item?",Yes,No,"Ethics; Social",TRUE,FALSE,GREY
+"Is it okay to look up an ex online now and then?",Yes,No,"Relationships; Ethics",TRUE,FALSE,GREY
+"Would you use a coworker's idea if they left the company?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Is it okay to skip a friend's event you find boring?",Yes,No,"Social; Ethics",TRUE,FALSE,GREY
+"Would you accept a job knowing you'd leave in six months?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Would you rather never wait in line again or never be stuck in traffic?",No lines,No traffic,"Lifestyle; Fun",TRUE,FALSE,TRADE
+"Would you give up social media for a year for a month's salary?",Yes,No,"Technology; Money",TRUE,FALSE,TRADE
+"Would you rather have a photographic memory or perfect intuition?",Memory,Intuition,"Psychology; Deep",TRUE,FALSE,TRADE
+"Would you rather be able to teleport or fly?",Teleport,Fly,"Fun; Deep",TRUE,FALSE,TRADE
+"Would you rather be alone for a week or never alone for a week?",Alone,Never alone,"Psychology; Values",TRUE,FALSE,TRADE
+"Would you rather always speak your mind or always keep the peace?",Speak mind,Keep peace,"Relationships; Values",TRUE,FALSE,TRADE
+"Should you split the bill evenly even if you ordered less?",Yes,No,"Money; Etiquette",TRUE,FALSE,NORM
+"Is it okay to recline your chair fully in a shared office?",Yes,No,"Work & Money; Etiquette",TRUE,FALSE,NORM
+"Should group texts be for logistics only, not chatter?",Yes,No,"Social; Etiquette",TRUE,FALSE,NORM
+"Is it rude to bring a crying baby on a long flight?",Yes,No,"Travel; Etiquette",TRUE,FALSE,NORM
+"Should you wait for everyone to be served before eating?",Yes,No,"Food & Drink; Etiquette",TRUE,FALSE,NORM
+"Do you unplug chargers when you're done?",Yes,No,"Home; Habits",TRUE,FALSE,HABIT
+"Do you keep your work and personal life in separate calendars?",Yes,No,"Work & Money; Habits",TRUE,FALSE,HABIT
+"Do you finish books you've stopped enjoying?",Yes,No,"Entertainment; Habits",TRUE,FALSE,HABIT
+"Do you check the weather before leaving even for short trips?",Yes,No,"Lifestyle; Habits",TRUE,FALSE,HABIT
+"Is it ever too late to start over in life?",Yes,No,"Deep; Values",TRUE,FALSE,BELIEF
+"Do you think most people are lonelier than they admit?",Yes,No,"Psychology; Society",TRUE,FALSE,BELIEF
+"Is being liked more important than being respected?",Liked,Respected,"Values; Social",TRUE,FALSE,BELIEF
+"Do you believe the best days are ahead rather than behind?",Ahead,Behind,"Deep; Values",TRUE,FALSE,BELIEF
+"Have you ever faked being asleep to avoid intimacy?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is a one-night stand ever a good idea?",Yes,No,"Sex & Dating; Debate",FALSE,TRUE,GREY
+"Would you date someone great in bed but boring everywhere else?",Yes,No,"Sex & Dating; Values",FALSE,TRUE,TRADE
+"Have you ever stayed in a relationship mainly for the sex?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is watching porn while in a relationship cheating?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Does a partner's number of past partners matter to you?",Yes,No,"Sex & Dating; Relationships",FALSE,TRUE,GREY
+"Is it okay to fantasize about someone else during sex?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Have you ever had a crush on a friend's partner?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is sexual chemistry more important than emotional connection?",Sexual,Emotional,"Sex & Dating; Values",FALSE,TRUE,TRADE
+"Is it okay to stay close friends with an ex you slept with?",Yes,No,"Sex & Dating; Relationships",FALSE,TRUE,GREY
+"Have you ever ended things over bad sex?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Would you rather a partner cheat physically or emotionally?",Physically,Emotionally,"Sex & Dating; Values",FALSE,TRUE,TRADE
+"Is flirting with someone else harmless when you're taken?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Would you ever try an open relationship?",Yes,No,"Sex & Dating; Relationships",FALSE,TRUE,GREY
+"Have you ever hooked up with a coworker?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is sending nudes ever a good idea?",Yes,No,"Sex & Dating; Debate",FALSE,TRUE,GREY
+"Would you date someone 15+ years older?",Yes,No,"Sex & Dating; Values",FALSE,TRUE,TASTE
+"Is a high body count a red flag?",Yes,No,"Sex & Dating; Debate",FALSE,TRUE,BELIEF
+"Would you get back with an ex just for the sex?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,GREY
+"Is it okay to lie about liking something in bed to spare feelings?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Have you ever sent a nude you later regretted?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Have you ever faked an orgasm?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is your 'number' higher than your partner thinks?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Have you ever had a friends-with-benefits arrangement?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Do you sometimes think of someone else during sex?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Have you ever used a dating app purely for a hookup?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is morning sex better than night sex?",Morning,Night,"Sex & Dating; Taste",FALSE,TRUE,TASTE
+"Would you let your partner read your entire search history?",Yes,No,"Sex & Dating; Trust",FALSE,TRUE,GREY
+"Have you ever ghosted someone right after sleeping with them?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Is it okay to keep old nudes of an ex?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Do most people watch more porn than they'll admit?",Yes,No,"Sex & Dating; Belief",FALSE,TRUE,BELIEF
+"Have you ever had a hookup you told no one about?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Would you want a detailed account of your partner's past relationships?",Yes,No,"Sex & Dating; Relationships",FALSE,TRUE,GREY
+"Is it cheating to match with people on an app 'just to look'?",Yes,No,"Sex & Dating; Ethics",FALSE,TRUE,GREY
+"Have you ever caught feelings for a casual hookup?",Yes,No,"Sex & Dating; Confession",FALSE,TRUE,CONFESS
+"Would you attend the funeral of someone you hated?",Yes,No,"Dark; Ethics",FALSE,TRUE,GREY
+"Have you ever wished serious misfortune on someone?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Would you read a dead loved one's private texts and emails?",Yes,No,"Dark; Ethics",FALSE,TRUE,GREY
+"Is there someone whose death you'd secretly feel relief at?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Would you take a bag of cash you knew was stolen if you'd never be caught?",Yes,No,"Dark; Ethics",FALSE,TRUE,GREY
+"Have you ever fantasized about disappearing and starting a new life?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Is it okay to speak ill of the dead?",Yes,No,"Dark; Ethics",FALSE,TRUE,GREY
+"Would you turn in a close family member for a serious crime?",Yes,No,"Dark; Ethics",FALSE,TRUE,GREY
+"Have you ever lied at a funeral about how you felt?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Would you want to know if your partner cheated years ago if it was truly over?",Yes,No,"Dark; Relationships",FALSE,TRUE,GREY
+"Is revenge ever actually worth it?",Yes,No,"Dark; Belief",FALSE,TRUE,BELIEF
+"Have you ever secretly hoped a couple you know would break up?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Would you press a button to erase one person from your memory forever?",Yes,No,"Dark; Deep",FALSE,TRUE,TRADE
+"Would you rather know exactly how you'll die or exactly when?",How,When,"Dark; Deep",FALSE,TRUE,TRADE
+"Have you ever stayed friends with someone you can't stand for convenience?",Yes,No,"Dark; Confession",FALSE,TRUE,CONFESS
+"Is it okay to eat pizza with a knife and fork?",Yes,No,"Food & Drink; Etiquette",TRUE,FALSE,NORM
+"Does fruit belong in a savory salad?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is a quesadilla just a Mexican grilled cheese?",Yes,No,"Food & Drink; Debate",TRUE,FALSE,TASTE
+"Is sparkling water better than still?",Sparkling,Still,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is dark chocolate better than milk chocolate?",Dark,Milk,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Do you salt your food before even tasting it?",Yes,No,"Food & Drink; Confession",TRUE,FALSE,CONFESS
+"Are raisins ever acceptable in a cookie?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Should hot sauce be on the table at every meal?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is ranch (or mayo) overused as a condiment?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Do you dip fries in your milkshake?",Yes,No,"Food & Drink; Confession",TRUE,FALSE,CONFESS
+"Is ordering the same dish every time boring?",Yes,No,"Food & Drink; Debate",TRUE,FALSE,TASTE
+"Should you finish everything on your plate?",Yes,No,"Food & Drink; Values",TRUE,FALSE,NORM
+"Are hard tacos better than soft tacos?",Hard,Soft,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is instant coffee ever acceptable?",Yes,No,"Food & Drink; Taste",TRUE,FALSE,TASTE
+"Is a calzone just an inside-out pizza?",Yes,No,"Food & Drink; Debate",TRUE,FALSE,TASTE
+"Is it wasteful to send food back at a restaurant?",Yes,No,"Food & Drink; Etiquette",TRUE,FALSE,NORM
+"Is it okay to use someone else's streaming password?",Yes,No,"Technology; Ethics",TRUE,FALSE,GREY
+"Do you have more than 100 unread emails right now?",Yes,No,"Technology; Confession",TRUE,FALSE,CONFESS
+"Is replying with just a thumbs-up rude?",Yes,No,"Technology; Etiquette",TRUE,FALSE,NORM
+"Should phones be banned from the bedroom?",Yes,No,"Technology; Habits",TRUE,FALSE,GREY
+"Do you use voice-to-text in public?",Yes,No,"Technology; Confession",TRUE,FALSE,CONFESS
+"Is it okay to post a group photo someone hates of themselves?",Yes,No,"Technology; Ethics",TRUE,FALSE,GREY
+"Do you ever fully power your phone off?",Yes,No,"Technology; Confession",TRUE,FALSE,CONFESS
+"Is screenshotting a private chat a betrayal?",Yes,No,"Technology; Ethics",TRUE,FALSE,GREY
+"Would you give up your earbuds or your smartwatch?",Earbuds,Smartwatch,"Technology; Values",TRUE,FALSE,TRADE
+"Is emoji use unprofessional at work?",Yes,No,"Technology; Work",TRUE,FALSE,NORM
+"Would you rather lose the internet for a week or your phone for a day?",Internet a week,Phone a day,"Technology; Fun",TRUE,FALSE,TRADE
+"Do you actually use a password manager?",Yes,No,"Technology; Habits",TRUE,FALSE,HABIT
+"Should coworkers know each other's salaries?",Yes,No,"Work & Money; Fairness",TRUE,FALSE,GREY
+"Would you take a 20% pay cut to never sit in another meeting?",Yes,No,"Work & Money; Values",TRUE,FALSE,TRADE
+"Is it okay to job-hunt on your work laptop?",Yes,No,"Work & Money; Confession",TRUE,FALSE,CONFESS
+"Should your boss also be your friend?",Yes,No,"Work & Money; Social",TRUE,FALSE,GREY
+"Would you rather be your own boss or have a great boss?",Own boss,Great boss,"Work & Money; Values",TRUE,FALSE,TRADE
+"Is leaving at 5pm on the dot every day a problem?",Yes,No,"Work & Money; Culture",TRUE,FALSE,GREY
+"Do you check work messages on weekends?",Yes,No,"Work & Money; Confession",TRUE,FALSE,CONFESS
+"Is company loyalty ever actually rewarded?",Yes,No,"Work & Money; Belief",TRUE,FALSE,BELIEF
+"Would you rather a 4-day week or permanent work-from-home?",4-day week,WFH forever,"Work & Money; Values",TRUE,FALSE,TRADE
+"Is being good at office politics a skill or a flaw?",Skill,Flaw,"Work & Money; Belief",TRUE,FALSE,BELIEF
+"Is it okay to accept a counteroffer after you've resigned?",Yes,No,"Work & Money; Ethics",TRUE,FALSE,GREY
+"Would you take your dream job in a city you dislike?",Yes,No,"Work & Money; Values",TRUE,FALSE,TRADE
+"Would you take $10,000 now or $1,000 a year for life?",$10k now,$1k for life,"Money; Values",TRUE,FALSE,TRADE
+"Do you know your bank balance right now within $100?",Yes,No,"Money; Confession",TRUE,FALSE,CONFESS
+"Are lottery tickets a harmless bit of fun or a waste?",Harmless fun,Waste,"Money; Belief",TRUE,FALSE,BELIEF
+"Is it rude to ask someone what they earn?",Yes,No,"Money; Etiquette",TRUE,FALSE,NORM
+"Would you rather be debt-free or own your dream car?",Debt-free,Dream car,"Money; Values",TRUE,FALSE,TRADE
+"Is it okay to haggle at a small local business?",Yes,No,"Money; Ethics",TRUE,FALSE,GREY
+"Do you budget, or spend and hope?",Budget,Spend & hope,"Money; Confession",TRUE,FALSE,CONFESS
+"Are extended warranties ever worth it?",Yes,No,"Money; Belief",TRUE,FALSE,BELIEF
+"Is it okay to take your shoes off on a plane?",Yes,No,"Travel; Etiquette",TRUE,FALSE,NORM
+"Would you rather a beach holiday or a city break?",Beach,City,"Travel; Taste",TRUE,FALSE,TASTE
+"Is work travel a perk or a burden?",Perk,Burden,"Travel; Work",TRUE,FALSE,TASTE
+"Should you tip hotel housekeeping?",Yes,No,"Travel; Etiquette",TRUE,FALSE,NORM
+"Would you rather travel to the past or the future?",Past,Future,"Travel; Fun",TRUE,FALSE,TRADE
+"Is eating at a familiar chain while abroad a waste?",Yes,No,"Travel; Debate",TRUE,FALSE,GREY
+"Do you get to the airport very early or cut it close?",Very early,Cut it close,"Travel; Habits",TRUE,FALSE,HABIT

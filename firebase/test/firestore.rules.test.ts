@@ -123,6 +123,60 @@ describe("official answers and scoring data", () => {
     );
   });
 
+  it("allows owners to persist draft answers without opening official answers", async () => {
+    const draftPath = "users/alex/answerDrafts/q1";
+
+    await assertSucceeds(
+      setDoc(doc(authedDb("alex"), draftPath), {
+        questionId: "q1",
+        dailyKey: "2026-06-28",
+        selectedOptionId: "yes",
+        predictedShare: 62,
+      }),
+    );
+    await assertSucceeds(getDoc(doc(authedDb("alex"), draftPath)));
+    await assertFails(getDoc(doc(authedDb("bea"), draftPath)));
+    await assertSucceeds(
+      updateDoc(doc(authedDb("alex"), draftPath), {
+        predictedShare: 64,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "users/alex/answerDrafts/q2"), {
+        questionId: "wrong-question",
+        dailyKey: "2026-06-28",
+        selectedOptionId: "yes",
+        predictedShare: 50,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "users/alex/answerDrafts/q3"), {
+        questionId: "q3",
+        dailyKey: "2026-06-28",
+        selectedOptionId: "yes",
+        predictedShare: 101,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "users/alex/answerDrafts/q4"), {
+        questionId: "q4",
+        dailyKey: "2026-06-28",
+        selectedOptionId: "yes",
+        predictedShare: 50,
+        readScoreDelta: 99,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("bea"), "users/alex/answerDrafts/q5"), {
+        questionId: "q5",
+        dailyKey: "2026-06-28",
+        selectedOptionId: "no",
+        predictedShare: 40,
+      }),
+    );
+    await assertSucceeds(deleteDoc(doc(authedDb("alex"), draftPath)));
+  });
+
   it("blocks clients from mutating server-owned score fields", async () => {
     await seed("users/alex", {
       displayName: "Alex",
@@ -329,5 +383,80 @@ describe("admin, links, invites, and leaderboards", () => {
 describe("test harness", () => {
   it("starts with the expected emulator-backed project", () => {
     expect(projectId).toContain("rtw-rules-");
+  });
+});
+
+describe("v2 rooms", () => {
+  async function seedRoom() {
+    await seed("rooms/studio", { name: "The Studio", tier: "work-safe", isWorld: false });
+    await seed("rooms/studio/members/alex", { role: "creator", roomScore: 1500 });
+    await seed("rooms/studio/members/bea", { role: "member", roomScore: 1500 });
+    await seed("rooms/studio/days/2026-07-01", { status: "live", questions: [] });
+    await seed("rooms/studio/days/2026-07-01/answers/alex", { picks: [] });
+    await seed("rooms/studio/queue/q1", { text: "Offsite?", authorUid: "bea" });
+    await seed("users/alex/memberships/studio", { roomId: "studio" });
+  }
+
+  it("scopes room reads to members and denies all client writes", async () => {
+    await seedRoom();
+
+    await assertSucceeds(getDoc(doc(authedDb("alex"), "rooms/studio")));
+    await assertSucceeds(getDoc(doc(authedDb("bea"), "rooms/studio/members/alex")));
+    await assertSucceeds(getDoc(doc(authedDb("alex"), "rooms/studio/days/2026-07-01")));
+    await assertSucceeds(getDoc(doc(authedDb("bea"), "rooms/studio/queue/q1")));
+
+    await assertFails(getDoc(doc(authedDb("outsider"), "rooms/studio")));
+    await assertFails(getDoc(doc(authedDb("outsider"), "rooms/studio/days/2026-07-01")));
+    await assertFails(getDoc(doc(anonDb(), "rooms/studio")));
+
+    await assertFails(setDoc(doc(authedDb("alex"), "rooms/studio"), { name: "Hacked" }));
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "rooms/studio/members/alex"), { roomScore: 9999 }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "rooms/studio/days/2026-07-01"), { status: "closed" }),
+    );
+  });
+
+  it("keeps locked answers private to their owner", async () => {
+    await seedRoom();
+    await assertSucceeds(
+      getDoc(doc(authedDb("alex"), "rooms/studio/days/2026-07-01/answers/alex")),
+    );
+    await assertFails(
+      getDoc(doc(authedDb("bea"), "rooms/studio/days/2026-07-01/answers/alex")),
+    );
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "rooms/studio/days/2026-07-01/answers/alex"), { picks: [] }),
+    );
+  });
+
+  it("lets any signed-in user browse the World room but not write it", async () => {
+    await seed("rooms/world", { name: "The World", isWorld: true });
+    await seed("rooms/world/days/2026-07-01", { status: "live", questions: [] });
+
+    await assertSucceeds(getDoc(doc(authedDb("outsider"), "rooms/world")));
+    await assertSucceeds(getDoc(doc(authedDb("outsider"), "rooms/world/days/2026-07-01")));
+    await assertFails(getDoc(doc(anonDb(), "rooms/world")));
+    await assertFails(setDoc(doc(authedDb("outsider"), "rooms/world"), { name: "Mine" }));
+  });
+
+  it("locks the question bank and flags to admins", async () => {
+    await seed("questionBank/qb-1", { prompt: "Is water wet?", active: true });
+    await seed("flags/f1", { roomId: "studio" });
+
+    await assertFails(getDoc(doc(authedDb("alex"), "questionBank/qb-1")));
+    await assertFails(setDoc(doc(authedDb("alex"), "questionBank/qb-1"), { active: false }));
+    await assertSucceeds(getDoc(doc(authedDb("admin", { admin: true }), "questionBank/qb-1")));
+    await assertFails(getDoc(doc(authedDb("alex"), "flags/f1")));
+  });
+
+  it("exposes membership mirrors to their owner only", async () => {
+    await seedRoom();
+    await assertSucceeds(getDoc(doc(authedDb("alex"), "users/alex/memberships/studio")));
+    await assertFails(getDoc(doc(authedDb("bea"), "users/alex/memberships/studio")));
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "users/alex/memberships/other"), { roomId: "other" }),
+    );
   });
 });
