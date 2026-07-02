@@ -17,8 +17,17 @@ import 'package:go_router/go_router.dart';
 
 import 'app_settings.dart';
 import 'app_state.dart';
+import 'v2/rooms_controller.dart';
 import 'firebase_options.dart';
 import 'screens.dart';
+import 'v2/screens/join_screen.dart';
+import 'v2/screens/onboarding_screen.dart';
+import 'v2/screens/party_screen.dart';
+import 'v2/screens/play_surface.dart';
+import 'v2/screens/profile_screen.dart';
+import 'v2/screens/room_detail.dart';
+import 'v2/screens/room_reveal.dart';
+import 'v2/screens/rooms_home.dart';
 import 'theme/rtw_theme.dart';
 
 Future<void> main() async {
@@ -161,6 +170,14 @@ final rtwControllerProvider = ChangeNotifierProvider<RtwController>((ref) {
   return RtwController(firebaseReady: ref.watch(firebaseReadyProvider));
 });
 
+/// v2 rooms state (docs/v2-implementation-spec.md). Lives alongside the v1
+/// controller during the rebuild; v1 retires when the v2 routes take over.
+final roomsControllerProvider = ChangeNotifierProvider<RoomsController>((ref) {
+  final controller = RoomsController(firebaseReady: ref.watch(firebaseReadyProvider));
+  controller.worldPredictionsUnlocked = ref.watch(appSettingsProvider).worldRoomUnlocked;
+  return controller;
+});
+
 GoRoute _appRoute(
   String path,
   Widget Function(BuildContext context, GoRouterState state) builder, {
@@ -238,6 +255,9 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
     '/insights',
     '/account',
     '/invite',
+    '/rooms',
+    '/join',
+    '/profile',
   ].any((path) => browserPath == path || browserPath.startsWith('$path/'));
   final isShortCodePath = RegExp(r'^/[A-Za-z0-9]{4,16}$').hasMatch(browserPath);
   final initialLocation = isAppPath || isShortCodePath ? browserPath : '/today';
@@ -250,62 +270,50 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         : const <NavigatorObserver>[],
     refreshListenable: controller,
     redirect: (_, state) {
-      final user = firebaseReady ? FirebaseAuth.instance.currentUser : null;
-      if (state.uri.path == '/onboarding' &&
-          user != null &&
-          !user.isAnonymous &&
-          controller.hasCompletedDemographics) {
-        return '/today';
-      }
       if (!appSettings.partyMode && state.uri.path == '/party') {
-        return '/history';
-      }
-      if (!appSettings.onboardingDemographics &&
-          state.uri.path == '/onboarding/about') {
-        return '/today';
-      }
-      if (!appSettings.friends && state.uri.path.startsWith('/invite')) {
-        return '/insights';
-      }
-      if (controller.lockedToday &&
-          (state.uri.path == '/today' || state.uri.path == '/today/predict')) {
-        return '/today/locked';
+        return '/rooms';
       }
       return null;
     },
     routes: [
       GoRoute(path: '/', redirect: (_, _) => '/today'),
       _appRoute('/auth', (_, _) => const AuthScreen()),
-      _appRoute('/onboarding', (_, _) => const OnboardingScreen()),
-      _appRoute(
-        '/onboarding/about',
-        (_, _) => const OnboardingScreen(initialStep: 1),
+      _appRoute('/onboarding', (_, _) => const OnboardingScreenV2()),
+      _appRoute('/today', (_, _) => const TodayScreenV2(), mainFade: true),
+      _appRoute('/party', (_, _) => const PartyScreenV2(), mainFade: true),
+      // Legacy v1 paths (old notification routes, bookmarks) land safely.
+      GoRoute(path: '/history', redirect: (_, _) => '/rooms'),
+      GoRoute(path: '/insights', redirect: (_, _) => '/rooms'),
+      GoRoute(path: '/account', redirect: (_, _) => '/profile'),
+      GoRoute(path: '/reveal', redirect: (_, _) => '/rooms'),
+      GoRoute(path: '/reveal/:questionId', redirect: (_, _) => '/rooms'),
+      GoRoute(path: '/today/predict', redirect: (_, _) => '/today'),
+      GoRoute(path: '/today/locked', redirect: (_, _) => '/today'),
+      GoRoute(
+        path: '/invite/:code',
+        redirect: (_, state) => '/join/${state.pathParameters['code'] ?? ''}',
       ),
-      _appRoute('/today', (_, _) => const TodayScreen(), mainFade: true),
+      // ── v2 rooms routes.
+      _appRoute('/rooms', (_, _) => const RoomsHomeScreen(), mainFade: true),
       _appRoute(
-        '/today/predict',
-        (_, _) => const PredictScreen(),
+        '/rooms/:roomId',
+        (_, state) =>
+            RoomDetailScreen(roomId: state.pathParameters['roomId'] ?? ''),
         mobileSlide: true,
       ),
       _appRoute(
-        '/today/locked',
-        (_, _) => const LockedScreen(),
+        '/rooms/:roomId/reveal',
+        (_, state) => RoomRevealScreen(
+          roomId: state.pathParameters['roomId'] ?? '',
+          fromToday: state.uri.queryParameters['from'] == 'today',
+        ),
         mainFade: true,
       ),
-      _appRoute('/reveal', (_, _) => const RevealScreen()),
+      _appRoute('/today/play', (_, _) => const RoomPlayScreen()),
+      _appRoute('/profile', (_, _) => const ProfileScreenV2(), mobileSlide: true),
       _appRoute(
-        '/reveal/:questionId',
-        (_, state) =>
-            RevealScreen(questionId: state.pathParameters['questionId']),
-        mobileSlide: true,
-      ),
-      _appRoute('/history', (_, _) => const HistoryScreen(), mainFade: true),
-      _appRoute('/party', (_, _) => const PartyScreen(), mainFade: true),
-      _appRoute('/insights', (_, _) => const InsightsScreen(), mainFade: true),
-      _appRoute('/account', (_, _) => const AccountScreen(), mobileSlide: true),
-      _appRoute(
-        '/invite/:code',
-        (_, state) => InviteScreen(code: state.pathParameters['code'] ?? ''),
+        '/join/:code',
+        (_, state) => JoinRoomScreen(code: state.pathParameters['code'] ?? ''),
         mobileSlide: true,
       ),
       _appRoute(

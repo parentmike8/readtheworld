@@ -30,17 +30,20 @@ import {
   ClipboardList,
   Download,
   Eye,
+  Globe2,
   Library,
   RefreshCw,
   Save,
   SlidersHorizontal,
   UploadCloud,
+  Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { activateClientAppCheck } from "@/lib/appCheck";
+import { QuestionBankView, RoomsOverviewView, WorldCurationView } from "@/components/AdminV2";
 
 type AdminState = "missing-config" | "signed-out" | "checking" | "authorized" | "unauthorized";
-export type AdminView = "today" | "schedule" | "library" | "analytics" | "results" | "notifications" | "settings";
+export type AdminView = "bank" | "world" | "rooms" | "today" | "schedule" | "library" | "analytics" | "results" | "notifications" | "settings";
 type BroadcastAudience = "all" | "streak_at_risk" | "lapsed_7d";
 type LibraryFilter = "All" | "Live" | "Scheduled" | "Used" | "Draft";
 type QuestionOption = {
@@ -135,6 +138,9 @@ const firebaseConfig = {
 const allowedAdminEmail = "mike@readtheworld.today";
 
 const navItems: Array<{ id: AdminView; label: string; icon: ReactNode }> = [
+  { id: "bank", label: "Question bank", icon: <Library size={15} /> },
+  { id: "world", label: "The World", icon: <Globe2 size={15} /> },
+  { id: "rooms", label: "Rooms", icon: <Users size={15} /> },
   { id: "today", label: "Today", icon: <CircleDot size={15} /> },
   { id: "schedule", label: "Schedule", icon: <CalendarDays size={15} /> },
   { id: "library", label: "Library", icon: <Library size={15} /> },
@@ -765,6 +771,24 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     }
 
     switch (activeView) {
+      case "bank":
+        return (
+          <QuestionBankView
+            firestore={firestore}
+            functions={functions}
+            onMessage={setMessage}
+          />
+        );
+      case "world":
+        return (
+          <WorldCurationView
+            firestore={firestore}
+            functions={functions}
+            onMessage={setMessage}
+          />
+        );
+      case "rooms":
+        return <RoomsOverviewView firestore={firestore} />;
       case "schedule":
         return renderSchedule();
       case "library":

@@ -1,0 +1,532 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'models_v2.dart';
+import 'tokens_v2.dart';
+
+/// Exact-size text helpers — the prototype styles each element in px, so v2
+/// screens use these instead of the coarser app-wide TextTheme roles.
+TextStyle v2Serif(
+  double size, {
+  Color color = RtwV2Colors.ink,
+  FontWeight weight = FontWeight.w500,
+  double? height,
+  double? letterSpacing,
+  FontStyle? fontStyle,
+}) => GoogleFonts.newsreader(
+  fontSize: size,
+  color: color,
+  fontWeight: weight,
+  height: height,
+  letterSpacing: letterSpacing,
+  fontStyle: fontStyle,
+);
+
+TextStyle v2Sans(
+  double size, {
+  Color color = RtwV2Colors.ink,
+  FontWeight weight = FontWeight.w400,
+  double? height,
+  double? letterSpacing,
+}) => GoogleFonts.hankenGrotesk(
+  fontSize: size,
+  color: color,
+  fontWeight: weight,
+  height: height,
+  letterSpacing: letterSpacing,
+);
+
+TextStyle v2Mono(
+  double size, {
+  Color color = RtwV2Colors.muted,
+  FontWeight weight = FontWeight.w400,
+  double letterSpacing = 1.4,
+}) => GoogleFonts.ibmPlexMono(
+  fontSize: size,
+  color: color,
+  fontWeight: weight,
+  letterSpacing: letterSpacing,
+);
+
+/// Uppercased mono eyebrow (`IBM Plex Mono`, ls ~1.4-1.6).
+class V2Eyebrow extends StatelessWidget {
+  const V2Eyebrow(
+    this.text, {
+    super.key,
+    this.size = 10,
+    this.color = RtwV2Colors.muted,
+    this.letterSpacing = 1.4,
+  });
+
+  final String text;
+  final double size;
+  final Color color;
+  final double letterSpacing;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text.toUpperCase(),
+    style: v2Mono(size, color: color, letterSpacing: letterSpacing),
+  );
+}
+
+/// Room icon tile: rounded square, room color, serif initial at 0.42×size.
+class RoomIcon extends StatelessWidget {
+  const RoomIcon({
+    super.key,
+    required this.room,
+    this.size = 46,
+    this.radius = 14,
+  });
+
+  final RtwRoom room;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWorld = room.isWorld;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isWorld ? RtwV2Colors.worldInk : RtwV2Colors.roomColor(room.colorToken),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: isWorld
+          ? Icon(Icons.public, color: Colors.white, size: size * 0.5)
+          : Text(
+              room.initial,
+              style: v2Serif(size * 0.42, color: Colors.white),
+            ),
+    );
+  }
+}
+
+/// Tier chip (mono 9, uppercase, tinted). Prototype hides it for `normal`.
+class TierChip extends StatelessWidget {
+  const TierChip({super.key, required this.tier});
+
+  final RoomTier tier;
+
+  Color get _color => switch (tier) {
+    RoomTier.workSafe => RtwV2Colors.green,
+    RoomTier.normal => RtwV2Colors.blue,
+    RoomTier.mature => RtwV2Colors.clay,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        tier.label.toUpperCase(),
+        style: v2Mono(9, color: _color, letterSpacing: 0.8),
+      ),
+    );
+  }
+}
+
+/// Primary filled button (radius 14-16, Hanken 15-16 w600).
+class V2Button extends StatelessWidget {
+  const V2Button(
+    this.label, {
+    super.key,
+    required this.onPressed,
+    this.background = RtwV2Colors.blue,
+    this.foreground = Colors.white,
+    this.fontSize = 15,
+    this.fontWeight = FontWeight.w600,
+    this.padding = const EdgeInsets.symmetric(vertical: 14),
+    this.radius = 14,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final Color background;
+  final Color foreground;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final EdgeInsets padding;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: background,
+          disabledBackgroundColor: background.withValues(alpha: 0.5),
+          padding: padding,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radius),
+          ),
+        ),
+        child: Text(
+          label,
+          style: v2Sans(fontSize, color: foreground, weight: fontWeight),
+        ),
+      ),
+    );
+  }
+}
+
+/// Prototype toggle: 46×28 track, 22px knob (or 44×26/20 in room settings).
+class V2Toggle extends StatelessWidget {
+  const V2Toggle({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.trackWidth = 46,
+    this.trackHeight = 28,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final double trackWidth;
+  final double trackHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final knobSize = trackHeight - 6;
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: trackWidth,
+        height: trackHeight,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: value ? RtwV2Colors.blue : RtwV2Colors.knobTrackOff,
+          borderRadius: BorderRadius.circular(trackHeight / 2),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: knobSize,
+            height: knobSize,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x38000000),
+                  offset: Offset(0, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom nav: Today / Rooms / Party (prototype exact — 18px glyphs,
+/// 11px w600 labels, active #23211C, idle #B3AD9F).
+class V2BottomNav extends StatelessWidget {
+  const V2BottomNav({super.key, required this.location});
+
+  final String location;
+
+  @override
+  Widget build(BuildContext context) {
+    final roomsActive = location.startsWith('/rooms');
+    final todayActive = location == '/today' || location.startsWith('/today/');
+    final partyActive = location.startsWith('/party');
+    return Container(
+      decoration: const BoxDecoration(
+        color: RtwV2Colors.paper,
+        border: Border(top: BorderSide(color: Color(0xFFE2DCD0))),
+      ),
+      padding: EdgeInsets.only(
+        top: 11,
+        bottom: math.max(24, MediaQuery.paddingOf(context).bottom),
+      ),
+      child: Row(
+        children: [
+          _NavItem(
+            label: 'Today',
+            active: todayActive,
+            onTap: () => context.go('/today'),
+            icon: (color) => Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+            ),
+          ),
+          _NavItem(
+            label: 'Rooms',
+            active: roomsActive,
+            onTap: () => context.go('/rooms'),
+            icon: (color) => _GridGlyph(color: color),
+          ),
+          _NavItem(
+            label: 'Party',
+            active: partyActive,
+            onTap: () => context.go('/party'),
+            icon: (color) => Icon(Icons.play_arrow_rounded, size: 20, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    required this.icon,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Widget Function(Color color) icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? RtwV2Colors.inkSoft : RtwV2Colors.navIdle;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon(color),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: v2Sans(11, color: color, weight: FontWeight.w600, letterSpacing: 0.3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GridGlyph extends StatelessWidget {
+  const _GridGlyph({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell() => Container(
+      width: 6,
+      height: 6,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(1.6),
+      ),
+    );
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [cell(), cell()]),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [cell(), cell()]),
+        ],
+      ),
+    );
+  }
+}
+
+/// v2 page scaffold: phone-column surface centered on wide screens
+/// (spec §8), optional bottom nav, prototype fade-up entrance.
+class V2Scaffold extends StatelessWidget {
+  const V2Scaffold({
+    super.key,
+    required this.location,
+    required this.child,
+    this.showNav = true,
+    this.backgroundColor = RtwV2Colors.paper,
+  });
+
+  final String location;
+  final Widget child;
+  final bool showNav;
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final isWide = size.width >= 820;
+    final surfaceWidth = kIsWeb ? math.min(size.width, isWide ? 460.0 : 393.0) : size.width;
+
+    final column = Column(
+      children: [
+        Expanded(child: _FadeUp(child: child)),
+        if (showNav) V2BottomNav(location: location),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: isWide ? RtwV2Colors.paperAlt : backgroundColor,
+      body: isWide
+          ? Center(
+              child: Container(
+                width: surfaceWidth,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: RtwV2Colors.border),
+                ),
+                margin: const EdgeInsets.symmetric(vertical: 24),
+                child: column,
+              ),
+            )
+          : SizedBox(width: surfaceWidth, child: column),
+    );
+  }
+}
+
+/// Prototype `rwFadeUp` — 500ms ease, 10px rise.
+class _FadeUp extends StatelessWidget {
+  const _FadeUp({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: RtwV2Motion.pageFade,
+      curve: Curves.ease,
+      builder: (context, t, childWidget) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, 10 * (1 - t)),
+          child: childWidget,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Bottom sheet container matching the prototype (radius 28 top, paper bg,
+/// drag handle, max height 88%). On wide screens it becomes a centered dialog.
+Future<T?> showV2Sheet<T>(BuildContext context, WidgetBuilder builder) {
+  final isWide = MediaQuery.sizeOf(context).width >= 820;
+  if (isWide) {
+    return showDialog<T>(
+      context: context,
+      barrierColor: const Color(0x6B1C1A16),
+      builder: (context) => Dialog(
+        backgroundColor: RtwV2Colors.paper,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430, maxHeight: 640),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 30),
+            child: Builder(builder: builder),
+          ),
+        ),
+      ),
+    );
+  }
+  return showModalBottomSheet<T>(
+    context: context,
+    backgroundColor: RtwV2Colors.paper,
+    barrierColor: const Color(0x6B1C1A16),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+    ),
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 38),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 2, bottom: 20),
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.knobTrackOff,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Builder(builder: builder),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Section hairline used inside cards (`border-top:1px solid #EFEAE0`).
+class V2Hairline extends StatelessWidget {
+  const V2Hairline({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Divider(height: 1, thickness: 1, color: RtwV2Colors.hairline);
+}
+
+/// Transitional stub for v2 routes whose screens are still being built.
+/// Every instance disappears before the rebuild is called done.
+class V2InProgressScreen extends StatelessWidget {
+  const V2InProgressScreen({super.key, required this.location});
+
+  final String location;
+
+  @override
+  Widget build(BuildContext context) {
+    return V2Scaffold(
+      location: location,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const V2Eyebrow('Read the World v2'),
+            const SizedBox(height: 12),
+            Text('This screen lands next.', style: v2Serif(24)),
+            const SizedBox(height: 18),
+            TextButton(
+              onPressed: () => context.go('/rooms'),
+              child: Text(
+                '← Back to rooms',
+                style: v2Sans(14, color: RtwV2Colors.blue, weight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

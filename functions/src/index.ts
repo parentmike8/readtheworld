@@ -2057,9 +2057,11 @@ export const resolveShortCode = onCall(callableOptions, async (request) => {
     lastOpenedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  const route = type === "invite"
-    ? `/invite/${code}`
-    : `/reveal/${encodeURIComponent(targetId)}?code=${encodeURIComponent(code)}`;
+  const route = type === "room"
+    ? `/join/${code}`
+    : type === "invite"
+      ? `/invite/${code}`
+      : `/reveal/${encodeURIComponent(targetId)}?code=${encodeURIComponent(code)}`;
   return { code, type, targetId, route };
 });
 
@@ -3014,6 +3016,25 @@ export const joinRoom = onCall(callableOptions, async (request) => {
   }
   const roomId = String(link?.targetId ?? "");
   const targetRoomRef = roomRef(roomId);
+
+  if (request.data?.previewOnly === true) {
+    // Pre-join preview so the client can show the room card and run the
+    // After Dark consent before actually joining (prototype join sheet).
+    const roomSnap = await targetRoomRef.get();
+    if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+    const room = roomSnap.data() ?? {};
+    const memberSnap = await targetRoomRef.collection("members").doc(uid).get();
+    return {
+      preview: true,
+      roomId,
+      name: String(room.name ?? "Room"),
+      color: String(room.color ?? ""),
+      tier: String(room.tier ?? "normal"),
+      memberCount: Number(room.memberCount ?? 0),
+      alreadyMember: memberSnap.exists,
+    };
+  }
+
   const displayName = await displayNameForUid(uid);
   const tier = await db.runTransaction(async (tx) => {
     const roomSnap = await tx.get(targetRoomRef);

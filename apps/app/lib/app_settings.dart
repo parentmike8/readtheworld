@@ -7,6 +7,7 @@ class AppSettings {
     this.friendsLeaderboard = true,
     this.resultSharing = true,
     this.onboardingDemographics = true,
+    this.worldRoomUnlocked = false,
   });
 
   static const defaults = AppSettings();
@@ -20,6 +21,7 @@ class AppSettings {
     'feature_friends_leaderboard': true,
     'feature_result_sharing': true,
     'feature_onboarding_demographics': true,
+    'feature_world_room_unlocked': false,
   };
 
   final bool partyMode;
@@ -27,6 +29,7 @@ class AppSettings {
   final bool friendsLeaderboard;
   final bool resultSharing;
   final bool onboardingDemographics;
+  final bool worldRoomUnlocked;
 
   factory AppSettings.fromRemoteConfig(FirebaseRemoteConfig remoteConfig) {
     return AppSettings(
@@ -37,6 +40,7 @@ class AppSettings {
       onboardingDemographics: remoteConfig.getBool(
         'feature_onboarding_demographics',
       ),
+      worldRoomUnlocked: remoteConfig.getBool('feature_world_room_unlocked'),
     );
   }
 }

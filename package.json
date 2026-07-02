@@ -23,7 +23,8 @@
     "rules:test": "npx -y firebase-tools@15.22.3 emulators:exec --only firestore \"vitest run firebase/test\"",
     "test": "npm run functions:test && npm run app:test",
     "build": "npm run functions:build && npm run web:build && npm run app:build:web",
-    "bank:seed": "npm run functions:build && node scripts/seed-question-bank.mjs"
+    "bank:seed": "npm run functions:build && node scripts/seed-question-bank.mjs",
+    "reset:day-one": "npm run functions:build && node scripts/reset-day-one.mjs"
   },
   "engines": {
     "node": "20"

@@ -494,13 +494,6 @@ class RtwController extends ChangeNotifier {
       _nonEmptyString(gender) != null &&
       _nonEmptyString(country) != null;
 
-  bool _hasCompletedDemographicsMap(Map<String, Object?>? demographics) {
-    if (demographics == null) return false;
-    return _parseBirthdate(demographics['birthdate']) != null &&
-        _nonEmptyString(demographics['gender']) != null &&
-        _nonEmptyString(demographics['country']) != null;
-  }
-
   void _syncSelfFriendRow(String uid) {
     final hasSelf = friends.any((friend) => friend.me);
     if (!hasSelf) {
@@ -730,25 +723,24 @@ class RtwController extends ChangeNotifier {
     }
   }
 
+  /// v2: returning members (any room membership) land on their rooms;
+  /// brand-new accounts get the onboarding demo first.
   Future<String> postAuthRoute() async {
-    if (!firebaseReady) {
-      return hasCompletedDemographics ? '/today' : '/onboarding';
-    }
+    if (!firebaseReady) return '/onboarding';
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return '/auth';
     try {
-      final snapshot = await FirebaseFirestore.instance
+      final memberships = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
+          .collection('memberships')
+          .limit(1)
           .get();
-      final demographics = _stringKeyedMap(snapshot.data()?['demographics']);
-      return _hasCompletedDemographicsMap(demographics)
-          ? '/today'
-          : '/onboarding';
+      return memberships.docs.isEmpty ? '/onboarding' : '/rooms';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
-      return hasCompletedDemographics ? '/today' : '/onboarding';
+      return '/onboarding';
     }
   }
 

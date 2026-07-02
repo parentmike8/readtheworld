@@ -1,0 +1,831 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../main.dart';
+import '../models_v2.dart';
+import '../rooms_controller.dart';
+import '../sheets/room_sheets.dart';
+import '../tokens_v2.dart';
+import '../widgets_v2.dart';
+import 'play_surface.dart' show revealLabelFor;
+
+/// ROOM DETAIL — v2 prototype lines 153-264.
+class RoomDetailScreen extends ConsumerStatefulWidget {
+  const RoomDetailScreen({super.key, required this.roomId});
+
+  final String roomId;
+
+  @override
+  ConsumerState<RoomDetailScreen> createState() => _RoomDetailScreenState();
+}
+
+class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
+  RoomRevealData? reveal;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReveal());
+  }
+
+  Future<void> _loadReveal() async {
+    final rooms = ref.read(roomsControllerProvider);
+    final data = await rooms.loadRoomReveal(widget.roomId);
+    if (mounted) setState(() => reveal = data);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rooms = ref.watch(roomsControllerProvider);
+    final binding = rooms.bindingFor(widget.roomId);
+    final room = binding?.room;
+    if (room == null) {
+      return V2Scaffold(
+        location: '/rooms/${widget.roomId}',
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final me = binding!.me;
+    final played = binding.played;
+    final isSolo = room.isSolo;
+    final isWorld = room.isWorld;
+    final hasBoard = !isSolo && !isWorld;
+
+    return V2Scaffold(
+      location: '/rooms/${widget.roomId}',
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 54, 22, 30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () => context.go('/rooms'),
+                  child: Text(
+                    '← Rooms',
+                    style: v2Sans(15, color: RtwV2Colors.subText, weight: FontWeight.w600),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => showRoomMenuSheet(
+                    context,
+                    ref,
+                    widget.roomId,
+                    onHistory: () => _showHistorySheet(context, rooms, room),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(Icons.more_vert, size: 20, color: RtwV2Colors.muted),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                RoomIcon(room: room, size: 52),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        room.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: v2Serif(26, letterSpacing: -0.4),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (!isWorld && room.tier != RoomTier.normal) ...[
+                            TierChip(tier: room.tier),
+                            const SizedBox(width: 9),
+                          ],
+                          Text(
+                            isWorld
+                                ? '${_thousands(room.memberCount)} players answering'
+                                : isSolo
+                                    ? 'Just you, for now'
+                                    : '${room.memberCount} members',
+                            style: v2Sans(13, color: RtwV2Colors.muted),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (!played)
+              _PlayCard(room: room, rooms: rooms)
+            else
+              _PlayedCard(room: room, rooms: rooms),
+            const SizedBox(height: 26),
+            if (isSolo)
+              _SoloNudge(onInvite: () => showInviteSheet(context, rooms, room.id))
+            else if (isWorld)
+              _WorldProgressCard(room: room, rooms: rooms)
+            else
+              _ScoreCard(room: room, me: me),
+            if (!isWorld && room.customEnabled) ...[
+              const SizedBox(height: 16),
+              _AddQuestionButton(rooms: rooms, roomId: room.id),
+            ],
+            if (!isWorld && reveal != null && (reveal!.myAnswer?.picks.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 24),
+              V2Eyebrow(
+                revealLabelFor(reveal!.dailyKey),
+                size: 11,
+                letterSpacing: 1.6,
+              ),
+              const SizedBox(height: 11),
+              for (final question in reveal!.day.activeQuestions) ...[
+                _YesterdayCard(
+                  question: question,
+                  day: reveal!.day,
+                  answer: reveal!.myAnswer,
+                  onTap: () => _showDayDetail(context, rooms, room, reveal!, question),
+                ),
+                const SizedBox(height: 11),
+              ],
+            ],
+            if (hasBoard) ...[
+              const SizedBox(height: 15),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const V2Eyebrow('Room leaderboard', size: 11, letterSpacing: 1.6),
+                  GestureDetector(
+                    onTap: () => showInviteSheet(context, rooms, room.id),
+                    child: Text(
+                      'Invite +',
+                      style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              _Leaderboard(rooms: rooms, roomId: room.id, myUid: rooms.uid),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHistorySheet(BuildContext context, RoomsController rooms, RtwRoom room) {
+    showV2Sheet(context, (context) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${room.name} history', style: v2Serif(24, letterSpacing: -0.4)),
+          const SizedBox(height: 16),
+          Text(
+            'Past reveals collect here day by day.',
+            style: v2Sans(13.5, color: RtwV2Colors.muted, height: 1.5),
+          ),
+        ],
+      );
+    });
+  }
+
+  void _showDayDetail(
+    BuildContext context,
+    RoomsController rooms,
+    RtwRoom room,
+    RoomRevealData revealData,
+    RoomDayQuestion question,
+  ) async {
+    final rows = await rooms.loadDayDetail(room.id, revealData.dailyKey);
+    if (!context.mounted) return;
+    final result = revealData.day.resultFor(question.qid);
+    showV2Sheet(context, (context) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          V2Eyebrow(question.tag, color: RtwV2Colors.clay),
+          const SizedBox(height: 8),
+          Text(question.prompt, style: v2Serif(22, height: 1.25, letterSpacing: -0.3)),
+          if (result != null) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: Container(
+                height: 34,
+                color: const Color(0xFFE6E0D3),
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: (result.aPct / 100).clamp(0.0, 1.0),
+                        child: Container(color: RtwV2Colors.blue),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Center(
+                            child: Text(
+                              '${question.optA} ${result.aPct}%',
+                              style: v2Sans(12, color: Colors.white, weight: FontWeight.w700),
+                            ),
+                          ),
+                          Center(
+                            child: Text(
+                              question.optB,
+                              style: v2Sans(12, color: RtwV2Colors.subText, weight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${result.answers} answered',
+              style: v2Sans(12, color: RtwV2Colors.muted),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: RtwV2Colors.card,
+              border: Border.all(color: RtwV2Colors.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                for (final (index, row) in rows.indexed) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                    color: row.isMe ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 26,
+                          child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
+                        ),
+                        Expanded(
+                          child: Text(
+                            row.displayName,
+                            style: v2Sans(
+                              15,
+                              color: RtwV2Colors.inkSoft,
+                              weight: row.isMe ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        if (row.reveals && row.picks.any((pick) => pick.qid == question.qid)) ...[
+                          Builder(builder: (context) {
+                            final pick = row.picks.firstWhere((pick) => pick.qid == question.qid);
+                            final label = pick.side == 'a' ? question.optA : question.optB;
+                            final isA = pick.side == 'a';
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
+                                    .withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: Text(
+                                label,
+                                style: v2Sans(
+                                  12,
+                                  color: isA ? RtwV2Colors.blueTextDeep : RtwV2Colors.clayTextDeep,
+                                  weight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }),
+                          const SizedBox(width: 10),
+                        ],
+                        Text(
+                          '${row.accuracies[question.qid] ?? '—'}',
+                          style: v2Serif(17),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (index < rows.length - 1) const V2Hairline(),
+                ],
+                if (rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No answers to show.',
+                      style: v2Sans(13, color: RtwV2Colors.muted),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
+  }
+}
+
+String _thousands(int value) {
+  final text = value.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < text.length; i++) {
+    if (i > 0 && (text.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(text[i]);
+  }
+  return buffer.toString();
+}
+
+class _PlayCard extends StatelessWidget {
+  const _PlayCard({required this.room, required this.rooms});
+
+  final RtwRoom room;
+  final RoomsController rooms;
+
+  @override
+  Widget build(BuildContext context) {
+    final playCopy = room.isWorld
+        ? 'Answering is always open. Predicting turns on once the game hits '
+            '${_thousands(room.worldGoal)} players.'
+        : room.isSolo
+            ? "Swipe to call each one. No one to predict yet, so it's just you "
+                'keeping your streak going.'
+            : 'Swipe to call each one, then predict how the room actually answered.';
+    final cta = (room.isSolo || room.isWorld) ? "Answer today's 3 →" : "Play today's 3 →";
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.blue,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          V2Eyebrow('Today · 3 questions', color: const Color(0xFFB8D3F9), letterSpacing: 1.6),
+          const SizedBox(height: 10),
+          Text(
+            'Can you read the room today?',
+            style: v2Serif(27, color: Colors.white, height: 1.1, letterSpacing: -0.4),
+          ),
+          const SizedBox(height: 9),
+          Text(playCopy, style: v2Sans(14, color: const Color(0xFFD8E6F9), height: 1.5)),
+          const SizedBox(height: 18),
+          V2Button(
+            cta,
+            background: Colors.white,
+            foreground: const Color(0xFF244D82),
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            onPressed: () {
+              rooms.startRoomPlay(room.id);
+              if (rooms.play != null) context.go('/today/play');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayedCard extends StatelessWidget {
+  const _PlayedCard({required this.room, required this.rooms});
+
+  final RtwRoom room;
+  final RoomsController rooms;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check, size: 14, color: RtwV2Colors.green),
+              const SizedBox(width: 8),
+              const V2Eyebrow('Today · 3 questions · in', letterSpacing: 1.6),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Your calls are in for today.',
+            style: v2Serif(26, height: 1.1, letterSpacing: -0.4),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            'See how the room answered tomorrow — the reveal lands with the '
+            'next set of questions.',
+            style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoloNudge extends StatelessWidget {
+  const _SoloNudge({required this.onInvite});
+
+  final VoidCallback onInvite;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const V2Eyebrow('No one to read, yet', letterSpacing: 1.6),
+          const SizedBox(height: 8),
+          Text(
+            'Predicting and Read Score turn on as soon as one other person '
+            'joins. Until then, just answer for the streak.',
+            style: v2Sans(14, color: const Color(0xFF5C584F), height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          V2Button(
+            'Invite someone in →',
+            fontSize: 14,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            radius: 13,
+            onPressed: onInvite,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorldProgressCard extends StatelessWidget {
+  const _WorldProgressCard({required this.room, required this.rooms});
+
+  final RtwRoom room;
+  final RoomsController rooms;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = room.worldGoal > 0
+        ? ((room.memberCount / room.worldGoal) * 100).round()
+        : 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text.rich(
+                TextSpan(
+                  text: _thousands(room.memberCount),
+                  style: v2Serif(22),
+                  children: [
+                    TextSpan(
+                      text: ' / ${_thousands(room.worldGoal)} players',
+                      style: v2Serif(13, color: RtwV2Colors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              Text('$pct%', style: v2Mono(11, color: RtwV2Colors.blue, letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              height: 7,
+              color: const Color(0xFFE6E0D3),
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: (pct / 100).clamp(0.0, 1.0),
+                child: Container(color: RtwV2Colors.blue),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Predicting turns on once the game hits ${_thousands(room.worldGoal)} '
+            'players and a question crosses 1,000 answers.',
+            style: v2Sans(13, color: RtwV2Colors.subText, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreCard extends StatelessWidget {
+  const _ScoreCard({required this.room, required this.me});
+
+  final RtwRoom room;
+  final RtwRoomMember? me;
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = me?.lastDelta;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.ink,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const V2Eyebrow('Your read score', color: Color(0xFF8E887C), letterSpacing: 1.6),
+              const SizedBox(height: 6),
+              Text(
+                _thousands(me?.roomScore ?? 1500),
+                style: v2Serif(36, color: RtwV2Colors.onDarkPaper, height: 1),
+              ),
+            ],
+          ),
+          if (delta != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${delta >= 0 ? '+' : ''}$delta',
+                  style: v2Mono(
+                    15,
+                    color: delta >= 0 ? RtwV2Colors.deltaUp : RtwV2Colors.deltaDown,
+                    weight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'FROM ${_whenLabel(me?.lastScoredDailyKey)}',
+                  style: v2Mono(9, color: const Color(0xFF8E887C), letterSpacing: 1),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _whenLabel(String? dailyKey) {
+    final label = revealLabelFor(dailyKey);
+    return label.replaceAll("'S REVEAL", '').replaceAll(' REVEAL', '');
+  }
+}
+
+class _AddQuestionButton extends StatelessWidget {
+  const _AddQuestionButton({required this.rooms, required this.roomId});
+
+  final RoomsController rooms;
+  final String roomId;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<QueueItem>>(
+      stream: rooms.queueStream(roomId),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        return GestureDetector(
+          onTap: () => showCustomQSheet(context, rooms, roomId),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: RtwV2Colors.knobTrackOff, width: 1.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text('+', style: v2Sans(17, color: RtwV2Colors.blue, height: 1)),
+                    const SizedBox(width: 9),
+                    Text(
+                      'Add your own question',
+                      style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                Text('$count in the pool', style: v2Mono(11, letterSpacing: 0.5)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _YesterdayCard extends StatelessWidget {
+  const _YesterdayCard({
+    required this.question,
+    required this.day,
+    required this.answer,
+    required this.onTap,
+  });
+
+  final RoomDayQuestion question;
+  final RoomDay day;
+  final RoomAnswer? answer;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final result = day.resultFor(question.qid);
+    final pick = answer?.pickFor(question.qid);
+    if (result == null || pick == null) return const SizedBox.shrink();
+    final youLabel = pick.side == 'a' ? question.optA : question.optB;
+    // "Room X%" = share of the room on YOUR side (matches the prototype rows).
+    final roomPct = pick.side == 'a' ? result.aPct : 100 - result.aPct;
+    final guess = pick.prediction;
+    final score = answer?.accuracies[question.qid];
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: RtwV2Colors.card,
+          border: Border.all(color: RtwV2Colors.border),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                V2Eyebrow(question.tag, letterSpacing: 1.2),
+                if (score != null)
+                  Text.rich(
+                    TextSpan(
+                      text: '$score',
+                      style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 0),
+                      children: [
+                        TextSpan(
+                          text: '/100',
+                          style: v2Mono(11, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              question.prompt,
+              style: v2Serif(18, color: const Color(0xFF2C2A24), height: 1.28),
+            ),
+            const SizedBox(height: 13),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                height: 8,
+                child: Stack(
+                  children: [
+                    Container(color: const Color(0xFFE6E0D3)),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: (roomPct / 100).clamp(0.0, 1.0),
+                        child: Container(color: RtwV2Colors.clay),
+                      ),
+                    ),
+                    if (guess != null)
+                      Align(
+                        alignment: Alignment((guess / 100).clamp(0.0, 1.0) * 2 - 1, 0),
+                        child: Container(width: 2, color: RtwV2Colors.blue),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    text: 'You said ',
+                    style: v2Sans(12, color: RtwV2Colors.subText),
+                    children: [
+                      TextSpan(
+                        text: youLabel,
+                        style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w700),
+                      ),
+                      if (guess != null) TextSpan(text: ' · guessed $guess%'),
+                    ],
+                  ),
+                ),
+                Text('Room $roomPct%', style: v2Sans(12, color: RtwV2Colors.muted)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Leaderboard extends StatelessWidget {
+  const _Leaderboard({required this.rooms, required this.roomId, required this.myUid});
+
+  final RoomsController rooms;
+  final String roomId;
+  final String? myUid;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<RtwRoomMember>>(
+      stream: rooms.membersStream(roomId),
+      builder: (context, snapshot) {
+        final members = snapshot.data ?? const <RtwRoomMember>[];
+        if (members.isEmpty) return const SizedBox.shrink();
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: RtwV2Colors.card,
+            border: Border.all(color: RtwV2Colors.border),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              for (final (index, member) in members.indexed) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  color: member.uid == myUid
+                      ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+                      : null,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 26,
+                        child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
+                      ),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: member.uid == myUid
+                              ? RtwV2Colors.blue
+                              : const Color(0xFFD8D2C5),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          member.uid == myUid ? 'You' : member.displayName,
+                          style: v2Sans(
+                            15,
+                            color: RtwV2Colors.inkSoft,
+                            weight: member.uid == myUid ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Text(_thousands(member.roomScore), style: v2Serif(17)),
+                    ],
+                  ),
+                ),
+                if (index < members.length - 1) const V2Hairline(),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
