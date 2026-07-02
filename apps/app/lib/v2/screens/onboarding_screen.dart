@@ -828,8 +828,8 @@ class _WorldTeaser extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: FractionallySizedBox(
                       widthFactor: (pct / 100).clamp(0.0, 1.0),
-                      child: const DecoratedBox(
-                        decoration: BoxDecoration(
+                      child: Container(
+                        decoration: const BoxDecoration(
                           gradient: LinearGradient(
                             colors: [RtwV2Colors.gradBlue, RtwV2Colors.gradBlueLight],
                           ),

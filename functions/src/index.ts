@@ -108,7 +108,8 @@ const MARKETING_URL = "https://readtheworld.today";
 const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
-const callableOptions = { enforceAppCheck: true };
+// App Check is enforced in production; the emulator has no tokens.
+const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
 
 class ShortCodeCollisionError extends Error {}
 

@@ -34,24 +34,32 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
     curve: Curves.easeOutCubic,
   );
   RoomRevealData? reveal;
+  bool _loading = false;
+  String? _attemptedKey;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  Future<void> _load() async {
+  Future<void> _load(String dailyKey) async {
+    _loading = true;
+    _attemptedKey = dailyKey;
     final rooms = ref.read(roomsControllerProvider);
     final data = await rooms.loadRoomReveal(widget.roomId);
+    _loading = false;
     if (!mounted) return;
     setState(() => reveal = data);
+    if (data == null) return;
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = 1;
     } else {
-      _controller.forward();
+      _controller.forward(from: 0);
     }
     unawaited(rooms.markRevealSeen(widget.roomId));
+  }
+
+  void _syncLoad(String? lastClosedDailyKey) {
+    if (lastClosedDailyKey == null || _loading) return;
+    if (_attemptedKey == lastClosedDailyKey) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load(lastClosedDailyKey);
+    });
   }
 
   @override
@@ -75,6 +83,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
     final room = binding?.room;
     final me = binding?.me;
     final data = reveal;
+    _syncLoad(room?.lastClosedDailyKey);
 
     return V2Scaffold(
       location: '/rooms/${widget.roomId}/reveal',

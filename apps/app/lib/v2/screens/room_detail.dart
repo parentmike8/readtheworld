@@ -22,17 +22,27 @@ class RoomDetailScreen extends ConsumerStatefulWidget {
 
 class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   RoomRevealData? reveal;
+  String? _attemptedRevealKey;
+  bool _loadingReveal = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReveal());
-  }
-
-  Future<void> _loadReveal() async {
+  Future<void> _loadReveal(String dailyKey) async {
+    _loadingReveal = true;
+    _attemptedRevealKey = dailyKey;
     final rooms = ref.read(roomsControllerProvider);
     final data = await rooms.loadRoomReveal(widget.roomId);
+    _loadingReveal = false;
     if (mounted) setState(() => reveal = data);
+  }
+
+  /// The room doc streams in after first build — load the reveal once its
+  /// lastClosedDailyKey is known, and reload when a rollover changes it.
+  void _syncReveal(RtwRoom room) {
+    final lastClosed = room.lastClosedDailyKey;
+    if (lastClosed == null || _loadingReveal) return;
+    if (_attemptedRevealKey == lastClosed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadReveal(lastClosed);
+    });
   }
 
   @override
@@ -46,6 +56,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
         child: const Center(child: CircularProgressIndicator()),
       );
     }
+    _syncReveal(room);
     final me = binding!.me;
     final played = binding.played;
     final isSolo = room.isSolo;

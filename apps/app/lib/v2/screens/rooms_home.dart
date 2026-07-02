@@ -256,8 +256,8 @@ class _WorldHero extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: FractionallySizedBox(
                         widthFactor: (pct / 100).clamp(0.0, 1.0),
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(
+                        child: Container(
+                          decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               colors: [RtwV2Colors.gradBlue, RtwV2Colors.gradBlueLight],
                             ),
@@ -343,7 +343,10 @@ class _RoomCard extends ConsumerWidget {
             : "Play today's 3 →";
 
     return GestureDetector(
-      onTap: () => context.go('/rooms/${room.id}'),
+      // Prototype openRoom: an unseen reveal shows once before the detail.
+      onTap: () => context.go(
+        binding.hasUnseenReveal ? '/rooms/${room.id}/reveal' : '/rooms/${room.id}',
+      ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
         decoration: BoxDecoration(

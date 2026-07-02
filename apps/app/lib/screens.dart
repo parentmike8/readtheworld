@@ -288,20 +288,17 @@ class _AuthBrandPanel extends StatelessWidget {
           ),
           const Spacer(),
           if (creating)
-            UnconstrainedBox(
+            FittedBox(
               alignment: Alignment.centerLeft,
-              constrainedAxis: Axis.vertical,
-              child: SizedBox(
-                width: 380,
-                child: Text(
-                  'Start reading the world.',
-                  maxLines: 1,
-                  softWrap: false,
-                  style: Theme.of(context).textTheme.headlineLarge!.copyWith(
-                    color: RtwColors.paper,
-                    fontSize: 36,
-                    height: 1.1,
-                  ),
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Start reading the world.',
+                maxLines: 1,
+                softWrap: false,
+                style: Theme.of(context).textTheme.headlineLarge!.copyWith(
+                  color: RtwColors.paper,
+                  fontSize: 36,
+                  height: 1.1,
                 ),
               ),
             )

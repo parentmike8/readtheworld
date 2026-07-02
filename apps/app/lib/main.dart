@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -47,6 +50,12 @@ Future<void> main() async {
   );
 }
 
+const _useEmulators = bool.fromEnvironment('RTW_USE_EMULATORS');
+const _emulatorHost = String.fromEnvironment(
+  'RTW_EMULATOR_HOST',
+  defaultValue: 'localhost',
+);
+
 Future<AppBootstrap> _configureFirebase() async {
   if (!DefaultFirebaseOptions.configured) return const AppBootstrap();
   try {
@@ -56,6 +65,16 @@ Future<AppBootstrap> _configureFirebase() async {
   } catch (error) {
     debugPrint('Firebase Core initialization failed: $error');
     return const AppBootstrap();
+  }
+
+  if (_useEmulators) {
+    // Local QA against the emulator suite (firebase.json ports).
+    await FirebaseAuth.instance.useAuthEmulator(_emulatorHost, 9099);
+    FirebaseFirestore.instance.useFirestoreEmulator(_emulatorHost, 8080);
+    FirebaseFunctions.instanceFor(
+      region: 'us-central1',
+    ).useFunctionsEmulator(_emulatorHost, 5001);
+    debugPrint('Firebase emulators connected at $_emulatorHost');
   }
 
   final settings = await _configureFirebaseServices();
@@ -74,7 +93,9 @@ Future<AppSettings> _configureFirebaseServices() async {
     'RTW_RECAPTCHA_ENTERPRISE_SITE_KEY',
   );
   try {
-    if (kIsWeb && recaptchaSiteKey.isEmpty) {
+    if (_useEmulators) {
+      debugPrint('Firebase App Check skipped: emulator mode.');
+    } else if (kIsWeb && recaptchaSiteKey.isEmpty) {
       debugPrint(
         'Firebase App Check skipped: RTW_RECAPTCHA_ENTERPRISE_SITE_KEY missing.',
       );
@@ -387,11 +408,26 @@ class _ReadTheWorldAppState extends ConsumerState<ReadTheWorldApp> {
     final router = ref.watch(rtwRouterProvider);
     return MaterialApp.router(
       title: 'Read the World',
+      scrollBehavior: const _RtwScrollBehavior(),
       debugShowCheckedModeBanner: false,
       theme: buildRtwTheme(),
       routerConfig: router,
     );
   }
+}
+
+/// Web/desktop: let mouse and trackpad drags scroll like touch so the
+/// phone-column surfaces pan naturally (wheel support varies per embedder).
+class _RtwScrollBehavior extends MaterialScrollBehavior {
+  const _RtwScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+  };
 }
 
 String? _notificationRouteFromData(Map<String, dynamic> data) {

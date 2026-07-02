@@ -144,7 +144,10 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                                 const SizedBox(width: 8),
                               ],
                               Text(
-                                '${preview!['memberCount'] ?? 0} members',
+                                switch (preview!['memberCount'] ?? 0) {
+                                  1 => '1 member',
+                                  final n => '$n members',
+                                },
                                 style: v2Sans(12.5, color: RtwV2Colors.muted),
                               ),
                             ],

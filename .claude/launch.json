@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rtw-web-qa",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/run-flutter-web-qa.sh"],
+      "port": 5173
+    }
+  ]
+}

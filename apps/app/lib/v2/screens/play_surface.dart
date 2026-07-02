@@ -584,14 +584,19 @@ class _PickStage extends StatelessWidget {
                           question.tag.toUpperCase(),
                           style: v2Mono(10, color: RtwV2Colors.clay, letterSpacing: 1.8),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          child: Text(
-                            question.prompt,
-                            style: v2Serif(26, height: 1.18, letterSpacing: -0.3),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 208),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              child: Text(
+                                question.prompt,
+                                style: v2Serif(26, height: 1.18, letterSpacing: -0.3),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -813,6 +818,9 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
   final isLast = session.idx + 1 >= session.deck.length;
   if (session.mode == 'today') {
     return isLast ? 'Save · all done →' : 'Save · next →';
+  }
+  if (session.mode == 'demo') {
+    return isLast ? 'Lock in the day →' : 'Save · next →';
   }
   return isLast ? 'Save answers →' : 'Save · next →';
 }
