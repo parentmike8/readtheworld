@@ -385,8 +385,8 @@ export default function Home() {
                     ))}
                   </div>
                   <p>
-                    The world&apos;s answers appear tomorrow. Sign in or create a free
-                    account to save your reads, keep your streak, and track your score.
+                    Sign in or create a free account to save your reads, keep your
+                    streak going, and be first in when the world&apos;s answers unlock.
                   </p>
                 </div>
                 {user ? (
