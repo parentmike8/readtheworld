@@ -207,7 +207,7 @@ class _CloserBeat extends StatelessWidget {
             glyph: _WayGlyph.rooms,
             color: RtwV2Colors.blue,
             title: 'Rooms',
-            body: 'Your group chat, family or team. Three calls a day.',
+            body: 'Your group chat, family or team. Three questions a day.',
           ),
           const SizedBox(height: 12),
           const _PeopleRow(

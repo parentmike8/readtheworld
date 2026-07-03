@@ -300,7 +300,7 @@ class _PlayedCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Your calls are in for today.',
+            'Your reads are in for today.',
             style: v2Serif(26, height: 1.1, letterSpacing: -0.4),
           ),
           const SizedBox(height: 9),

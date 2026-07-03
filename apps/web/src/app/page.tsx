@@ -11,7 +11,7 @@ import {
   type User,
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { activateClientAppCheck } from "@/lib/appCheck";
 
 const firebaseConfig = {
@@ -76,6 +76,36 @@ const faqs: Array<[string, string]> = [
 
 function hasFirebaseConfig() {
   return Object.values(firebaseConfig).every(Boolean);
+}
+
+/** Animates a number from 0 the first time it scrolls into view. */
+function CountUp({ value, duration = 1100 }: { value: number; duration?: number }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setProgress(1);
+      return undefined;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      const startedAt = performance.now();
+      const tick = (now: number) => {
+        const raw = Math.min(1, (now - startedAt) / duration);
+        setProgress(1 - Math.pow(1 - raw, 3));
+        if (raw < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, { threshold: 0.4 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [duration]);
+
+  return <span ref={ref}>{Math.round(value * progress).toLocaleString()}</span>;
 }
 
 export default function Home() {
@@ -146,6 +176,32 @@ export default function Home() {
       if (nextUser?.email) setEmail((current) => current || nextUser.email || "");
     });
   }, [auth]);
+
+  const [navScrolled, setNavScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scroll-reveal: sections rise in the first time they enter the viewport.
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const nodes = Array.from(document.querySelectorAll("[data-reveal]"));
+    nodes.forEach((node) => node.classList.add("revealPending"));
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("revealIn");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.16, rootMargin: "0px 0px -40px 0px" });
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, []);
 
   const currentQuestion = worldQuestions[qIndex] ?? null;
   const navCtaLabel = !user ? "Log in" : "Enter app";
@@ -268,7 +324,7 @@ export default function Home() {
 
   return (
     <main className="landing">
-      <header className="lpNav">
+      <header className={navScrolled ? "lpNav lpNavScrolled" : "lpNav"}>
         <div className="lpWrap lpNavInner">
           <a className="wordmark" href="#play" aria-label="Read the World home">
             read the world<span>.</span>
@@ -330,6 +386,7 @@ export default function Home() {
               </span>
               <span className="liveDot"><i />Live</span>
             </div>
+            <div className="heroSwap" key={step === "answer" ? currentQuestion?.qid ?? "loading" : "gate"}>
             {step === "answer" ? (
               <h2 className="serif">{currentQuestion?.prompt ?? "Loading today's questions..."}</h2>
             ) : (
@@ -419,6 +476,7 @@ export default function Home() {
                 </button>
               </div>
             ) : null}
+            </div>
           </section>
           {worldQuestions.length > 0 && liveCount > 0 ? (
             <div className="liveCount">{liveCount.toLocaleString()} people have answered today</div>
@@ -428,7 +486,7 @@ export default function Home() {
 
       <section className="lpBand" id="how">
         <div className="lpWrap lpSection">
-          <div className="sectionHead">
+          <div className="sectionHead" data-reveal>
             <div className="eyebrow">The daily ritual</div>
             <h2 className="serif">
               Three questions a day.
@@ -436,7 +494,7 @@ export default function Home() {
               One shared reveal.
             </h2>
           </div>
-          <div className="ritualGrid">
+          <div className="ritualGrid" data-reveal data-reveal-delay="1">
             <article>
               <b className="serif">01</b>
               <h3 className="serif">Answer</h3>
@@ -449,15 +507,15 @@ export default function Home() {
             </article>
             <article>
               <b className="serif">03</b>
-              <h3 className="serif">Reveal</h3>
-              <p>Tomorrow, see the real split and how sharp your read was.</p>
+              <h3 className="serif">Score</h3>
+              <p>Tomorrow the split reveals. The sharpest reads take the points.</p>
             </article>
           </div>
         </div>
       </section>
 
       <section className="lpWrap lpSection lpCols" id="rooms">
-        <div>
+        <div data-reveal>
           <div className="eyebrow clay">First, your people &middot; Rooms</div>
           <h2 className="serif">Made for the people you know best.</h2>
           <p>
@@ -466,7 +524,7 @@ export default function Home() {
             Start one in seconds, invite with a link.
           </p>
         </div>
-        <div className="lpRoomStack" aria-label="Example rooms">
+        <div className="lpRoomStack" data-reveal data-reveal-delay="1" aria-label="Example rooms">
           <div className="lpRoomRow">
             <span className="lpRoomAvatar" data-tone="blue">C</span>
             <span className="lpRoomMeta">
@@ -481,18 +539,18 @@ export default function Home() {
               <strong className="serif">Family</strong>
               <small>4 players &middot; reveal tomorrow</small>
             </span>
-            <span className="lpRoomPill">Calls are in</span>
+            <span className="lpRoomPill">Locked in</span>
           </div>
         </div>
       </section>
 
       <section className="lpBand">
         <div className="lpWrap lpSection">
-          <div className="sectionHead">
+          <div className="sectionHead" data-reveal>
             <div className="eyebrow">Every room, your rules</div>
             <h2 className="serif">Set the spice level.</h2>
           </div>
-          <div className="spiceGrid">
+          <div className="spiceGrid" data-reveal data-reveal-delay="1">
             <article className="spiceCard">
               <div className="eyebrow">Work-safe</div>
               <h3 className="serif">Team-ready.</h3>
@@ -501,15 +559,15 @@ export default function Home() {
             <article className="spiceCard">
               <div className="eyebrow clay">Everyday</div>
               <h3 className="serif">The full mix.</h3>
-              <p>Confessions, ethics calls, would-you-rathers. The default table.</p>
+              <p>Confessions, ethical dilemmas, would-you-rathers. Where most rooms live.</p>
             </article>
             <article className="spiceCard spiceDark">
               <div className="eyebrow onDark">After Dark</div>
-              <h3 className="serif">For tables that like it spicy.</h3>
+              <h3 className="serif">For groups that like it spicy.</h3>
               <p>Adults only, words only. Your group chat&apos;s natural habitat.</p>
             </article>
           </div>
-          <p className="spiceFoot">
+          <p className="spiceFoot" data-reveal data-reveal-delay="2">
             Every room picks its own spice level and topics. The office room
             and the group chat never have to meet.
           </p>
@@ -517,7 +575,7 @@ export default function Home() {
       </section>
 
       <section className="lpWrap lpSection lpCols" id="score">
-        <div>
+        <div data-reveal>
           <div className="eyebrow clay">Prove it &middot; Your Read Score</div>
           <h2 className="serif">It&apos;s not about being right. It&apos;s about reading the room.</h2>
           <p>
@@ -525,33 +583,33 @@ export default function Home() {
             has a leaderboard. Every reveal moves it.
           </p>
         </div>
-        <div className="leaderboard">
+        <div className="leaderboard" data-reveal data-reveal-delay="1">
           <div className="leaderHead">The Crew &middot; Leaderboard</div>
           <div className="me">
             <span>1</span>
             <strong>You</strong>
-            <b className="serif">1,840</b>
+            <b className="serif"><CountUp value={1840} duration={900} /></b>
           </div>
           <div>
             <span>2</span>
             <strong>Maya</strong>
-            <b className="serif">1,792</b>
+            <b className="serif"><CountUp value={1792} duration={900} /></b>
           </div>
           <div>
             <span>3</span>
             <strong>Diego</strong>
-            <b className="serif">1,710</b>
+            <b className="serif"><CountUp value={1710} duration={900} /></b>
           </div>
           <div>
             <span>4</span>
             <strong>Priya</strong>
-            <b className="serif">1,655</b>
+            <b className="serif"><CountUp value={1655} duration={900} /></b>
           </div>
         </div>
       </section>
 
       <section className="lpWrap lpSection lpCols">
-        <div>
+        <div data-reveal>
           <div className="eyebrow clay">Make it yours &middot; Custom questions</div>
           <h2 className="serif">The question you&apos;ve been dying to ask.</h2>
           <p>
@@ -559,7 +617,7 @@ export default function Home() {
             day&apos;s three, with your name on the reveal.
           </p>
         </div>
-        <div className="lpPoolColumn">
+        <div className="lpPoolColumn" data-reveal data-reveal-delay="1">
           <div className="lpPoolCard">
             <div className="lpPoolTop">
               <span>From the pool</span>
@@ -576,7 +634,7 @@ export default function Home() {
 
       <section className="partyBand" id="party">
         <div className="lpWrap lpSection lpCols">
-          <div>
+          <div data-reveal>
             <div className="eyebrow onDark">Then, the table &middot; Party mode</div>
             <h2 className="serif">Pass the phone.</h2>
             <p>
@@ -584,7 +642,7 @@ export default function Home() {
               the table. Sharpest read wins.
             </p>
           </div>
-          <div className="partyDeck" aria-label="Sample party mode question deck">
+          <div className="partyDeck" data-reveal data-reveal-delay="1" aria-label="Sample party mode question deck">
             <div className="partyCard partyCardBack partyCardBackLeft">
               <div className="eyebrow onDark">Philosophy</div>
               <h3 className="serif">Do you believe in free will?</h3>
@@ -612,7 +670,7 @@ export default function Home() {
       </section>
 
       <section className="lpWrap lpSection worldSection" id="world">
-        <div className="sectionHead">
+        <div className="sectionHead" data-reveal>
           <div className="eyebrow blue">Finally, the World</div>
           <h2 className="serif">Then there&apos;s the whole world.</h2>
           <p>
@@ -620,10 +678,10 @@ export default function Home() {
             unlocks the moment {worldGoal.toLocaleString()} of us are playing.
           </p>
         </div>
-        <div className="worldCounter">
+        <div className="worldCounter" data-reveal data-reveal-delay="1">
           <div className="worldCounterTop">
             <span>
-              <b className="serif">{worldMembers.toLocaleString()}</b> / {worldGoal.toLocaleString()} players
+              <b className="serif"><CountUp value={worldMembers} /></b> / {worldGoal.toLocaleString()} players
             </span>
             <span className="worldLive">
               <i />Live &middot; {Math.min(100, Math.round((worldMembers / worldGoal) * 100))}% there
@@ -649,11 +707,11 @@ export default function Home() {
 
       <section className="lpBand">
         <div className="lpWrap lpSection">
-          <div className="sectionHead">
+          <div className="sectionHead" data-reveal>
             <div className="eyebrow">Every topic, every day</div>
             <h2 className="serif">Questions worth arguing about.</h2>
           </div>
-          <div className="sampleGrid">
+          <div className="sampleGrid" data-reveal data-reveal-delay="1">
             {argueQuestions.map((question) => (
               <article key={question.id}>
                 <div className="eyebrow clay">{question.category}</div>
@@ -683,7 +741,7 @@ export default function Home() {
 
       <section className="downloadBand" id="downloads">
         <div className="lpWrap lpSection lpCols downloadSection">
-          <div>
+          <div data-reveal>
             <div className="eyebrow clay">Take it with you</div>
             <h2 className="serif">The daily read, in your pocket.</h2>
             <p>
@@ -694,7 +752,7 @@ export default function Home() {
               Play today&apos;s questions <span aria-hidden="true">→</span>
             </a>
           </div>
-          <div className="downloadCards" aria-label="Upcoming app downloads">
+          <div className="downloadCards" data-reveal data-reveal-delay="1" aria-label="Upcoming app downloads">
             <article className="storeCard">
               <Image className="storeMark appleMark" src="/apple-mark.svg" width={32} height={32} alt="" aria-hidden="true" />
               <div>

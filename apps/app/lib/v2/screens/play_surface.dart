@@ -1253,7 +1253,7 @@ class _CaughtUp extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 280),
             child: Text(
-              'Your calls are in across $label. The reveals land tomorrow, so '
+              'Your reads are in across $label. The reveals land tomorrow, so '
               'check each room to see how you read it.',
               textAlign: TextAlign.center,
               style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
@@ -1300,7 +1300,7 @@ class _RoundSummary extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            "Your calls are locked. You'll see how $roomName answered, and how "
+            "Your reads are locked. You'll see how $roomName answered, and how "
             'it moves your Read Score, tomorrow.',
             style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
           ),

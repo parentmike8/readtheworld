@@ -2970,3 +2970,136 @@ pre {
     align-items: flex-start;
   }
 }
+
+/* ── Landing v2 motion ────────────────────────────────────────────── */
+
+.lpNav {
+  transition: box-shadow 300ms ease, background-color 300ms ease;
+}
+
+.lpNavScrolled {
+  background: rgba(243, 240, 233, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 var(--border), 0 12px 32px rgba(33, 31, 26, 0.06);
+}
+
+.revealPending {
+  opacity: 0;
+  transform: translateY(26px);
+}
+
+.revealIn {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.3, 1), transform 700ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.revealIn[data-reveal-delay="1"] {
+  transition-delay: 120ms;
+}
+
+.revealIn[data-reveal-delay="2"] {
+  transition-delay: 240ms;
+}
+
+.ritualGrid.revealIn article,
+.spiceGrid.revealIn article,
+.sampleGrid.revealIn article {
+  animation: lpRise 640ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.ritualGrid.revealIn article:nth-child(2),
+.spiceGrid.revealIn article:nth-child(2) {
+  animation-delay: 110ms;
+}
+
+.ritualGrid.revealIn article:nth-child(3),
+.spiceGrid.revealIn article:nth-child(3) {
+  animation-delay: 220ms;
+}
+
+.sampleGrid.revealIn article:nth-child(2n) {
+  animation-delay: 100ms;
+}
+
+.sampleGrid.revealIn article:nth-child(n + 5) {
+  animation-delay: 200ms;
+}
+
+@keyframes lpRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.heroSwap {
+  animation: lpHeroSwap 340ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes lpHeroSwap {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ritualGrid article,
+.spiceCard,
+.sampleGrid article,
+.lpRoomRow,
+.lpPoolCard,
+.storeCard {
+  transition: transform 320ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 320ms ease;
+}
+
+.ritualGrid article:hover,
+.spiceCard:hover,
+.sampleGrid article:hover,
+.lpRoomRow:hover,
+.lpPoolCard:hover,
+.storeCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 48px rgba(33, 31, 26, 0.1);
+}
+
+.worldButton {
+  transition: transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 260ms ease;
+}
+
+.worldButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+
+.answerStep button {
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1), border-color 220ms ease, background-color 220ms ease;
+}
+
+.answerStep button:hover {
+  transform: translateY(-2px);
+  border-color: var(--blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealPending {
+    opacity: 1;
+    transform: none;
+  }
+
+  .heroSwap,
+  .ritualGrid.revealIn article,
+  .spiceGrid.revealIn article,
+  .sampleGrid.revealIn article {
+    animation: none;
+  }
+}
