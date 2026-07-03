@@ -192,23 +192,26 @@ void main() {
       expect(rooms.play!.pred, 50);
     });
 
-    test('demo day collects picks locally without a server', () async {
+    test('intro finish is safe without a server and hands off home actions', () async {
       final rooms = RoomsController(firebaseReady: false);
-      rooms.startDemoDay(1, [_question('d1'), _question('d2')]);
-      expect(rooms.play!.mode, 'demo');
 
-      rooms.commitSide('a');
-      rooms.play!.pred = 70;
-      await rooms.lockCurrent();
-      rooms.commitSide('b');
-      await rooms.lockCurrent();
+      // No Firebase → locking is a silent no-op, never a throw.
+      await rooms.lockIntroWorldAnswers(const [
+        RoomPick(qid: 'q1', side: 'a'),
+        RoomPick(qid: 'q2', side: 'b'),
+        RoomPick(qid: 'q3', side: 'a'),
+      ]);
+      expect(rooms.lastError, isNull);
 
-      expect(rooms.play, isNull);
-      final picks = rooms.takeDemoPicks()!;
-      expect(picks.length, 2);
-      expect(picks[0].side, 'a');
-      expect(picks[0].prediction, 70);
-      expect(rooms.takeDemoPicks(), isNull); // one-shot
+      // markOnboarded flips the local gate immediately.
+      expect(rooms.hasOnboarded, isFalse);
+      rooms.markOnboarded();
+      expect(rooms.hasOnboarded, isTrue);
+      expect(rooms.needsOnboarding, isFalse);
+
+      // The closer's CTA is a one-shot flag for rooms home.
+      rooms.pendingHomeAction = 'create';
+      expect(rooms.pendingHomeAction, 'create');
     });
   });
 

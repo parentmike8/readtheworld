@@ -225,7 +225,7 @@ class _RoomModeHeader extends StatelessWidget {
         GestureDetector(
           onTap: () {
             rooms.exitPlay();
-            if (session.mode != 'demo') context.go('/rooms/${card.roomId}');
+            context.go('/rooms/${card.roomId}');
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -240,22 +240,17 @@ class _RoomModeHeader extends StatelessWidget {
                 Text('×', style: v2Sans(15, color: const Color(0xFF5C584F), height: 1)),
                 const SizedBox(width: 6),
                 Text(
-                  session.mode == 'demo' ? 'Skip' : 'Exit',
+                  'Exit',
                   style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
                 ),
               ],
             ),
           ),
         ),
-        Consumer(builder: (context, ref, _) {
-          final demoDay = ref.read(roomsControllerProvider).demoDay;
-          return Text(
-            session.mode == 'demo'
-                ? 'THE GROUP CHAT · DAY $demoDay'
-                : card.roomName.toUpperCase(),
-            style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 1.4),
-          );
-        }),
+        Text(
+          card.roomName.toUpperCase(),
+          style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 1.4),
+        ),
       ],
     );
   }
@@ -818,9 +813,6 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
   final isLast = session.idx + 1 >= session.deck.length;
   if (session.mode == 'today') {
     return isLast ? 'Save · all done →' : 'Save · next →';
-  }
-  if (session.mode == 'demo') {
-    return isLast ? 'Lock in the day →' : 'Save · next →';
   }
   return isLast ? 'Save answers →' : 'Save · next →';
 }

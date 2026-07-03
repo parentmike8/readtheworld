@@ -100,10 +100,8 @@ class RoomsController extends ChangeNotifier {
   /// Set when a room-mode round just finished — drives the summary screen.
   String? summaryRoomId;
 
-  /// Onboarding demo state: picks from the just-finished demo day (local
-  /// only — the demo never touches the server).
-  List<RoomPick>? demoPicks;
-  int demoDay = 0;
+  /// One-shot action for rooms home after the intro ('create' | 'join').
+  String? pendingHomeAction;
 
   String? lastError;
   bool submitting = false;
@@ -167,8 +165,9 @@ class RoomsController extends ChangeNotifier {
     if (hasOnboarded) return;
     hasOnboarded = true;
     notifyListeners();
+    if (!firebaseReady) return;
     final currentUid = uid;
-    if (!firebaseReady || currentUid == null) return;
+    if (currentUid == null) return;
     unawaited(
       _db.collection('users').doc(currentUid).set({
         'onboardedAt': FieldValue.serverTimestamp(),
@@ -430,35 +429,11 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Start an onboarding demo day: a fake Group Chat block, fully local.
-  void startDemoDay(int day, List<RoomDayQuestion> questions) {
-    demoDay = day;
-    demoPicks = null;
-    play = PlaySession(
-      mode: 'demo',
-      roomId: 'demo',
-      deck: [
-        for (var i = 0; i < questions.length; i++)
-          TodayDeckCard.question(
-            roomId: 'demo',
-            roomName: 'The Group Chat',
-            roomColorToken: 'oklch(0.55 0.105 47)',
-            roomMembers: 8,
-            roomTotal: questions.length,
-            isWorld: false,
-            question: questions[i],
-            indexInRoom: i,
-          ),
-      ],
-    );
-    notifyListeners();
-  }
-
-  /// One-shot read of the finished demo day's picks.
-  List<RoomPick>? takeDemoPicks() {
-    final picks = demoPicks;
-    demoPicks = null;
-    return picks;
+  /// Intro answers lock straight to The World (auto-enrolls on first
+  /// answer server-side; double-locks are a no-op).
+  Future<void> lockIntroWorldAnswers(List<RoomPick> picks) async {
+    if (!firebaseReady || picks.isEmpty) return;
+    await _submitRoomPicks(worldRoomId, picks);
   }
 
   void dismissSummary() {
@@ -617,9 +592,7 @@ class RoomsController extends ChangeNotifier {
     ));
 
     final blockDone = card.indexInRoom + 1 >= card.roomTotal;
-    if (blockDone && session.mode == 'demo') {
-      demoPicks = List.of(picks);
-    } else if (blockDone) {
+    if (blockDone) {
       unawaited(_submitRoomPicks(card.roomId, List.of(picks)));
     }
     _advance(session);

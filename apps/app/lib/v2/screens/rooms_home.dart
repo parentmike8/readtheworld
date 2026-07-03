@@ -13,11 +13,24 @@ import '../widgets_v2.dart';
 class RoomsHomeScreen extends ConsumerWidget {
   const RoomsHomeScreen({super.key});
 
+  /// One-shot sheet requested by the intro's closer CTAs.
+  void _consumePendingAction(BuildContext context, WidgetRef ref, RoomsController rooms) {
+    final action = rooms.pendingHomeAction;
+    if (action == null) return;
+    rooms.pendingHomeAction = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      if (action == 'create') showCreateRoomSheet(context, ref);
+      if (action == 'join') showJoinRoomSheet(context, ref);
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = ref.watch(roomsControllerProvider);
     final profile = ref.watch(rtwControllerProvider);
     final visible = rooms.visibleRooms;
+    _consumePendingAction(context, ref, rooms);
 
     return V2Scaffold(
       location: '/rooms',
