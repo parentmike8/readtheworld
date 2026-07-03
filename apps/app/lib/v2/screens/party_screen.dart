@@ -439,15 +439,26 @@ class _Play extends StatelessWidget {
                     GestureDetector(
                       onTap: party.undo,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                        padding: const EdgeInsets.fromLTRB(11, 9, 14, 9),
                         decoration: BoxDecoration(
                           color: RtwV2Colors.card,
                           border: Border.all(color: const Color(0xFFDCD6C9)),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          '↩ Undo',
-                          style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.undo_rounded,
+                              size: 16,
+                              color: Color(0xFF5C584F),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Undo',
+                              style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                            ),
+                          ],
                         ),
                       ),
                     ),

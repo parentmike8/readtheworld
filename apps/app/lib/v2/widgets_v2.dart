@@ -522,7 +522,8 @@ class V2TopNav extends ConsumerWidget {
                     ),
                     child: Text(
                       initial,
-                      style: v2Serif(16, color: Colors.white),
+                      textAlign: TextAlign.center,
+                      style: v2Serif(16, color: Colors.white, height: 1.0),
                     ),
                   ),
                 ),
