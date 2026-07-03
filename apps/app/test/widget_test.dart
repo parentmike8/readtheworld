@@ -192,6 +192,27 @@ void main() {
       expect(rooms.play!.pred, 50);
     });
 
+    test('intro session runs the real loop and captures picks one-shot', () async {
+      final rooms = RoomsController(firebaseReady: false);
+      rooms.startIntroSession([_question('w1'), _question('w2'), _question('w3')]);
+      expect(rooms.play!.mode, 'intro');
+
+      rooms.commitSide('a');
+      rooms.play!.pred = 70;
+      await rooms.lockCurrent();
+      rooms.commitSide('b');
+      await rooms.lockCurrent();
+      rooms.commitSide('a');
+      await rooms.lockCurrent();
+
+      expect(rooms.play, isNull);
+      final picks = rooms.takeIntroPicks()!;
+      expect(picks.length, 3);
+      expect(picks[0].side, 'a');
+      expect(picks[0].prediction, 70);
+      expect(rooms.takeIntroPicks(), isNull); // one-shot
+    });
+
     test('intro finish is safe without a server and hands off home actions', () async {
       final rooms = RoomsController(firebaseReady: false);
 

@@ -225,7 +225,7 @@ class _RoomModeHeader extends StatelessWidget {
         GestureDetector(
           onTap: () {
             rooms.exitPlay();
-            context.go('/rooms/${card.roomId}');
+            if (session.mode != 'intro') context.go('/rooms/${card.roomId}');
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -240,7 +240,7 @@ class _RoomModeHeader extends StatelessWidget {
                 Text('×', style: v2Sans(15, color: const Color(0xFF5C584F), height: 1)),
                 const SizedBox(width: 6),
                 Text(
-                  'Exit',
+                  session.mode == 'intro' ? 'Skip' : 'Exit',
                   style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
                 ),
               ],
@@ -248,7 +248,9 @@ class _RoomModeHeader extends StatelessWidget {
           ),
         ),
         Text(
-          card.roomName.toUpperCase(),
+          session.mode == 'intro'
+              ? 'HOW IT WORKS · ${card.indexInRoom + 1} OF ${card.roomTotal}'
+              : card.roomName.toUpperCase(),
           style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 1.4),
         ),
       ],
@@ -726,7 +728,9 @@ class _PredictStage extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 320),
                 child: Text(
-                  'What share of the rest of ${session.mode == 'today' ? card.roomName : 'the room'} also said “$sideLabel”?',
+                  session.mode == 'intro'
+                      ? 'What share of the people in your life would say “$sideLabel” too?'
+                      : 'What share of the rest of ${session.mode == 'today' ? card.roomName : 'the room'} also said “$sideLabel”?',
                   textAlign: TextAlign.center,
                   style: v2Serif(22, color: const Color(0xFF2C2A24), height: 1.28, letterSpacing: -0.2),
                 ),
@@ -813,6 +817,9 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
   final isLast = session.idx + 1 >= session.deck.length;
   if (session.mode == 'today') {
     return isLast ? 'Save · all done →' : 'Save · next →';
+  }
+  if (session.mode == 'intro') {
+    return isLast ? 'Lock it in →' : 'Save · next →';
   }
   return isLast ? 'Save answers →' : 'Save · next →';
 }

@@ -103,6 +103,11 @@ class RoomsController extends ChangeNotifier {
   /// One-shot action for rooms home after the intro ('create' | 'join').
   String? pendingHomeAction;
 
+  /// Picks from the just-finished intro session (consumed one-shot by the
+  /// onboarding closer; the intro plays the real surface but locks at the
+  /// end rather than per-block).
+  List<RoomPick>? introPicks;
+
   String? lastError;
   bool submitting = false;
   bool loadingRooms = true;
@@ -436,6 +441,38 @@ class RoomsController extends ChangeNotifier {
     await _submitRoomPicks(worldRoomId, picks);
   }
 
+  /// First-run intro: today's World questions on the real play surface —
+  /// real swipe, real prediction meter. Nothing submits until the
+  /// onboarding closer locks the sides.
+  void startIntroSession(List<RoomDayQuestion> questions) {
+    introPicks = null;
+    play = PlaySession(
+      mode: 'intro',
+      roomId: 'intro',
+      deck: [
+        for (var i = 0; i < questions.length; i++)
+          TodayDeckCard.question(
+            roomId: 'intro',
+            roomName: 'How it works',
+            roomColorToken: 'oklch(0.50 0.10 256)',
+            roomMembers: 8, // forces the full pick → predict loop
+            roomTotal: questions.length,
+            isWorld: false,
+            question: questions[i],
+            indexInRoom: i,
+          ),
+      ],
+    );
+    notifyListeners();
+  }
+
+  /// One-shot read of the finished intro's picks.
+  List<RoomPick>? takeIntroPicks() {
+    final picks = introPicks;
+    introPicks = null;
+    return picks;
+  }
+
   void dismissSummary() {
     summaryRoomId = null;
     notifyListeners();
@@ -592,7 +629,9 @@ class RoomsController extends ChangeNotifier {
     ));
 
     final blockDone = card.indexInRoom + 1 >= card.roomTotal;
-    if (blockDone) {
+    if (blockDone && session.mode == 'intro') {
+      introPicks = List.of(picks);
+    } else if (blockDone) {
       unawaited(_submitRoomPicks(card.roomId, List.of(picks)));
     }
     _advance(session);
