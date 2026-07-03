@@ -326,6 +326,47 @@ void main() {
       solo.cardDragEnd(0);
       expect(solo.stage, PartyStage.done);
     });
+
+    test('advancing to a new question hands off via the pass screen', () {
+      final multi = PartyController()
+        ..setPlayers(3)
+        ..setRounds(2);
+      multi.start([_partyQuestion('p1'), _partyQuestion('p2')]);
+      expect(multi.sub, PartySub.pick); // first question goes straight in
+      multi.next();
+      expect(multi.sub, PartySub.pass); // between questions: hand-off first
+      expect(multi.turn, 0); // new reader answers first
+
+      final solo = PartyController()
+        ..setPlayers(1)
+        ..setRounds(2);
+      solo.start([_partyQuestion('s1'), _partyQuestion('s2')]);
+      solo.next();
+      expect(solo.sub, PartySub.pick); // solo skips the hand-off
+    });
+
+    test('undo rewinds the last committing move', () {
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(1);
+      party.start([_partyQuestion('p1'), _partyQuestion('p2'), _partyQuestion('p3')]);
+      expect(party.canUndo, isFalse);
+
+      // Reader (player 1) picks and locks a prediction.
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      party.pred = 50;
+      party.lockTurn();
+      expect(party.canUndo, isTrue);
+      expect(party.sub, PartySub.pass); // handing to player 2
+
+      // Player 2 misclicks -> undo returns to the reader's locked prediction.
+      party.undo();
+      expect(party.sub, PartySub.predict);
+      expect(party.turn, 0);
+      expect(party.turnPicks, isEmpty);
+    });
   });
 
   group('v2 screens', () {

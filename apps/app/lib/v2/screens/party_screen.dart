@@ -433,9 +433,31 @@ class _Play extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                '${party.idx + 1} / ${party.deck.length}',
-                style: v2Mono(12, letterSpacing: 1.4),
+              Row(
+                children: [
+                  if (party.canUndo) ...[
+                    GestureDetector(
+                      onTap: party.undo,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: RtwV2Colors.card,
+                          border: Border.all(color: const Color(0xFFDCD6C9)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '↩ Undo',
+                          style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Text(
+                    '${party.idx + 1} / ${party.deck.length}',
+                    style: v2Mono(12, letterSpacing: 1.4),
+                  ),
+                ],
               ),
             ],
           ),
@@ -836,6 +858,9 @@ class _PassScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playerNumber = party.currentPlayerIndex + 1;
+    // turn 0 means this hand-off opens a fresh question with a new reader,
+    // rather than passing between voters mid-question.
+    final newQuestion = party.turn == 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -843,6 +868,14 @@ class _PassScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (newQuestion)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Text(
+                    '${party.idx + 1} / ${party.deck.length}',
+                    style: v2Mono(12, letterSpacing: 1.4),
+                  ),
+                ),
               Container(
                 width: 72,
                 height: 72,
@@ -854,7 +887,11 @@ class _PassScreen extends StatelessWidget {
                 child: Text('$playerNumber', style: v2Serif(32, color: Colors.white)),
               ),
               const SizedBox(height: 20),
-              Text('Pass it along.', style: v2Serif(32, letterSpacing: -0.5)),
+              Text(
+                newQuestion ? 'Next question, new reader.' : 'Pass it along.',
+                textAlign: TextAlign.center,
+                style: v2Serif(32, letterSpacing: -0.5),
+              ),
               const SizedBox(height: 10),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 270),
@@ -867,10 +904,12 @@ class _PassScreen extends StatelessWidget {
                         text: 'Player $playerNumber',
                         style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w700),
                       ),
-                      const TextSpan(
-                        text:
-                            ", or set it down for them. Peeking's fine now, only "
-                            "the first player's prediction was hidden.",
+                      TextSpan(
+                        text: newQuestion
+                            ? '. They answer first this round, then predict '
+                                'the table.'
+                            : ", or set it down for them. Peeking's fine now, only "
+                                "the first player's prediction was hidden.",
                       ),
                     ],
                   ),

@@ -24,6 +24,27 @@ class PartyTurnPick {
   final int? prediction;
 }
 
+/// Full play-state snapshot for undo; taken before every committing move.
+class _PartySnapshot {
+  _PartySnapshot({
+    required this.idx,
+    required this.turn,
+    required this.sub,
+    required this.side,
+    required this.pred,
+    required this.turnPicks,
+    required this.scores,
+  });
+
+  final int idx;
+  final int turn;
+  final PartySub sub;
+  final String? side;
+  final int pred;
+  final List<PartyTurnPick> turnPicks;
+  final List<double> scores;
+}
+
 class PartyController extends ChangeNotifier {
   PartyStage stage = PartyStage.setup;
   int players = 4;
@@ -45,6 +66,9 @@ class PartyController extends ChangeNotifier {
   Timer? _revealTimer;
   Timer? _flingTimer;
   bool _crossedCommit = false;
+  final List<_PartySnapshot> _undoStack = [];
+
+  bool get canUndo => _undoStack.isNotEmpty;
 
   bool get solo => players < 2;
   int get readerIndex => players > 0 ? idx % players : 0;
@@ -93,6 +117,7 @@ class PartyController extends ChangeNotifier {
     final shuffled = [...filtered]..shuffle(math.Random());
     final total = rounds * players;
     deck = [for (var i = 0; i < total; i++) shuffled[i % shuffled.length]];
+    _undoStack.clear();
     scores = List.filled(players, 0);
     idx = 0;
     turn = 0;
@@ -112,6 +137,42 @@ class PartyController extends ChangeNotifier {
     idx = 0;
     turn = 0;
     turnPicks = [];
+    _undoStack.clear();
+    notifyListeners();
+  }
+
+  // ── undo (misclick recovery) ──────────────────────────────────────────
+
+  void _pushUndo() {
+    _undoStack.add(_PartySnapshot(
+      idx: idx,
+      turn: turn,
+      sub: sub,
+      side: side,
+      pred: pred,
+      turnPicks: List.of(turnPicks),
+      scores: List.of(scores),
+    ));
+    if (_undoStack.length > 12) _undoStack.removeAt(0);
+  }
+
+  /// Restore the state captured before the last committing move (a voter
+  /// swipe, the reader's lock, or advancing past a reveal).
+  void undo() {
+    if (_undoStack.isEmpty) return;
+    final snapshot = _undoStack.removeLast();
+    idx = snapshot.idx;
+    turn = snapshot.turn;
+    sub = snapshot.sub;
+    side = snapshot.side;
+    pred = snapshot.pred;
+    turnPicks = List.of(snapshot.turnPicks);
+    scores = List.of(snapshot.scores);
+    dragX = 0;
+    dragging = false;
+    _revealTimer?.cancel();
+    // Re-entering a reveal skips the count-up; the numbers were already seen.
+    revealT = sub == PartySub.reveal ? 1 : 0;
     notifyListeners();
   }
 
@@ -179,6 +240,7 @@ class PartyController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    _pushUndo();
     turnPicks = [...turnPicks, PartyTurnPick(side: pickedSide)];
     if (turn + 1 < players) {
       turn += 1;
@@ -212,6 +274,7 @@ class PartyController extends ChangeNotifier {
 
   void lockTurn() {
     unawaited(HapticFeedback.mediumImpact());
+    _pushUndo();
     turnPicks = [...turnPicks, PartyTurnPick(side: side!, prediction: pred)];
     if (turn + 1 < players) {
       turn += 1;
@@ -280,11 +343,7 @@ class PartyController extends ChangeNotifier {
   }
 
   void next() {
-    if (idx + 1 >= deck.length) {
-      stage = PartyStage.done;
-      notifyListeners();
-      return;
-    }
+    if (idx + 1 < deck.length) _pushUndo();
     _nextQuestionOrDone();
   }
 
@@ -296,7 +355,9 @@ class PartyController extends ChangeNotifier {
     }
     idx += 1;
     turn = 0;
-    sub = PartySub.pick;
+    // Multiplayer inserts a hand-off screen so the next reader knows the
+    // phone is theirs; solo goes straight to the card.
+    sub = solo ? PartySub.pick : PartySub.pass;
     side = null;
     pred = 50;
     dragX = 0;
