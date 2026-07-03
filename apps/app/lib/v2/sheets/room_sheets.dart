@@ -103,7 +103,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   String? error;
 
   static const tierDescriptions = {
-    RoomTier.workSafe: 'Lightest topics — safe for a company or team.',
+    RoomTier.workSafe: 'Lightest topics, safe for a company or team.',
     RoomTier.normal: 'Everyday questions. Includes work-safe topics.',
     RoomTier.mature: 'Edgier, words-only. Includes all lighter topics.',
   };
@@ -1857,7 +1857,7 @@ Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) a
         _sheetEyebrow('More world questions'),
         _sheetTitle('Waiting on the crowd.'),
         _sheetBody(
-          "These are outside today's 3 — reveals open as each question "
+          "These are outside today's 3. Reveals open as each question "
           'crosses its answer threshold.',
         ),
         const SizedBox(height: 16),

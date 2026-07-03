@@ -247,7 +247,7 @@ class _QuestionBeat extends StatelessWidget {
           if (index == 0) ...[
             const SizedBox(height: 22),
             Text(
-              'No wrong answers — take your side.',
+              'No wrong answers. Take your side.',
               textAlign: TextAlign.center,
               style: v2Sans(13, color: RtwV2Colors.muted),
             ),
@@ -328,7 +328,7 @@ class _PredictBeat extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Think of the people in your life — your group chat, your family, your coworkers.',
+            'Think of the people in your life: your group chat, your family, your coworkers.',
             style: v2Sans(14, color: RtwV2Colors.muted, height: 1.5),
           ),
           const SizedBox(height: 34),
@@ -357,7 +357,8 @@ class _PredictBeat extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'That’s the whole game — the closer your read, the higher your score.',
+            'That’s the whole game. Reveals land 24 hours later, and the closer '
+            'your read, the higher your score.',
             textAlign: TextAlign.center,
             style: v2Sans(13, color: RtwV2Colors.muted, height: 1.5),
           ),
@@ -451,7 +452,7 @@ class _CloserBeat extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'You decide whose minds you’re reading. Your answers just joined '
-            'The World — start a room to read your own crew.',
+            'The World. Start a room to read your own crew.',
             style: v2Sans(14.5, color: RtwV2Colors.subText, height: 1.55),
           ),
           const SizedBox(height: 26),

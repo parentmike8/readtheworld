@@ -310,7 +310,7 @@ export function QuestionBankView({
             </button>
           </div>
         ))}
-        {filtered.length > 200 ? <p>Showing first 200 — narrow the search.</p> : null}
+        {filtered.length > 200 ? <p>Showing first 200. Narrow the search.</p> : null}
         {filtered.length === 0 ? <p>No questions match.</p> : null}
       </section>
     </>
@@ -459,7 +459,7 @@ export function WorldCurationView({
             {unlocked === null
               ? "Loading…"
               : unlocked
-                ? "Predictions ON — lock them"
+                ? "Predictions ON. Lock them"
                 : "Unlock predictions"}
           </button>
         </div>
@@ -566,7 +566,7 @@ export function WorldCurationView({
           </div>
         ))}
         {upcoming.length === 0 ? (
-          <p>No world days yet — the rollover falls back to the bank until you curate one.</p>
+          <p>No world days yet. The rollover falls back to the bank until you curate one.</p>
         ) : null}
       </section>
     </>
@@ -684,7 +684,7 @@ export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }
             </div>
           </div>
         ))}
-        {flags.length === 0 ? <p>No flags — quiet so far.</p> : null}
+        {flags.length === 0 ? <p>No flags. Quiet so far.</p> : null}
       </section>
     </>
   );

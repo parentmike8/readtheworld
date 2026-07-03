@@ -716,7 +716,7 @@ class _PredictPanel extends StatelessWidget {
           ),
         ),
         V2Button(
-          isLastTurn ? 'Lock in — reveal the room ↓' : 'Lock in · pass along →',
+          isLastTurn ? 'Lock in · reveal the room ↓' : 'Lock in · pass along →',
           onPressed: party.lockTurn,
           padding: const EdgeInsets.symmetric(vertical: 18),
           radius: 16,

@@ -305,7 +305,7 @@ class _PlayedCard extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            'See how the room answered tomorrow — the reveal lands with the '
+            'See how the room answered tomorrow. The reveal lands with the '
             'next set of questions.',
             style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
           ),
