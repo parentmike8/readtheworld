@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Read the World",
     description:
       "One shared question a day. Answer for yourself, then predict how the world will answer.",
