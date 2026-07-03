@@ -92,8 +92,10 @@ func renderIcon(size: Int, to output: URL) throws {
   let periodSize = textSize(period, attributes: periodAttributes)
   let totalWidth = markSize.width + periodSize.width * 0.72
   let maxHeight = max(markSize.height, periodSize.height)
-  let x = (CGFloat(size) - totalWidth) / 2
-  let y = (CGFloat(size) - maxHeight) / 2 + CGFloat(size) * 0.04
+  let opticalXOffset = CGFloat(size) * 0.031
+  let opticalYOffset = CGFloat(size) * 0.02
+  let x = (CGFloat(size) - totalWidth) / 2 + opticalXOffset
+  let y = (CGFloat(size) - maxHeight) / 2 + CGFloat(size) * 0.04 + opticalYOffset
 
   (mark as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: markAttributes)
   (period as NSString).draw(
