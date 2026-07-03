@@ -30,34 +30,39 @@ class RoomsHomeScreen extends ConsumerWidget {
     final rooms = ref.watch(roomsControllerProvider);
     final profile = ref.watch(rtwControllerProvider);
     final visible = rooms.visibleRooms;
+    final isWide = MediaQuery.sizeOf(context).width >= 820;
     _consumePendingAction(context, ref, rooms);
 
     return V2Scaffold(
       location: '/rooms',
+      wideWidth: 1040,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
-          22,
-          _topPadding(context),
-          22,
+          isWide ? 28 : 22,
+          isWide ? 34 : _topPadding(context),
+          isWide ? 28 : 22,
           30,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _Wordmark(),
-                _AvatarButton(
-                  initial: profile.displayName.isEmpty
-                      ? '?'
-                      : profile.displayName.substring(0, 1).toUpperCase(),
-                  avatarIndex: profile.avatarIndex,
-                  onTap: () => context.go('/profile'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+            // The wide shell's top nav already carries the wordmark/avatar.
+            if (!isWide) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _Wordmark(),
+                  _AvatarButton(
+                    initial: profile.displayName.isEmpty
+                        ? '?'
+                        : profile.displayName.substring(0, 1).toUpperCase(),
+                    avatarIndex: profile.avatarIndex,
+                    onTap: () => context.go('/profile'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
             _WorldHero(rooms: rooms),
             const SizedBox(height: 28),
             Row(
@@ -76,6 +81,20 @@ class RoomsHomeScreen extends ConsumerWidget {
             const SizedBox(height: 14),
             if (visible.isEmpty && !rooms.loadingRooms)
               _EmptyRooms(onCreate: () => showCreateRoomSheet(context, ref))
+            else if (isWide)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = (constraints.maxWidth - 16) / 2;
+                  return Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: [
+                      for (final binding in visible)
+                        SizedBox(width: cardWidth, child: _RoomCard(binding: binding)),
+                    ],
+                  );
+                },
+              )
             else
               Column(
                 children: [

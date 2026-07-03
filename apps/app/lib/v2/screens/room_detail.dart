@@ -53,6 +53,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     if (room == null) {
       return V2Scaffold(
         location: '/rooms/${widget.roomId}',
+        wideWidth: 760,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -65,6 +66,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
 
     return V2Scaffold(
       location: '/rooms/${widget.roomId}',
+      wideWidth: 760,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(22, 54, 22, 30),
         child: Column(

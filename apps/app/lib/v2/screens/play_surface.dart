@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,6 +39,7 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
     final session = rooms.play;
     final todaySwipe = session != null && session.mode == 'today' && !session.atEnd;
     return V2Scaffold(
+      wideWidth: 600,
       location: '/today',
       child: todaySwipe
           ? PlaySurface(session: session)
@@ -56,6 +58,7 @@ class RoomPlayScreen extends ConsumerWidget {
     final session = rooms.play;
     if (session != null && !session.atEnd) {
       return V2Scaffold(
+        wideWidth: 600,
         location: '/today/play',
         showNav: false,
         child: PlaySurface(session: session),
@@ -63,6 +66,7 @@ class RoomPlayScreen extends ConsumerWidget {
     }
     if (rooms.summaryRoomId != null) {
       return V2Scaffold(
+        wideWidth: 600,
         location: '/today/play',
         showNav: false,
         child: _RoundSummary(roomId: rooms.summaryRoomId!),
@@ -73,6 +77,7 @@ class RoomPlayScreen extends ConsumerWidget {
       if (context.mounted) context.go('/rooms');
     });
     return const V2Scaffold(
+      wideWidth: 600,
       location: '/today/play',
       showNav: false,
       child: SizedBox.shrink(),
@@ -87,6 +92,56 @@ class PlaySurface extends ConsumerWidget {
 
   final PlaySession session;
 
+  /// Web-native keys: ←/→ pick a side, arrows nudge the meter (shift ×5),
+  /// Enter saves or continues.
+  KeyEventResult _onKey(RoomsController rooms, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+
+    if (session.isRoomIntro) {
+      if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.arrowRight) {
+        rooms.continueFromIntro();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    switch (session.stage) {
+      case PlayStage.pick:
+        if (key == LogicalKeyboardKey.arrowRight) {
+          rooms.commitSide('a');
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          rooms.commitSide('b');
+          return KeyEventResult.handled;
+        }
+      case PlayStage.predict:
+        if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowRight) {
+          rooms.nudgePred(shift ? 5 : 1);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowLeft) {
+          rooms.nudgePred(shift ? -5 : -1);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.enter) {
+          rooms.lockCurrent();
+          return KeyEventResult.handled;
+        }
+      case PlayStage.answerSaved:
+        if (key == LogicalKeyboardKey.enter) {
+          rooms.lockCurrent(answerOnly: true);
+          return KeyEventResult.handled;
+        }
+      case PlayStage.reveal:
+        break;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = ref.watch(roomsControllerProvider);
@@ -95,7 +150,10 @@ class PlaySurface extends ConsumerWidget {
     final todayMode = session.mode == 'today';
     final isIntro = card.intro;
 
-    return Padding(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) => _onKey(rooms, event),
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(22, 54, 22, 26),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,6 +196,7 @@ class PlaySurface extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

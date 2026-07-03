@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../main.dart';
 import 'models_v2.dart';
 import 'tokens_v2.dart';
 
@@ -393,6 +395,7 @@ class V2Scaffold extends StatelessWidget {
     required this.child,
     this.showNav = true,
     this.backgroundColor = RtwV2Colors.paper,
+    this.wideWidth = 560,
   });
 
   final String location;
@@ -400,36 +403,164 @@ class V2Scaffold extends StatelessWidget {
   final bool showNav;
   final Color backgroundColor;
 
+  /// Max content width on the wide (web-native) shell. Focused surfaces
+  /// (play, onboarding) keep a narrow column; browsing surfaces (rooms
+  /// home, room detail) go wide.
+  final double wideWidth;
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isWide = size.width >= 820;
-    final surfaceWidth = kIsWeb ? math.min(size.width, isWide ? 460.0 : 393.0) : size.width;
 
-    final column = Column(
-      children: [
-        Expanded(child: _FadeUp(child: child)),
-        if (showNav) V2BottomNav(location: location),
-      ],
+    if (isWide) {
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        body: Column(
+          children: [
+            if (showNav) V2TopNav(location: location),
+            Expanded(
+              child: _FadeUp(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: wideWidth),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final surfaceWidth = kIsWeb ? math.min(size.width, 393.0) : size.width;
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: SizedBox(
+        width: surfaceWidth,
+        child: Column(
+          children: [
+            Expanded(child: _FadeUp(child: child)),
+            if (showNav) V2BottomNav(location: location),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Web-native top nav for the wide shell: wordmark, text tabs, avatar.
+class V2TopNav extends ConsumerWidget {
+  const V2TopNav({super.key, required this.location});
+
+  final String location;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(rtwControllerProvider);
+    final initial = profile.displayName.isEmpty
+        ? '?'
+        : profile.displayName.substring(0, 1).toUpperCase();
+    final todayActive = location == '/today' || location.startsWith('/today/');
+    final roomsActive = location.startsWith('/rooms');
+    final partyActive = location.startsWith('/party');
+
+    Widget tab(String label, bool active, String route) => _TopNavTab(
+      label: label,
+      active: active,
+      onTap: () => context.go(route),
     );
 
-    return Scaffold(
-      backgroundColor: isWide ? RtwV2Colors.paperAlt : backgroundColor,
-      body: isWide
-          ? Center(
-              child: Container(
-                width: surfaceWidth,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: RtwV2Colors.border),
+    return Container(
+      height: 64,
+      decoration: const BoxDecoration(
+        color: RtwV2Colors.paper,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2DCD0))),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => context.go('/rooms'),
+                  behavior: HitTestBehavior.opaque,
+                  child: Text.rich(
+                    TextSpan(
+                      text: 'read the world',
+                      style: v2Serif(20, letterSpacing: -0.4),
+                      children: [
+                        TextSpan(text: '.', style: v2Serif(20, color: RtwV2Colors.clay)),
+                      ],
+                    ),
+                  ),
                 ),
-                margin: const EdgeInsets.symmetric(vertical: 24),
-                child: column,
-              ),
-            )
-          : SizedBox(width: surfaceWidth, child: column),
+                const SizedBox(width: 36),
+                tab('Today', todayActive, '/today'),
+                tab('Rooms', roomsActive, '/rooms'),
+                tab('Party', partyActive, '/party'),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => context.go('/profile'),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const [
+                        RtwV2Colors.blue,
+                        RtwV2Colors.clay,
+                        RtwV2Colors.green,
+                        RtwV2Colors.inkColorOption,
+                      ][profile.avatarIndex % 4],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      initial,
+                      style: v2Serif(16, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopNavTab extends StatelessWidget {
+  const _TopNavTab({required this.label, required this.active, required this.onTap});
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+          child: Text(
+            label,
+            style: v2Sans(
+              15,
+              color: active ? RtwV2Colors.inkSoft : RtwV2Colors.muted,
+              weight: active ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

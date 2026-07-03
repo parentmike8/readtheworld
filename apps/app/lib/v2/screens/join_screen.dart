@@ -75,6 +75,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
     final tier = RoomTierWire.parse(preview?['tier']?.toString());
     final alreadyMember = preview?['alreadyMember'] == true;
     return V2Scaffold(
+      wideWidth: 520,
       location: '/join/${widget.code}',
       showNav: false,
       child: Padding(

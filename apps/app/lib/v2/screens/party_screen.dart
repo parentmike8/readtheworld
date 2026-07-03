@@ -39,6 +39,7 @@ class _PartyScreenV2State extends ConsumerState<PartyScreenV2> {
     final rooms = ref.watch(roomsControllerProvider);
     return V2Scaffold(
       location: '/party',
+      wideWidth: 660,
       showNav: party.stage == PartyStage.setup,
       child: switch (party.stage) {
         PartyStage.setup => _Setup(party: party, pool: rooms.partyPool),

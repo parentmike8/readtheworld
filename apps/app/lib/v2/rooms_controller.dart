@@ -473,6 +473,14 @@ class RoomsController extends ChangeNotifier {
     return picks;
   }
 
+  /// Keyboard nudge for the prediction meter (web-native controls).
+  void nudgePred(int delta) {
+    final session = play;
+    if (session == null || session.stage != PlayStage.predict) return;
+    session.pred = (session.pred + delta).clamp(0, 100);
+    notifyListeners();
+  }
+
   void dismissSummary() {
     summaryRoomId = null;
     notifyListeners();

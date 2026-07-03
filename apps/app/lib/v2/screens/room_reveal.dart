@@ -86,6 +86,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
     _syncLoad(room?.lastClosedDailyKey);
 
     return V2Scaffold(
+      wideWidth: 640,
       location: '/rooms/${widget.roomId}/reveal',
       showNav: false,
       backgroundColor: RtwV2Colors.ink,
