@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +54,8 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
     if (tier == RoomTier.mature) {
       final confirmed = await showMatureConfirmSheet(context);
       if (confirmed != true || !mounted) return;
+      // Persist consent so party mode can serve After Dark too.
+      unawaited(ref.read(roomsControllerProvider).markMatureConsent());
     }
     setState(() {
       busy = true;

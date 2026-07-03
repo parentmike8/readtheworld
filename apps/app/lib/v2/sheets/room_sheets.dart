@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -105,7 +107,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   static const tierDescriptions = {
     RoomTier.workSafe: 'Lightest topics, safe for a company or team.',
     RoomTier.normal: 'Everyday questions. Includes work-safe topics.',
-    RoomTier.mature: 'Edgier, words-only. Includes all lighter topics.',
+    RoomTier.mature: 'Edgier, words-only. Skips the tame stuff.',
   };
 
   void _toggleCat(String cat) {
@@ -442,6 +444,8 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           setState(() => busy = false);
           return;
         }
+        // Persist consent so party mode can serve After Dark too.
+        unawaited(widget.ref.read(roomsControllerProvider).markMatureConsent());
       }
       final rooms = widget.ref.read(roomsControllerProvider);
       final roomId = await rooms.joinRoom(code);
@@ -673,18 +677,22 @@ class _InviteSheetState extends State<_InviteSheet> {
 
 // ── AFTER DARK CONSENT ─────────────────────────────────────────────────
 
-Future<bool?> showMatureConfirmSheet(BuildContext context) {
+Future<bool?> showMatureConfirmSheet(BuildContext context, {bool party = false}) {
   return showV2Sheet<bool>(context, (context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         _sheetEyebrow('After Dark', color: RtwV2Colors.clay),
-        _sheetTitle('This room runs After Dark.'),
-        _sheetBody('Still words-only, just edgier than the usual. You can leave the room anytime.'),
+        _sheetTitle(party ? 'Turn on After Dark?' : 'This room runs After Dark.'),
+        _sheetBody(
+          party
+              ? 'Still words-only, just edgier than the usual. You can switch back anytime.'
+              : 'Still words-only, just edgier than the usual. You can leave the room anytime.',
+        ),
         const SizedBox(height: 18),
         V2Button(
-          'Join anyway',
+          party ? 'Turn it on' : 'Join anyway',
           onPressed: () => Navigator.of(context).pop(true),
           padding: const EdgeInsets.symmetric(vertical: 16),
           radius: 16,

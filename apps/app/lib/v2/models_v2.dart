@@ -22,6 +22,14 @@ extension RoomTierWire on RoomTier {
     'mature' => RoomTier.mature,
     _ => RoomTier.normal,
   };
+
+  /// Mirrors functions/src/rooms.ts tierAllowsQuestion: Everyday includes
+  /// work-safe, but After Dark drops work-safe so the edgy game stays edgy.
+  bool allowsQuestionTier(String questionTier) => switch (this) {
+    RoomTier.workSafe => questionTier == 'work-safe',
+    RoomTier.normal => questionTier != 'mature',
+    RoomTier.mature => questionTier != 'work-safe',
+  };
 }
 
 class RtwRoom {
@@ -292,6 +300,7 @@ class PartyQuestion {
     required this.optB,
     required this.tag,
     required this.shape,
+    this.tier = 'work-safe',
   });
 
   final String qid;
@@ -300,4 +309,7 @@ class PartyQuestion {
   final String optB;
   final String tag;
   final String shape;
+
+  /// Bank tier wire value: 'work-safe' | 'normal' | 'mature'.
+  final String tier;
 }

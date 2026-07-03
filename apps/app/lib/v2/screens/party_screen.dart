@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -6,6 +8,7 @@ import '../../main.dart';
 import '../models_v2.dart';
 import '../party_controller.dart';
 import '../rooms_controller.dart';
+import '../sheets/room_sheets.dart' show showMatureConfirmSheet;
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 
@@ -29,7 +32,10 @@ class _PartyScreenV2State extends ConsumerState<PartyScreenV2> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(roomsControllerProvider).refreshPartyPool();
+      if (!mounted) return;
+      ref
+          .read(roomsControllerProvider)
+          .refreshPartyPool(tier: ref.read(partyControllerProvider).tier);
     });
   }
 
@@ -58,9 +64,32 @@ class _Setup extends ConsumerWidget {
   final PartyController party;
   final List<PartyQuestion> pool;
 
+  static const _tierDescriptions = {
+    RoomTier.workSafe: 'Lightest topics, safe for a work crowd.',
+    RoomTier.normal: 'Everyday questions. Includes work-safe topics.',
+    RoomTier.mature: 'Edgier, words-only. Skips the tame stuff.',
+  };
+
+  /// After Dark needs one-time consent; the pool re-fetches per tier so the
+  /// deck is drawn from the full bank at that spice level.
+  Future<void> _selectTier(BuildContext context, WidgetRef ref, RoomTier next) async {
+    if (party.tier == next) return;
+    final rooms = ref.read(roomsControllerProvider);
+    if (next == RoomTier.mature && !rooms.hasMatureConsent) {
+      final confirmed = await showMatureConfirmSheet(context, party: true);
+      if (confirmed != true) return;
+      await rooms.markMatureConsent();
+    }
+    party.setTier(next);
+    unawaited(rooms.refreshPartyPool(tier: next));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final topics = ['All', ...{for (final question in pool) question.tag}];
+    final rooms = ref.watch(roomsControllerProvider);
+    final tierPool =
+        pool.where((question) => party.tier.allowsQuestionTier(question.tier)).toList();
+    final topics = ['All', ...{for (final question in tierPool) question.tag}];
     final filtered = party.poolFor(pool);
     final summary =
         '${party.players} ${party.players == 1 ? 'player' : 'players'} · '
@@ -118,7 +147,19 @@ class _Setup extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
-          const V2Eyebrow('Topic'),
+          const V2Eyebrow('Spice level'),
+          const SizedBox(height: 12),
+          _SpiceSegment(
+            value: party.tier,
+            onChanged: (next) => _selectTier(context, ref, next),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            _tierDescriptions[party.tier]!,
+            style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.45),
+          ),
+          const SizedBox(height: 24),
+          const V2Eyebrow('Topics'),
           const SizedBox(height: 12),
           _TopicChips(party: party, topics: topics),
           const SizedBox(height: 24),
@@ -187,9 +228,9 @@ class _Setup extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                pool.isEmpty
+                rooms.partyPoolLoading || pool.isEmpty
                     ? 'Loading questions…'
-                    : 'Nothing to play here, try another topic',
+                    : 'Nothing to play with this mix, try other topics',
                 style: v2Sans(15, color: RtwV2Colors.faint, weight: FontWeight.w600),
               ),
             )
@@ -219,8 +260,55 @@ class _TopicChips extends StatefulWidget {
   State<_TopicChips> createState() => _TopicChipsState();
 }
 
+/// Same look as the room segment; local copy because that one is sheet-private.
+class _SpiceSegment extends StatelessWidget {
+  const _SpiceSegment({required this.value, required this.onChanged});
+
+  final RoomTier value;
+  final ValueChanged<RoomTier> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.hairline,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          for (final tier in RoomTier.values) ...[
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onChanged(tier),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: value == tier ? RtwV2Colors.inkSoft : Colors.transparent,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    tier.label,
+                    style: v2Sans(
+                      14,
+                      color: value == tier ? Colors.white : RtwV2Colors.subText,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (tier != RoomTier.values.last) const SizedBox(width: 6),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _TopicChipsState extends State<_TopicChips> {
-  late bool _expanded = widget.party.topic != 'All';
+  late bool _expanded = !widget.party.topics.contains('All');
 
   Widget _chip(String label, {required bool on, required VoidCallback onTap}) {
     return GestureDetector(
@@ -256,11 +344,11 @@ class _TopicChipsState extends State<_TopicChips> {
         children: [
           _chip(
             'All topics',
-            on: widget.party.topic == 'All',
-            onTap: () => widget.party.setTopic('All'),
+            on: widget.party.topics.contains('All'),
+            onTap: () => widget.party.toggleTopic('All'),
           ),
           _chip(
-            'Choose a topic →',
+            'Choose topics →',
             on: false,
             onTap: () => setState(() => _expanded = true),
           ),
@@ -274,8 +362,8 @@ class _TopicChipsState extends State<_TopicChips> {
         for (final tag in widget.topics)
           _chip(
             tag == 'All' ? 'All topics' : tag,
-            on: widget.party.topic == tag,
-            onTap: () => widget.party.setTopic(tag),
+            on: widget.party.topics.contains(tag),
+            onTap: () => widget.party.toggleTopic(tag),
           ),
       ],
     );

@@ -22,6 +22,7 @@ service cloud.firestore {
         "demographics",
         "dailyReminder",
         "onboardedAt",
+        "matureContent",
         "createdAt",
         "updatedAt"
       ];
@@ -35,6 +36,7 @@ service cloud.firestore {
         "demographics",
         "dailyReminder",
         "onboardedAt",
+        "matureContent",
         "updatedAt"
       ];
     }

@@ -28,7 +28,8 @@ class PartyController extends ChangeNotifier {
   PartyStage stage = PartyStage.setup;
   int players = 4;
   int rounds = 3;
-  String topic = 'All';
+  Set<String> topics = {'All'};
+  RoomTier tier = RoomTier.normal;
 
   List<PartyQuestion> deck = [];
   int idx = 0;
@@ -60,14 +61,31 @@ class PartyController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTopic(String value) {
-    topic = value;
+  /// Same semantics as the room category chips: 'All' is exclusive, tapping
+  /// a tag drops it, and clearing the last tag falls back to 'All'.
+  void toggleTopic(String value) {
+    if (value == 'All') {
+      topics = {'All'};
+    } else {
+      final next = {...topics}..remove('All');
+      if (!next.add(value)) next.remove(value);
+      topics = next.isEmpty ? {'All'} : next;
+    }
     notifyListeners();
   }
 
-  List<PartyQuestion> poolFor(List<PartyQuestion> pool) => topic == 'All'
-      ? pool
-      : pool.where((question) => question.tag == topic).toList();
+  void setTier(RoomTier value) {
+    if (tier != value) topics = {'All'};
+    tier = value;
+    notifyListeners();
+  }
+
+  /// The playable slice of the fetched pool: spice level first (server
+  /// pre-filters too, but cached pools may span tiers), then topics.
+  List<PartyQuestion> poolFor(List<PartyQuestion> pool) => pool
+      .where((question) => tier.allowsQuestionTier(question.tier))
+      .where((question) => topics.contains('All') || topics.contains(question.tag))
+      .toList();
 
   void start(List<PartyQuestion> pool) {
     final filtered = poolFor(pool);

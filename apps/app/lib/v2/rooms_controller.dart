@@ -147,6 +147,7 @@ class RoomsController extends ChangeNotifier {
       loadingRooms = true;
       profileLoaded = false;
       hasOnboarded = false;
+      hasMatureConsent = false;
       notifyListeners();
       if (user == null) return;
       _bindProfile(user.uid);
@@ -158,9 +159,32 @@ class RoomsController extends ChangeNotifier {
   void _bindProfile(String uid) {
     _profileSub = _db.collection('users').doc(uid).snapshots().listen((snapshot) {
       hasOnboarded = hasOnboarded || snapshot.data()?['onboardedAt'] != null;
+      hasMatureConsent = hasMatureConsent || snapshot.data()?['matureContent'] == true;
       profileLoaded = true;
       notifyListeners();
     }, onError: _handleError);
+  }
+
+  /// Whether this user has ever accepted the After Dark consent sheet
+  /// (joining a mature room or switching party mode to After Dark).
+  /// getPartyPool withholds mature questions until this is stamped.
+  bool hasMatureConsent = false;
+
+  Future<void> markMatureConsent() async {
+    if (hasMatureConsent) return;
+    hasMatureConsent = true;
+    notifyListeners();
+    if (!firebaseReady) return;
+    final currentUid = uid;
+    if (currentUid == null) return;
+    try {
+      await _db.collection('users').doc(currentUid).set({
+        'matureContent': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (error) {
+      _handleError(error);
+    }
   }
 
   /// Stamp the profile so the intro never auto-plays again (replayable
@@ -1033,14 +1057,20 @@ class RoomsController extends ChangeNotifier {
 
   List<PartyQuestion> _partyPool = [];
   final Set<String> _partyPlayed = {};
+  bool partyPoolLoading = false;
 
   List<PartyQuestion> get partyPool => _partyPool;
 
-  Future<void> refreshPartyPool() async {
+  /// Fetch a fresh pool, optionally scoped to a spice level server-side so
+  /// e.g. After Dark gets a full deck instead of a diluted random sample.
+  Future<void> refreshPartyPool({RoomTier? tier}) async {
+    partyPoolLoading = true;
+    notifyListeners();
     try {
       final result = await _callable('getPartyPool').call({
         'count': 60,
         'excludeIds': _partyPlayed.take(500).toList(),
+        if (tier != null) 'tier': tier.wire,
       });
       final data = Map<String, dynamic>.from(result.data as Map);
       final questions = data['questions'] as List? ?? const [];
@@ -1049,10 +1079,12 @@ class RoomsController extends ChangeNotifier {
           .map((raw) => partyQuestionFromData(Map<String, dynamic>.from(raw)))
           .where((question) => question.qid.isNotEmpty)
           .toList();
-      notifyListeners();
     } catch (error) {
       // Offline: keep whatever pool we already have cached in memory.
       debugPrint('Party pool refresh failed: $error');
+    } finally {
+      partyPoolLoading = false;
+      notifyListeners();
     }
   }
 

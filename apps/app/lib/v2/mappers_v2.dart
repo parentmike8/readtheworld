@@ -190,5 +190,6 @@ PartyQuestion partyQuestionFromData(Map<String, dynamic> data) {
     optB: _stringValue(data['optB'], fallback: 'No'),
     tag: _stringValue(data['tag'], fallback: 'Everyday'),
     shape: _stringValue(data['shape'], fallback: 'TASTE'),
+    tier: _stringValue(data['tier'], fallback: 'work-safe'),
   );
 }

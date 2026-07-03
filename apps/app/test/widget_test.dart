@@ -54,14 +54,16 @@ RoomsController _roomsWith(List<RoomBinding> bindings) {
   return controller;
 }
 
-PartyQuestion _partyQuestion(String qid, {String tag = 'Social'}) => PartyQuestion(
-  qid: qid,
-  prompt: 'Party $qid?',
-  optA: 'Yes',
-  optB: 'No',
-  tag: tag,
-  shape: 'TASTE',
-);
+PartyQuestion _partyQuestion(String qid, {String tag = 'Social', String tier = 'work-safe'}) =>
+    PartyQuestion(
+      qid: qid,
+      prompt: 'Party $qid?',
+      optA: 'Yes',
+      optB: 'No',
+      tag: tag,
+      shape: 'TASTE',
+      tier: tier,
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -244,6 +246,33 @@ void main() {
       party.start([_partyQuestion('p1'), _partyQuestion('p2')]);
       expect(party.deck.length, 6);
       expect(party.stage, PartyStage.play);
+    });
+
+    test('topics multi-select with All fallback; spice level gates the pool', () {
+      final party = PartyController();
+      final pool = [
+        _partyQuestion('safe1', tag: 'Work'),
+        _partyQuestion('safe2', tag: 'Social'),
+        _partyQuestion('edgy1', tag: 'Social', tier: 'mature'),
+      ];
+
+      // Everyday default: mature stays out, all topics in.
+      expect(party.poolFor(pool).map((q) => q.qid), ['safe1', 'safe2']);
+
+      // Multi-select: two tags on, then dropping both falls back to All.
+      party.toggleTopic('Work');
+      party.toggleTopic('Social');
+      expect(party.topics, {'Work', 'Social'});
+      party.toggleTopic('Work');
+      expect(party.poolFor(pool).map((q) => q.qid), ['safe2']);
+      party.toggleTopic('Social');
+      expect(party.topics, {'All'});
+
+      // After Dark drops work-safe entirely and resets topics.
+      party.toggleTopic('Work');
+      party.setTier(RoomTier.mature);
+      expect(party.topics, {'All'});
+      expect(party.poolFor(pool).map((q) => q.qid), ['edgy1']);
     });
 
     test('reader predicts, voters commit by swipe, scoring matches x1.3', () {

@@ -56,6 +56,7 @@ import {
   normalizeRoomTier,
   roomDailyScoreDeltas,
   selectDailyQuestions,
+  tierAllowsQuestion,
   type CandidateQuestion,
   type RoomMemberDayResult,
 } from "./rooms";
@@ -3518,8 +3519,16 @@ export const getPartyPool = onCall(callableOptions, async (request) => {
   const userSnap = await db.collection("users").doc(uid).get();
   const allowMature = userSnap.data()?.matureContent === true;
 
+  // Optional spice level: After Dark without recorded consent falls back to
+  // Everyday rather than erroring (the client gates the picker on consent).
+  const rawTier = typeof request.data?.tier === "string" ? request.data.tier : null;
+  const requestedTier = rawTier === null ? null : normalizeRoomTier(rawTier);
+  const effectiveTier = requestedTier === "mature" && !allowMature ? "normal" : requestedTier;
+
   const candidates = (await bankCandidates())
-    .filter((candidate) => allowMature || candidate.tier !== "mature");
+    .filter((candidate) => allowMature || candidate.tier !== "mature")
+    .filter((candidate) =>
+      effectiveTier === null || tierAllowsQuestion(effectiveTier, candidate.tier));
   const fresh = candidates.filter((candidate) => !excludeIds.has(candidate.id));
   const pool = fresh.length >= count ? fresh : candidates;
   for (let i = pool.length - 1; i > 0; i--) {

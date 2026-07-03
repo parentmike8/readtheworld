@@ -59,9 +59,13 @@ export function normalizeRoomCats(value: unknown): string[] {
   return [...new Set(cats)].slice(0, 8);
 }
 
-/** Tiers are inclusive downward: normal serves work-safe, mature serves all. */
+/**
+ * Tier gating [Mike]: everyday (normal) includes work-safe, but After Dark
+ * deliberately EXCLUDES work-safe — a table that picked the edgy game
+ * shouldn't be dealt tame filler.
+ */
 export function tierAllowsQuestion(roomTier: BankTier, questionTier: BankTier): boolean {
-  if (roomTier === "mature") return true;
+  if (roomTier === "mature") return questionTier !== "work-safe";
   if (roomTier === "normal") return questionTier !== "mature";
   return questionTier === "work-safe";
 }

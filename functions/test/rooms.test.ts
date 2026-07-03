@@ -52,13 +52,15 @@ describe("room normalization", () => {
 });
 
 describe("tier and category gates", () => {
-  it("tiers are inclusive downward", () => {
+  it("everyday includes work-safe; After Dark drops it", () => {
     expect(tierAllowsQuestion("work-safe", "work-safe")).toBe(true);
     expect(tierAllowsQuestion("work-safe", "normal")).toBe(false);
     expect(tierAllowsQuestion("normal", "work-safe")).toBe(true);
     expect(tierAllowsQuestion("normal", "mature")).toBe(false);
     expect(tierAllowsQuestion("mature", "mature")).toBe(true);
-    expect(tierAllowsQuestion("mature", "work-safe")).toBe(true);
+    expect(tierAllowsQuestion("mature", "normal")).toBe(true);
+    // The edgy game should never be diluted with tame filler.
+    expect(tierAllowsQuestion("mature", "work-safe")).toBe(false);
   });
 
   it("cats gate by tag intersection with All bypass", () => {
