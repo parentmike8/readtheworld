@@ -13,7 +13,7 @@ extension RoomTierWire on RoomTier {
 
   String get label => switch (this) {
     RoomTier.workSafe => 'Work-safe',
-    RoomTier.normal => 'Normal',
+    RoomTier.normal => 'Everyday',
     RoomTier.mature => 'After Dark',
   };
 

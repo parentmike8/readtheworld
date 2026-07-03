@@ -2691,3 +2691,282 @@ pre {
     text-align: center;
   }
 }
+
+/* ── Landing v2 additions ─────────────────────────────────────────── */
+
+.eyebrow.blue {
+  color: var(--blue);
+}
+
+.lpRoomStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lpRoomRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 18px 40px rgba(33, 31, 26, 0.06);
+}
+
+.lpRoomAvatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 19px;
+  color: #fff;
+  background: var(--blue);
+}
+
+.lpRoomAvatar[data-tone="clay"] {
+  background: var(--clay);
+}
+
+.lpRoomMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lpRoomMeta strong {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.lpRoomMeta small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lpRoomPill {
+  flex-shrink: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--subtext);
+  background: var(--paper-alt);
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+
+.lpRoomPill.filled {
+  color: #fff;
+  background: var(--blue);
+}
+
+.spiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 34px;
+}
+
+.spiceCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 24px;
+}
+
+.spiceCard h3 {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 12px 0 8px;
+  color: var(--ink);
+}
+
+.spiceCard p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--subtext);
+}
+
+.spiceCard.spiceDark {
+  background: var(--ink-2);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.spiceCard.spiceDark h3 {
+  color: #f0ede4;
+}
+
+.spiceCard.spiceDark p {
+  color: rgba(240, 237, 228, 0.66);
+}
+
+.spiceFoot {
+  margin: 26px auto 0;
+  max-width: 520px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.lpPoolColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lpPoolCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 18px 40px rgba(33, 31, 26, 0.06);
+}
+
+.lpPoolTop {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.lpPoolCard h3 {
+  font-size: 21px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.lpPoolAdd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 16px;
+  padding: 15px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--subtext);
+}
+
+.lpPoolAdd span:last-child {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
+.worldSection .sectionHead p {
+  max-width: 520px;
+  margin: 14px auto 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--subtext);
+  text-align: center;
+}
+
+.worldCounter {
+  max-width: 640px;
+  margin: 34px auto 0;
+  background: var(--ink-2);
+  border-radius: 22px;
+  padding: 26px 28px;
+  color: #f0ede4;
+}
+
+.worldCounterTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(240, 237, 228, 0.72);
+}
+
+.worldCounterTop b {
+  font-size: 40px;
+  font-weight: 500;
+  color: #f7f4ec;
+  margin-right: 4px;
+}
+
+.worldLive {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #9ec7fe;
+}
+
+.worldLive i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9ec7fe;
+}
+
+.worldBar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.worldBarFill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #3e5ba0, #7f9fe0);
+  transition: width 600ms ease;
+}
+
+.worldCounterBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: rgba(240, 237, 228, 0.66);
+}
+
+.worldButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #f7f4ec;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 11px 18px;
+  text-decoration: none;
+}
+
+@media (max-width: 860px) {
+  .spiceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .worldCounterBottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

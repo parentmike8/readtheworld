@@ -149,7 +149,7 @@ function bankRowsFromCsv(text: string): Array<Record<string, unknown>> {
 
 const tierLabels: Record<string, string> = {
   "work-safe": "Work-safe",
-  normal: "Normal",
+  normal: "Everyday",
   mature: "After Dark",
 };
 

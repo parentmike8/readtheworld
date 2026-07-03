@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>*{ box-sizing:border-box; }</style>
+</helmet>
+
+<!-- TITLE / SPEC -->
+<div style="position:absolute; left:60px; top:40px; width:1200px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:2px; color:#8A8475;">STORE SCREENSHOTS</div>
+  <div style="font-family:'Newsreader',serif; font-weight:500; font-size:34px; letter-spacing:-0.8px; color:#211F1A; margin-top:8px;">App Store (1320&times;2868) &middot; Google Play (1080&times;1920) &middot; Feature graphic (1024&times;500)</div>
+  <div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; color:#6E6A60; margin-top:8px; line-height:1.5; max-width:980px;">Each frame below is at exact native pixel size &mdash; screenshot a single frame to export it. PNG, RGB, no transparency. Real UI only; no price/"free" text; the Play set shows Android styling.</div>
+</div>
+
+<!-- ══════════ FEATURE GRAPHIC · 1024×500 ══════════ -->
+<div style="position:absolute; left:60px; top:200px; width:1024px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.6px; color:#8A8475; margin-bottom:14px;">GOOGLE PLAY &middot; FEATURE GRAPHIC &middot; 1024&times;500</div>
+  <div style="width:1024px; height:500px; background:#211F1A; overflow:hidden; position:relative; display:flex; align-items:center; padding:0 70px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:3px; color:oklch(0.70 0.10 47);">A DAILY GAME OF PUBLIC OPINION</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:62px; line-height:1.02; letter-spacing:-1.6px; color:#F3F0E9; margin-top:18px;">read the world<span style="color:oklch(0.62 0.11 47);">.</span></div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:21px; color:#B7B1A4; margin-top:16px; line-height:1.4; max-width:480px;">Answer today's question. Predict how the world answers. See how sharp your read is.</div>
+    </div>
+    <div style="width:300px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:18px;">
+      <div style="position:relative; width:240px; height:18px; border-radius:9px; background:#3A372F;"><div style="position:absolute; left:0; top:0; bottom:0; width:62%; background:oklch(0.62 0.11 47); border-radius:9px 0 0 9px;"></div><div style="position:absolute; left:62%; top:-6px; bottom:-6px; width:4px; margin-left:-2px; border-radius:2px; background:oklch(0.70 0.10 256);"></div></div>
+      <div style="display:flex; gap:34px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; color:#8E887C;"><span>YOUR READ</span><span>THE WORLD</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ GOOGLE PLAY SET · 1080×1920 ══════════ -->
+
+<!-- P1 · Today (paper) -->
+<div style="position:absolute; left:60px; top:3900px; width:1080px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">GOOGLE PLAY &middot; 1 / 5 &middot; 1080&times;1920</div>
+  <div style="width:1080px; height:1920px; background:#F3F0E9; overflow:hidden; position:relative; padding:120px 80px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:3px; color:oklch(0.55 0.105 47);">ONE SHARED QUESTION</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:90px; line-height:1.0; letter-spacing:-2.2px; color:#211F1A; margin-top:22px;">Every day,<br>one question.</div>
+    <div style="margin-top:80px; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:44px; padding:54px 50px; box-shadow:0 30px 70px rgba(40,36,28,0.10);">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:20px; letter-spacing:2px; color:#8A8475;">TODAY &middot; PHILOSOPHY</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:56px; line-height:1.15; letter-spacing:-1px; color:#211F1A; margin-top:22px;">Would you want to know the exact date you'll die?</div>
+      <div style="margin-top:44px; display:flex; align-items:center; justify-content:space-between; border:3px solid oklch(0.50 0.10 256); background:oklch(0.55 0.10 256 / 0.10); border-radius:28px; padding:34px 40px;"><span style="font-family:'Newsreader',serif; font-size:48px; font-weight:500; color:oklch(0.42 0.09 256);">Yes</span><span style="width:44px; height:44px; border-radius:50%; background:oklch(0.50 0.10 256); display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+      <div style="margin-top:22px; display:flex; align-items:center; border:2px solid #E4DFD4; background:#fff; border-radius:28px; padding:34px 40px;"><span style="font-family:'Newsreader',serif; font-size:48px; font-weight:500; color:#211F1A;">No</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- P2 · Predict (ink) -->
+<div style="position:absolute; left:1200px; top:3900px; width:1080px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">GOOGLE PLAY &middot; 2 / 5</div>
+  <div style="width:1080px; height:1920px; background:#211F1A; overflow:hidden; position:relative; padding:120px 80px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:3px; color:oklch(0.70 0.10 47);">THEN READ THE CROWD</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:90px; line-height:1.0; letter-spacing:-2.2px; color:#F3F0E9; margin-top:22px;">Predict what<br>the world thinks.</div>
+    <div style="margin-top:110px; text-align:center;">
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:28px; color:#B7B1A4;">What share also answered "Yes"?</div>
+      <div style="line-height:1; margin-top:24px;"><span style="font-family:'Newsreader',serif; font-size:260px; font-weight:500; color:#F3F0E9;">68</span><span style="font-family:'Newsreader',serif; font-size:110px; color:oklch(0.70 0.10 47);">%</span></div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:28px; color:#A8A192; margin-top:4px;">A clear majority</div>
+      <div style="margin-top:80px; position:relative; height:18px; border-radius:9px; background:#3A372F;"><div style="position:absolute; left:0; top:0; bottom:0; width:68%; background:oklch(0.62 0.11 47); border-radius:9px;"></div><div style="position:absolute; left:68%; top:50%; transform:translate(-50%,-50%); width:60px; height:60px; border-radius:50%; background:oklch(0.62 0.11 47); border:8px solid #211F1A; box-shadow:0 6px 24px rgba(0,0,0,0.5);"></div></div>
+      <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:18px; letter-spacing:1px; color:#8E887C; margin-top:20px;"><span>HARDLY ANYONE</span><span>NEARLY ALL</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- P3 · Reveal (paper) -->
+<div style="position:absolute; left:2340px; top:3900px; width:1080px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">GOOGLE PLAY &middot; 3 / 5</div>
+  <div style="width:1080px; height:1920px; background:#F3F0E9; overflow:hidden; position:relative; padding:120px 80px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:3px; color:oklch(0.55 0.105 47);">THE NEXT DAY</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:90px; line-height:1.0; letter-spacing:-2.2px; color:#211F1A; margin-top:22px;">See how sharp<br>your read was.</div>
+    <div style="margin-top:100px; position:relative; padding-top:54px;">
+      <div style="position:absolute; top:0; left:71%; transform:translateX(-50%); font-family:'IBM Plex Mono',monospace; font-size:20px; letter-spacing:2px; color:oklch(0.42 0.09 256); background:oklch(0.55 0.10 256 / 0.14); padding:8px 18px; border-radius:12px; white-space:nowrap;">YOU &middot; 71%</div>
+      <div style="position:relative; height:120px; border-radius:28px; background:#E6E0D3; overflow:hidden;"><div style="position:absolute; left:0; top:0; bottom:0; width:84%; background:oklch(0.55 0.105 47);"></div><div style="position:absolute; left:32px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:20px; letter-spacing:2px; color:#FBFAF6;">THE WORLD</div></div>
+      <div style="position:absolute; top:54px; bottom:0; left:71%; width:5px; margin-left:-2.5px; background:oklch(0.50 0.10 256);"></div>
+    </div>
+    <div style="font-family:'Newsreader',serif; font-size:48px; line-height:1.3; margin-top:50px; color:#211F1A;"><span style="color:oklch(0.55 0.105 47); font-weight:600;">84% also said Yes.</span> You guessed <span style="color:oklch(0.50 0.10 256); font-weight:600;">71%.</span></div>
+    <div style="margin-top:50px; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:40px; padding:50px 50px; display:flex; align-items:flex-end; justify-content:space-between;">
+      <div><div style="font-family:'IBM Plex Mono',monospace; font-size:20px; letter-spacing:2px; color:#8A8475;">READ ACCURACY</div><div style="font-family:'Newsreader',serif; font-size:120px; font-weight:500; line-height:1; margin-top:8px; color:#211F1A;">87<span style="font-size:48px; color:#8A8475;"> / 100</span></div></div>
+      <div style="font-family:'Newsreader',serif; font-style:italic; font-size:44px; color:oklch(0.55 0.105 47); padding-bottom:20px;">A good read.</div>
+    </div>
+  </div>
+</div>
+
+<!-- P4 · Insights (paper) -->
+<div style="position:absolute; left:3480px; top:3900px; width:1080px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">GOOGLE PLAY &middot; 4 / 5</div>
+  <div style="width:1080px; height:1920px; background:#F3F0E9; overflow:hidden; position:relative; padding:120px 80px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:3px; color:oklch(0.55 0.105 47);">YOUR READ SCORE</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:90px; line-height:1.0; letter-spacing:-2.2px; color:#211F1A; margin-top:22px;">Get better at<br>reading society.</div>
+    <div style="margin-top:90px; display:flex; align-items:flex-end; justify-content:space-between;"><div style="font-family:'Newsreader',serif; font-size:180px; font-weight:500; line-height:0.85; color:#211F1A;">1,840</div><div style="font-family:'Hanken Grotesk',sans-serif; font-size:28px; color:oklch(0.50 0.10 256); font-weight:600; padding-bottom:18px;">Top 6%</div></div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:26px; color:#6E6A60; margin-top:18px;">Across 142 questions answered.</div>
+    <div style="margin-top:80px;">
+      <div style="margin-bottom:42px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:34px; margin-bottom:16px; color:#211F1A;"><span>Technology</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">91</span></div><div style="height:15px; border-radius:8px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:91%; background:oklch(0.50 0.10 256); border-radius:8px;"></div></div></div>
+      <div style="margin-bottom:42px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:34px; margin-bottom:16px; color:#211F1A;"><span>Science</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">88</span></div><div style="height:15px; border-radius:8px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:88%; background:oklch(0.50 0.10 256); border-radius:8px;"></div></div></div>
+      <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:34px; margin-bottom:16px; color:#211F1A;"><span>Money</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">84</span></div><div style="height:15px; border-radius:8px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:84%; background:oklch(0.50 0.10 256); border-radius:8px;"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- P5 · Party (ink) -->
+<div style="position:absolute; left:4620px; top:3900px; width:1080px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">GOOGLE PLAY &middot; 5 / 5</div>
+  <div style="width:1080px; height:1920px; background:#211F1A; overflow:hidden; position:relative; padding:120px 80px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:3px; color:oklch(0.70 0.10 47);">PARTY MODE</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:90px; line-height:1.0; letter-spacing:-2.2px; color:#F3F0E9; margin-top:22px;">Read the room,<br>together.</div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:30px; color:#B7B1A4; line-height:1.5; margin-top:32px; max-width:840px;">Run past questions with friends and reveal how the world really answered.</div>
+    <div style="margin-top:90px; background:#2B2820; border:2px solid #3A372F; border-radius:44px; padding:60px 54px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; letter-spacing:2px; color:oklch(0.70 0.10 47);">CULTURE</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:60px; line-height:1.15; letter-spacing:-1px; color:#F3F0E9; margin-top:24px;">Is it rude to keep your phone on the table at dinner?</div>
+      <div style="position:relative; height:104px; border-radius:24px; background:#3A372F; overflow:hidden; margin-top:56px;"><div style="position:absolute; left:0; top:0; bottom:0; width:62%; background:oklch(0.62 0.11 47);"></div><div style="position:absolute; left:30px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:26px; letter-spacing:2px; color:#211F1A; font-weight:500;">YES 62%</div><div style="position:absolute; right:30px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:26px; letter-spacing:2px; color:#8E887C;">NO</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP STORE SET · 1320×2868 ══════════ -->
+
+<!-- 1 · Today / Answer (paper) -->
+<div style="position:absolute; left:60px; top:820px; width:1320px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">APP STORE &middot; 1 / 5</div>
+  <div style="width:1320px; height:2868px; background:#F3F0E9; overflow:hidden; position:relative; padding:170px 110px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">ONE SHARED QUESTION</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:120px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:30px;">Every day,<br>one question.</div>
+    <div style="margin-top:120px; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:56px; padding:70px 64px; box-shadow:0 40px 100px rgba(40,36,28,0.10);">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#8A8475;">TODAY &middot; PHILOSOPHY</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:72px; line-height:1.15; letter-spacing:-1.4px; color:#211F1A; margin-top:26px;">Would you want to know the exact date you'll die?</div>
+      <div style="margin-top:54px; display:flex; align-items:center; justify-content:space-between; border:3px solid oklch(0.50 0.10 256); background:oklch(0.55 0.10 256 / 0.10); border-radius:34px; padding:42px 48px;"><span style="font-family:'Newsreader',serif; font-size:60px; font-weight:500; color:oklch(0.42 0.09 256);">Yes</span><span style="width:54px; height:54px; border-radius:50%; background:oklch(0.50 0.10 256); display:flex; align-items:center; justify-content:center;"><svg width="28" height="28" viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+      <div style="margin-top:28px; display:flex; align-items:center; border:2px solid #E4DFD4; background:#fff; border-radius:34px; padding:42px 48px;"><span style="font-family:'Newsreader',serif; font-size:60px; font-weight:500; color:#211F1A;">No</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 · Predict (ink) -->
+<div style="position:absolute; left:1480px; top:820px; width:1320px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">APP STORE &middot; 2 / 5</div>
+  <div style="width:1320px; height:2868px; background:#211F1A; overflow:hidden; position:relative; padding:170px 110px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.70 0.10 47);">THEN READ THE CROWD</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:120px; line-height:1.0; letter-spacing:-3px; color:#F3F0E9; margin-top:30px;">Predict what<br>the world thinks.</div>
+    <div style="margin-top:130px; text-align:center;">
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:34px; color:#B7B1A4;">What share also answered "Yes"?</div>
+      <div style="line-height:1; margin-top:30px;"><span style="font-family:'Newsreader',serif; font-size:340px; font-weight:500; color:#F3F0E9;">68</span><span style="font-family:'Newsreader',serif; font-size:140px; color:oklch(0.70 0.10 47);">%</span></div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:34px; color:#A8A192; margin-top:6px;">A clear majority</div>
+      <div style="margin-top:90px; position:relative; height:22px; border-radius:11px; background:#3A372F;"><div style="position:absolute; left:0; top:0; bottom:0; width:68%; background:oklch(0.62 0.11 47); border-radius:11px;"></div><div style="position:absolute; left:68%; top:50%; transform:translate(-50%,-50%); width:72px; height:72px; border-radius:50%; background:oklch(0.62 0.11 47); border:10px solid #211F1A; box-shadow:0 8px 30px rgba(0,0,0,0.5);"></div></div>
+      <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:22px; letter-spacing:1px; color:#8E887C; margin-top:24px;"><span>HARDLY ANYONE</span><span>NEARLY ALL</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 · Reveal (paper) -->
+<div style="position:absolute; left:2900px; top:820px; width:1320px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">APP STORE &middot; 3 / 5</div>
+  <div style="width:1320px; height:2868px; background:#F3F0E9; overflow:hidden; position:relative; padding:170px 110px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">THE NEXT DAY</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:120px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:30px;">See how sharp<br>your read was.</div>
+    <div style="margin-top:120px; position:relative; padding-top:64px;">
+      <div style="position:absolute; top:0; left:71%; transform:translateX(-50%); font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:oklch(0.42 0.09 256); background:oklch(0.55 0.10 256 / 0.14); padding:10px 22px; border-radius:14px; white-space:nowrap;">YOU &middot; 71%</div>
+      <div style="position:relative; height:150px; border-radius:34px; background:#E6E0D3; overflow:hidden;"><div style="position:absolute; left:0; top:0; bottom:0; width:84%; background:oklch(0.55 0.105 47);"></div><div style="position:absolute; left:38px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#FBFAF6;">THE WORLD</div></div>
+      <div style="position:absolute; top:64px; bottom:0; left:71%; width:6px; margin-left:-3px; background:oklch(0.50 0.10 256);"></div>
+    </div>
+    <div style="font-family:'Newsreader',serif; font-size:60px; line-height:1.3; margin-top:60px; color:#211F1A;"><span style="color:oklch(0.55 0.105 47); font-weight:600;">84% also said Yes.</span> You guessed <span style="color:oklch(0.50 0.10 256); font-weight:600;">71%.</span></div>
+    <div style="margin-top:60px; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:48px; padding:60px 64px; display:flex; align-items:flex-end; justify-content:space-between;">
+      <div><div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#8A8475;">READ ACCURACY</div><div style="font-family:'Newsreader',serif; font-size:150px; font-weight:500; line-height:1; margin-top:10px; color:#211F1A;">87<span style="font-size:60px; color:#8A8475;"> / 100</span></div></div>
+      <div style="font-family:'Newsreader',serif; font-style:italic; font-size:54px; color:oklch(0.55 0.105 47); padding-bottom:24px;">A good read.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 4 · Insights (paper) -->
+<div style="position:absolute; left:4320px; top:820px; width:1320px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">APP STORE &middot; 4 / 5</div>
+  <div style="width:1320px; height:2868px; background:#F3F0E9; overflow:hidden; position:relative; padding:170px 110px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">YOUR READ SCORE</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:120px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:30px;">Get better at<br>reading society.</div>
+    <div style="margin-top:110px; display:flex; align-items:flex-end; justify-content:space-between;"><div style="font-family:'Newsreader',serif; font-size:230px; font-weight:500; line-height:0.85; color:#211F1A;">1,840</div><div style="font-family:'Hanken Grotesk',sans-serif; font-size:34px; color:oklch(0.50 0.10 256); font-weight:600; padding-bottom:24px;">Top 6%</div></div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:32px; color:#6E6A60; margin-top:24px;">Across 142 questions answered.</div>
+    <div style="margin-top:90px;">
+      <div style="margin-bottom:50px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Technology</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">91</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:91%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+      <div style="margin-bottom:50px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Science</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">88</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:88%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+      <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Money</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">84</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:84%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 · Party (ink) -->
+<div style="position:absolute; left:5740px; top:820px; width:1320px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.6px; color:#8A8475; margin-bottom:16px;">APP STORE &middot; 5 / 5</div>
+  <div style="width:1320px; height:2868px; background:#211F1A; overflow:hidden; position:relative; padding:170px 110px 0;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.70 0.10 47);">PARTY MODE</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:120px; line-height:1.0; letter-spacing:-3px; color:#F3F0E9; margin-top:30px;">Read the room,<br>together.</div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:36px; color:#B7B1A4; line-height:1.5; margin-top:40px; max-width:1000px;">Run past questions with friends and reveal how the world really answered.</div>
+    <div style="margin-top:120px; background:#2B2820; border:2px solid #3A372F; border-radius:56px; padding:80px 70px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; letter-spacing:2px; color:oklch(0.70 0.10 47);">CULTURE</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:76px; line-height:1.15; letter-spacing:-1.4px; color:#F3F0E9; margin-top:30px;">Is it rude to keep your phone on the table at dinner?</div>
+      <div style="position:relative; height:130px; border-radius:30px; background:#3A372F; overflow:hidden; margin-top:70px;"><div style="position:absolute; left:0; top:0; bottom:0; width:62%; background:oklch(0.62 0.11 47);"></div><div style="position:absolute; left:36px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:2px; color:#211F1A; font-weight:500;">YES 62%</div><div style="position:absolute; right:36px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:2px; color:#8E887C;">NO</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP STORE iPAD SET · 2064×2752 ══════════ -->
+
+<!-- iPad 1 · Today (paper) -->
+<div style="position:absolute; left:60px; top:6100px; width:2064px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:1.6px; color:#8A8475; margin-bottom:18px;">APP STORE iPAD &middot; 1 / 5 &middot; 2064&times;2752</div>
+  <div style="width:2064px; height:2752px; background:#F3F0E9; overflow:hidden; position:relative; display:flex; align-items:center; gap:120px; padding:150px 140px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">ONE SHARED QUESTION</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:130px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:34px;">Every day,<br>one question.</div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:38px; color:#6E6A60; margin-top:40px; line-height:1.5;">The whole world answers the same thing. You answer too.</div>
+    </div>
+    <div style="width:920px; flex-shrink:0; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:56px; padding:80px 70px; box-shadow:0 40px 100px rgba(40,36,28,0.10);">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#8A8475;">TODAY &middot; PHILOSOPHY</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:70px; line-height:1.15; letter-spacing:-1.4px; color:#211F1A; margin-top:26px;">Would you want to know the exact date you'll die?</div>
+      <div style="margin-top:54px; display:flex; align-items:center; justify-content:space-between; border:3px solid oklch(0.50 0.10 256); background:oklch(0.55 0.10 256 / 0.10); border-radius:32px; padding:42px 48px;"><span style="font-family:'Newsreader',serif; font-size:56px; font-weight:500; color:oklch(0.42 0.09 256);">Yes</span><span style="width:52px; height:52px; border-radius:50%; background:oklch(0.50 0.10 256); display:flex; align-items:center; justify-content:center;"><svg width="26" height="26" viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+      <div style="margin-top:26px; display:flex; align-items:center; border:2px solid #E4DFD4; background:#fff; border-radius:32px; padding:42px 48px;"><span style="font-family:'Newsreader',serif; font-size:56px; font-weight:500; color:#211F1A;">No</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- iPad 2 · Predict (ink) -->
+<div style="position:absolute; left:2224px; top:6100px; width:2064px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:1.6px; color:#8A8475; margin-bottom:18px;">APP STORE iPAD &middot; 2 / 5</div>
+  <div style="width:2064px; height:2752px; background:#211F1A; overflow:hidden; position:relative; display:flex; align-items:center; gap:120px; padding:150px 140px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.70 0.10 47);">THEN READ THE CROWD</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:130px; line-height:1.0; letter-spacing:-3px; color:#F3F0E9; margin-top:34px;">Predict what the world thinks.</div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:38px; color:#B7B1A4; margin-top:40px; line-height:1.5;">Points are for the read &mdash; not the opinion.</div>
+    </div>
+    <div style="width:920px; flex-shrink:0; text-align:center;">
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:36px; color:#B7B1A4;">What share also answered "Yes"?</div>
+      <div style="line-height:1; margin-top:30px;"><span style="font-family:'Newsreader',serif; font-size:360px; font-weight:500; color:#F3F0E9;">68</span><span style="font-family:'Newsreader',serif; font-size:150px; color:oklch(0.70 0.10 47);">%</span></div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:36px; color:#A8A192; margin-top:6px;">A clear majority</div>
+      <div style="margin-top:90px; position:relative; height:24px; border-radius:12px; background:#3A372F;"><div style="position:absolute; left:0; top:0; bottom:0; width:68%; background:oklch(0.62 0.11 47); border-radius:12px;"></div><div style="position:absolute; left:68%; top:50%; transform:translate(-50%,-50%); width:76px; height:76px; border-radius:50%; background:oklch(0.62 0.11 47); border:10px solid #211F1A; box-shadow:0 8px 30px rgba(0,0,0,0.5);"></div></div>
+      <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:22px; letter-spacing:1px; color:#8E887C; margin-top:24px;"><span>HARDLY ANYONE</span><span>NEARLY ALL</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- iPad 3 · Reveal (paper) -->
+<div style="position:absolute; left:4388px; top:6100px; width:2064px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:1.6px; color:#8A8475; margin-bottom:18px;">APP STORE iPAD &middot; 3 / 5</div>
+  <div style="width:2064px; height:2752px; background:#F3F0E9; overflow:hidden; position:relative; display:flex; align-items:center; gap:120px; padding:150px 140px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">THE NEXT DAY</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:130px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:34px;">See how sharp your read was.</div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:38px; color:#6E6A60; margin-top:40px; line-height:1.5;">The closer to the crowd, the higher you score.</div>
+    </div>
+    <div style="width:920px; flex-shrink:0;">
+      <div style="position:relative; padding-top:64px;">
+        <div style="position:absolute; top:0; left:71%; transform:translateX(-50%); font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:oklch(0.42 0.09 256); background:oklch(0.55 0.10 256 / 0.14); padding:10px 22px; border-radius:14px; white-space:nowrap;">YOU &middot; 71%</div>
+        <div style="position:relative; height:150px; border-radius:34px; background:#E6E0D3; overflow:hidden;"><div style="position:absolute; left:0; top:0; bottom:0; width:84%; background:oklch(0.55 0.105 47);"></div><div style="position:absolute; left:38px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#FBFAF6;">THE WORLD</div></div>
+        <div style="position:absolute; top:64px; bottom:0; left:71%; width:6px; margin-left:-3px; background:oklch(0.50 0.10 256);"></div>
+      </div>
+      <div style="font-family:'Newsreader',serif; font-size:58px; line-height:1.3; margin-top:56px; color:#211F1A;"><span style="color:oklch(0.55 0.105 47); font-weight:600;">84% also said Yes.</span> You guessed <span style="color:oklch(0.50 0.10 256); font-weight:600;">71%.</span></div>
+      <div style="margin-top:56px; background:#FBFAF6; border:2px solid #E4DFD4; border-radius:48px; padding:60px 60px; display:flex; align-items:flex-end; justify-content:space-between;">
+        <div><div style="font-family:'IBM Plex Mono',monospace; font-size:24px; letter-spacing:2px; color:#8A8475;">READ ACCURACY</div><div style="font-family:'Newsreader',serif; font-size:150px; font-weight:500; line-height:1; margin-top:10px; color:#211F1A;">87<span style="font-size:58px; color:#8A8475;"> / 100</span></div></div>
+        <div style="font-family:'Newsreader',serif; font-style:italic; font-size:52px; color:oklch(0.55 0.105 47); padding-bottom:22px;">A good read.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- iPad 4 · Insights (paper) -->
+<div style="position:absolute; left:6552px; top:6100px; width:2064px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:1.6px; color:#8A8475; margin-bottom:18px;">APP STORE iPAD &middot; 4 / 5</div>
+  <div style="width:2064px; height:2752px; background:#F3F0E9; overflow:hidden; position:relative; display:flex; align-items:center; gap:120px; padding:150px 140px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.55 0.105 47);">YOUR READ SCORE</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:130px; line-height:1.0; letter-spacing:-3px; color:#211F1A; margin-top:34px;">Get better at reading society.</div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:38px; color:#6E6A60; margin-top:40px; line-height:1.5;">Track your accuracy by topic over time.</div>
+    </div>
+    <div style="width:920px; flex-shrink:0;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between;"><div style="font-family:'Newsreader',serif; font-size:240px; font-weight:500; line-height:0.85; color:#211F1A;">1,840</div><div style="font-family:'Hanken Grotesk',sans-serif; font-size:34px; color:oklch(0.50 0.10 256); font-weight:600; padding-bottom:24px;">Top 6%</div></div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:32px; color:#6E6A60; margin-top:24px;">Across 142 questions answered.</div>
+      <div style="margin-top:90px;">
+        <div style="margin-bottom:50px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Technology</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">91</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:91%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+        <div style="margin-bottom:50px;"><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Science</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">88</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:88%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+        <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:42px; margin-bottom:20px; color:#211F1A;"><span>Money</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">84</span></div><div style="height:18px; border-radius:9px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:84%; background:oklch(0.50 0.10 256); border-radius:9px;"></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- iPad 5 · Party (ink) -->
+<div style="position:absolute; left:8716px; top:6100px; width:2064px;">
+  <div data-drags-parent="1" style="font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:1.6px; color:#8A8475; margin-bottom:18px;">APP STORE iPAD &middot; 5 / 5</div>
+  <div style="width:2064px; height:2752px; background:#211F1A; overflow:hidden; position:relative; display:flex; align-items:center; gap:120px; padding:150px 140px;">
+    <div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:3px; color:oklch(0.70 0.10 47);">PARTY MODE</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:130px; line-height:1.0; letter-spacing:-3px; color:#F3F0E9; margin-top:34px;">Read the room, together.</div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:38px; color:#B7B1A4; margin-top:40px; line-height:1.5;">Run past questions with friends and reveal how the world really answered.</div>
+    </div>
+    <div style="width:920px; flex-shrink:0; background:#2B2820; border:2px solid #3A372F; border-radius:56px; padding:80px 70px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; letter-spacing:2px; color:oklch(0.70 0.10 47);">CULTURE</div>
+      <div style="font-family:'Newsreader',serif; font-weight:500; font-size:74px; line-height:1.15; letter-spacing:-1.4px; color:#F3F0E9; margin-top:30px;">Is it rude to keep your phone on the table at dinner?</div>
+      <div style="position:relative; height:130px; border-radius:30px; background:#3A372F; overflow:hidden; margin-top:70px;"><div style="position:absolute; left:0; top:0; bottom:0; width:62%; background:oklch(0.62 0.11 47);"></div><div style="position:absolute; left:36px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:2px; color:#211F1A; font-weight:500;">YES 62%</div><div style="position:absolute; right:36px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:30px; letter-spacing:2px; color:#8E887C;">NO</div></div>
+    </div>
+  </div>
+</div></x-dc>
+</body>
+</html>

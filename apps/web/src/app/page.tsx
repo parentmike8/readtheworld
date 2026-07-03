@@ -2,16 +2,7 @@
 
 import { FirebaseError, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import Image from "next/image";
-import {
-  collection,
-  doc,
-  getFirestore,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
+import { doc, getFirestore, onSnapshot } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -22,25 +13,6 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useState } from "react";
 import { activateClientAppCheck } from "@/lib/appCheck";
-
-const faqs = [
-  [
-    "Is it the same questions for everyone?",
-    "Yes. Every player worldwide gets the same three questions each day, so you are always reading the same global crowd.",
-  ],
-  [
-    "Why don't results show right away?",
-    "Results arrive the next day, when the new questions drop. You commit your read before you see how it landed.",
-  ],
-  [
-    "How is my score calculated?",
-    "Your Read Score rewards how close your prediction was to the actual global result, not whether you agreed with the majority.",
-  ],
-  [
-    "Is it free?",
-    "Yes. Three questions a day, free. Create an account to save your streak, track your score, and compare with friends.",
-  ],
-];
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -62,10 +34,44 @@ type WorldQuestion = {
 
 type PublicQuestion = { id: string; category: string; prompt: string };
 
-const sampleQuestions: PublicQuestion[] = [
-  { id: "s1", category: "Food", prompt: "Is a hot dog a sandwich?" },
-  { id: "s2", category: "Ethics", prompt: "Would you keep quiet if you saw a friend shoplift a small item?" },
-  { id: "s3", category: "Lifestyle", prompt: "Would you rather always be 10 minutes early or never rushed?" },
+const argueQuestions: PublicQuestion[] = [
+  { id: "s1", category: "Food & Drink", prompt: "Is a hot dog a sandwich?" },
+  { id: "s2", category: "Ethics", prompt: "Would you tell a friend if their partner was cheating?" },
+  { id: "s3", category: "Psychology", prompt: "Do you think you're an above-average driver?" },
+  { id: "s4", category: "Travel", prompt: "Is it okay to recline your seat on a short flight?" },
+  { id: "s5", category: "Money", prompt: "Would you take $1M to never use the internet again?" },
+  { id: "s6", category: "Values", prompt: "Would you rather your kids be happy or successful?" },
+];
+
+const faqs: Array<[string, string]> = [
+  [
+    "What exactly is a room?",
+    "Your crew: friends, family, coworkers, teammates. Everyone gets the same three questions, answers for themselves, and predicts the split. Reveal the next morning.",
+  ],
+  [
+    "Does everyone get the same questions?",
+    "Everyone in a room plays the same three. Each room's set is its own, tuned to its spice level and topics. The World gets one shared set for everyone on Earth.",
+  ],
+  [
+    "Why don't results show right away?",
+    "You commit your read first. Reveals land 24 hours later, with the next day's questions. No peeking, no herding.",
+  ],
+  [
+    "Can I keep it work-safe?",
+    "Yes. Every room sets its own spice level: Work-safe, Everyday, or After Dark, plus topic filters. The office room stays HR-approved; the group chat can do whatever it wants.",
+  ],
+  [
+    "What's the World Room?",
+    "One room with everyone in it. Answering is open now. Predicting unlocks the moment 5,000 players are in.",
+  ],
+  [
+    "How is my Read Score calculated?",
+    "The closer your prediction lands to the real split, the more points you take from the reveal. Wins move you up the room's leaderboard.",
+  ],
+  [
+    "Is it free?",
+    "Yes. Three questions a day, free. Create an account to save your streak, track your score, and play with your crew.",
+  ],
 ];
 
 function hasFirebaseConfig() {
@@ -84,8 +90,9 @@ export default function Home() {
   const [openFaq, setOpenFaq] = useState(0);
   const [worldQuestions, setWorldQuestions] = useState<WorldQuestion[]>([]);
   const [worldDailyKey, setWorldDailyKey] = useState("");
-  const [recentQuestions, setRecentQuestions] = useState<PublicQuestion[]>([]);
   const [liveCount, setLiveCount] = useState(0);
+  const [worldMembers, setWorldMembers] = useState(0);
+  const [worldGoal, setWorldGoal] = useState(5000);
   const [user, setUser] = useState<User | null>(null);
   const app = useMemo<FirebaseApp | null>(() => {
     if (!hasFirebaseConfig()) return null;
@@ -97,11 +104,16 @@ export default function Home() {
   const auth = useMemo(() => (app ? getAuth(app) : null), [app]);
   const functions = useMemo(() => (app ? getFunctions(app, "us-central1") : null), [app]);
 
-  // The World's current daily key, then today's three questions.
+  // The World's current daily key, member counter, then today's questions.
   useEffect(() => {
     if (!firestore) return undefined;
     return onSnapshot(doc(firestore, "rooms", "world"), (snapshot) => {
-      setWorldDailyKey(String(snapshot.data()?.currentDailyKey ?? ""));
+      const data = snapshot.data();
+      setWorldDailyKey(String(data?.currentDailyKey ?? ""));
+      const members = Number(data?.memberCount ?? 0);
+      const goal = Number(data?.worldGoal ?? 5000);
+      setWorldMembers(Number.isFinite(members) ? members : 0);
+      setWorldGoal(Number.isFinite(goal) && goal > 0 ? goal : 5000);
     });
   }, [firestore]);
 
@@ -126,34 +138,6 @@ export default function Home() {
       setLiveCount(Number.isFinite(total) ? total : 0);
     });
   }, [firestore, worldDailyKey]);
-
-  // Recent world reveals fill the archive strip once days start closing.
-  useEffect(() => {
-    if (!firestore) return undefined;
-    const recentQuery = query(
-      collection(firestore, "rooms", "world", "days"),
-      where("status", "==", "closed"),
-      orderBy("dailyKey", "desc"),
-      limit(2),
-    );
-    return onSnapshot(recentQuery, (snapshot) => {
-      const closed: PublicQuestion[] = [];
-      snapshot.docs.forEach((docSnap) => {
-        const questions = Array.isArray(docSnap.data().questions) ? docSnap.data().questions : [];
-        questions.forEach((question: Record<string, unknown>, index: number) => {
-          const prompt = String(question?.prompt ?? "");
-          if (prompt) {
-            closed.push({
-              id: `${docSnap.id}-${index}`,
-              category: String(question?.tag ?? "Daily read"),
-              prompt,
-            });
-          }
-        });
-      });
-      setRecentQuestions(closed.slice(0, 6));
-    }, () => setRecentQuestions([]));
-  }, [firestore]);
 
   useEffect(() => {
     if (!auth) return undefined;
@@ -291,8 +275,9 @@ export default function Home() {
           </a>
           <nav aria-label="Primary">
             <a href="#how">How it works</a>
-            <a href="#score">Read Score</a>
+            <a href="#rooms">Rooms</a>
             <a href="#party">Party mode</a>
+            <a href="#world">The World</a>
             <a href="#faq">FAQ</a>
           </nav>
           <div className="lpNavActions">
@@ -329,8 +314,8 @@ export default function Home() {
             the world?
           </h1>
           <p>
-            Three shared questions a day. Answer for yourself, then see how the
-            world answers. The closer your read, the higher your score.
+            Three shared questions a day. Answer for yourself, then predict how
+            everyone else answers. Win by being the best at reading the room.
           </p>
         </div>
 
@@ -446,43 +431,102 @@ export default function Home() {
           <div className="sectionHead">
             <div className="eyebrow">The daily ritual</div>
             <h2 className="serif">
-              Two taps a day.
+              Three questions a day.
               <br />
-              One shared moment.
+              One shared reveal.
             </h2>
           </div>
           <div className="ritualGrid">
             <article>
               <b className="serif">01</b>
               <h3 className="serif">Answer</h3>
-              <p>Take your own side on today&apos;s question. It stays private and starts your read.</p>
+              <p>Pick your side on each question. It stays private.</p>
             </article>
             <article>
               <b className="serif">02</b>
               <h3 className="serif">Predict</h3>
-              <p>Guess what share of the world answered the same way. That prediction is the game.</p>
+              <p>Guess what share of the room agrees with you. This is the real game.</p>
             </article>
             <article>
               <b className="serif">03</b>
               <h3 className="serif">Reveal</h3>
-              <p>Tomorrow, see how the world answered and how close your read was.</p>
+              <p>Tomorrow, see the real split and how sharp your read was.</p>
             </article>
           </div>
         </div>
       </section>
 
+      <section className="lpWrap lpSection lpCols" id="rooms">
+        <div>
+          <div className="eyebrow clay">First, your people &middot; Rooms</div>
+          <h2 className="serif">Made for the people you know best.</h2>
+          <p>
+            A room is your crew: friends, family, teammates. Same three
+            questions, everyone predicts everyone, reveal the next morning.
+            Start one in seconds, invite with a link.
+          </p>
+        </div>
+        <div className="lpRoomStack" aria-label="Example rooms">
+          <div className="lpRoomRow">
+            <span className="lpRoomAvatar" data-tone="blue">C</span>
+            <span className="lpRoomMeta">
+              <strong className="serif">The Crew</strong>
+              <small>7 players &middot; you&apos;re #2 on the board</small>
+            </span>
+            <span className="lpRoomPill filled">Play today&apos;s 3</span>
+          </div>
+          <div className="lpRoomRow">
+            <span className="lpRoomAvatar" data-tone="clay">F</span>
+            <span className="lpRoomMeta">
+              <strong className="serif">Family</strong>
+              <small>4 players &middot; reveal tomorrow</small>
+            </span>
+            <span className="lpRoomPill">Calls are in</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="lpBand">
+        <div className="lpWrap lpSection">
+          <div className="sectionHead">
+            <div className="eyebrow">Every room, your rules</div>
+            <h2 className="serif">Set the spice level.</h2>
+          </div>
+          <div className="spiceGrid">
+            <article className="spiceCard">
+              <div className="eyebrow">Work-safe</div>
+              <h3 className="serif">Team-ready.</h3>
+              <p>Nothing you&apos;d flinch at in standup. Built for the office room.</p>
+            </article>
+            <article className="spiceCard">
+              <div className="eyebrow clay">Everyday</div>
+              <h3 className="serif">The full mix.</h3>
+              <p>Confessions, ethics calls, would-you-rathers. The default table.</p>
+            </article>
+            <article className="spiceCard spiceDark">
+              <div className="eyebrow onDark">After Dark</div>
+              <h3 className="serif">For tables that like it spicy.</h3>
+              <p>Adults only, words only. Your group chat&apos;s natural habitat.</p>
+            </article>
+          </div>
+          <p className="spiceFoot">
+            Every room picks its own spice level and topics. The office room
+            and the group chat never have to meet.
+          </p>
+        </div>
+      </section>
+
       <section className="lpWrap lpSection lpCols" id="score">
         <div>
-          <div className="eyebrow clay">Your Read Score</div>
+          <div className="eyebrow clay">Prove it &middot; Your Read Score</div>
           <h2 className="serif">It&apos;s not about being right. It&apos;s about reading the room.</h2>
           <p>
-            Points reward how accurately you predict public opinion, not whether
-            you sided with the majority. Climb the global and friends
-            leaderboards as you learn to read society.
+            Points for accurate predictions, not popular opinions. Every room
+            has a leaderboard. Every reveal moves it.
           </p>
         </div>
         <div className="leaderboard">
-          <div className="leaderHead">Friends leaderboard</div>
+          <div className="leaderHead">The Crew &middot; Leaderboard</div>
           <div className="me">
             <span>1</span>
             <strong>You</strong>
@@ -490,18 +534,42 @@ export default function Home() {
           </div>
           <div>
             <span>2</span>
-            <strong>Dana K.</strong>
+            <strong>Maya</strong>
             <b className="serif">1,792</b>
           </div>
           <div>
             <span>3</span>
-            <strong>Marcus R.</strong>
+            <strong>Diego</strong>
             <b className="serif">1,710</b>
           </div>
           <div>
             <span>4</span>
-            <strong>Priya S.</strong>
+            <strong>Priya</strong>
             <b className="serif">1,655</b>
+          </div>
+        </div>
+      </section>
+
+      <section className="lpWrap lpSection lpCols">
+        <div>
+          <div className="eyebrow clay">Make it yours &middot; Custom questions</div>
+          <h2 className="serif">The question you&apos;ve been dying to ask.</h2>
+          <p>
+            Drop your own question into the pool. It shows up in a coming
+            day&apos;s three, with your name on the reveal.
+          </p>
+        </div>
+        <div className="lpPoolColumn">
+          <div className="lpPoolCard">
+            <div className="lpPoolTop">
+              <span>From the pool</span>
+              <span>By Maya</span>
+            </div>
+            <h3 className="serif">Would the group ever actually move abroad?</h3>
+          </div>
+          <div className="lpPoolAdd">
+            <span>+ Add your own question</span>
+            <span>4 in the pool</span>
           </div>
         </div>
       </section>
@@ -509,12 +577,11 @@ export default function Home() {
       <section className="partyBand" id="party">
         <div className="lpWrap lpSection lpCols">
           <div>
-            <div className="eyebrow onDark">Party mode</div>
-            <h2 className="serif">Read the room, together.</h2>
+            <div className="eyebrow onDark">Then, the table &middot; Party mode</div>
+            <h2 className="serif">Pass the phone.</h2>
             <p>
-              Throw it on a screen and run through past questions, solo or with
-              a room. Reveal how the world really answered, one card at a time.
-              No scores, just the read.
+              One phone, no accounts, instant reveals. Take turns predicting
+              the table. Sharpest read wins.
             </p>
           </div>
           <div className="partyDeck" aria-label="Sample party mode question deck">
@@ -544,14 +611,84 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="lpWrap lpSection worldSection" id="world">
+        <div className="sectionHead">
+          <div className="eyebrow blue">Finally, the World</div>
+          <h2 className="serif">Then there&apos;s the whole world.</h2>
+          <p>
+            One room with everyone in it. Answering is open now. Predicting
+            unlocks the moment {worldGoal.toLocaleString()} of us are playing.
+          </p>
+        </div>
+        <div className="worldCounter">
+          <div className="worldCounterTop">
+            <span>
+              <b className="serif">{worldMembers.toLocaleString()}</b> / {worldGoal.toLocaleString()} players
+            </span>
+            <span className="worldLive">
+              <i />Live &middot; {Math.min(100, Math.round((worldMembers / worldGoal) * 100))}% there
+            </span>
+          </div>
+          <div className="worldBar">
+            <div
+              className="worldBarFill"
+              style={{ width: `${Math.min(100, (worldMembers / worldGoal) * 100)}%` }}
+            />
+          </div>
+          <div className="worldCounterBottom">
+            <span>
+              {Math.max(0, worldGoal - worldMembers).toLocaleString()} players to go.
+              Every friend you bring counts.
+            </span>
+            <a className="worldButton" href="#play">
+              Claim your spot <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section className="lpBand">
+        <div className="lpWrap lpSection">
+          <div className="sectionHead">
+            <div className="eyebrow">Every topic, every day</div>
+            <h2 className="serif">Questions worth arguing about.</h2>
+          </div>
+          <div className="sampleGrid">
+            {argueQuestions.map((question) => (
+              <article key={question.id}>
+                <div className="eyebrow clay">{question.category}</div>
+                <h3 className="serif">{question.prompt}</h3>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div className="lpWrap lpSection faqSection">
+          <h2 className="serif">Questions about the questions</h2>
+          <div className="faqList">
+            {faqs.map(([question, answerText], index) => (
+              <div className="faqItem" key={question}>
+                <button onClick={() => setOpenFaq(openFaq === index ? -1 : index)}>
+                  <span>{question}</span>
+                  <b className={openFaq === index ? "open" : ""}>+</b>
+                </button>
+                {openFaq === index ? <p>{answerText}</p> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="downloadBand" id="downloads">
         <div className="lpWrap lpSection lpCols downloadSection">
           <div>
             <div className="eyebrow clay">Take it with you</div>
             <h2 className="serif">The daily read, in your pocket.</h2>
             <p>
-              Native apps are on the way. Until then, the full daily challenge
-              runs right in your browser. No download needed.
+              Native apps are coming. Until then, it all runs in your browser.
+              No download needed.
             </p>
             <a className="darkButton downloadWebButton" href="#play">
               Play today&apos;s questions <span aria-hidden="true">→</span>
@@ -579,41 +716,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="lpWrap lpSection">
-        <div className="sectionHead">
-          <div className="eyebrow">Every topic, every day</div>
-          <h2 className="serif">Questions worth arguing about.</h2>
-        </div>
-        <div className="sampleGrid">
-          {(recentQuestions.length > 0 ? recentQuestions : sampleQuestions).map((question) => (
-            <article key={question.id}>
-              <div className="eyebrow clay">{question.category}</div>
-              <h3 className="serif">{question.prompt}</h3>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="lpBand" id="faq">
-        <div className="lpWrap lpSection faqSection">
-          <h2 className="serif">Questions about the questions</h2>
-          <div className="faqList">
-            {faqs.map(([question, answerText], index) => (
-              <div className="faqItem" key={question}>
-                <button onClick={() => setOpenFaq(openFaq === index ? -1 : index)}>
-                  <span>{question}</span>
-                  <b className={openFaq === index ? "open" : ""}>+</b>
-                </button>
-                {openFaq === index ? <p>{answerText}</p> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <footer className="lpWrap lpSection footerCta">
-        <h2 className="serif">Today&apos;s questions are waiting.</h2>
-        <p>Join the daily read. Free, three questions a day.</p>
+        <h2 className="serif">How well do you really read others?</h2>
+        <p>Today&apos;s three are waiting. Start a room and find out. Free, every day.</p>
         <form
           onSubmit={async (event) => {
             event.preventDefault();
