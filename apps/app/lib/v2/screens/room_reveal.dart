@@ -162,7 +162,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "FROM ${_whenWord(data.dailyKey)}'S CALLS",
+                        "FROM ${_whenWord(data.dailyKey)}'S ANSWERS",
                         textAlign: TextAlign.center,
                         style: v2Mono(10, color: const Color(0xFF8E887C), letterSpacing: 1),
                       ),

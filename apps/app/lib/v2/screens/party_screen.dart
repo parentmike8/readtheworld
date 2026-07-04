@@ -932,7 +932,7 @@ class _PlayerBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    'of ${party.players} · your call',
+                    'of ${party.players}',
                     style: v2Mono(10, letterSpacing: 1),
                   ),
                 ],

@@ -239,9 +239,9 @@ class _PlayCard extends StatelessWidget {
         ? 'Answering is always open. Predicting turns on once the game hits '
             '${_thousands(room.worldGoal)} players.'
         : room.isSolo
-            ? "Swipe to call each one. No one to predict yet, so it's just you "
+            ? "Swipe to answer each one. No one to predict yet, so it's just you "
                 'keeping your streak going.'
-            : 'Swipe to call each one, then predict how the room actually answered.';
+            : 'Swipe to answer each one, then predict how the room actually answered.';
     final cta = (room.isSolo || room.isWorld) ? "Answer today's 3 →" : "Play today's 3 →";
     return Container(
       padding: const EdgeInsets.all(22),

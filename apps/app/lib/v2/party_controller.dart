@@ -10,7 +10,7 @@ import 'tokens_v2.dart';
 /// Pass-the-phone party state machine — a faithful port of the prototype's
 /// party handlers. Entirely session-local: scores never touch the profile.
 ///
-/// Per question: the reader (rotating by question index) swipes their call
+/// Per question: the reader (rotating by question index) swipes their answer
 /// and predicts the room; every other player just swipes a vote. The reveal
 /// tallies the table and scores the reader's read.
 enum PartyStage { setup, play, done }
