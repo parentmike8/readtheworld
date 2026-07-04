@@ -690,7 +690,7 @@ class _AuthForm extends StatelessWidget {
                   ),
                 ],
               ),
-        SizedBox(height: mobile ? 196 : 28),
+        SizedBox(height: mobile ? 32 : 28),
         Center(
           child: Wrap(
             alignment: WrapAlignment.center,

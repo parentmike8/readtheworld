@@ -931,39 +931,81 @@ async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise
   return { attempted, sent, skippedWithPush, skippedUnverified, failed };
 }
 
-async function notifyCreatorMemberJoined(input: {
+/**
+ * A link shared to a big crowd (e.g. an office of 150) shouldn't storm every
+ * existing member with a push each. Above this fan-out we skip the per-join
+ * notification entirely [Mike: most rooms are <=20, joins are slow].
+ */
+const MAX_JOIN_NOTIFY_FANOUT = 30;
+
+/**
+ * Notify every existing room member that someone new joined. Members who have
+ * already locked answers for the open day get an "update your predictions?"
+ * prompt that deep-links into the room's edit flow; everyone else gets a plain
+ * heads-up. No em dashes in notification copy [Mike].
+ */
+async function notifyMembersOfJoin(input: {
   roomId: string;
   creatorUid: string;
   joinedUid: string;
   joinedName: string;
   roomName: string;
 }): Promise<void> {
-  if (!input.creatorUid || input.creatorUid === input.joinedUid) return;
-  const creatorSnap = await db.collection("users").doc(input.creatorUid).get();
-  const creatorProfile = creatorSnap.data() ?? {};
-  if (creatorProfile.dailyReminder === false) return;
-
-  const tokens = await enabledNotificationTokensForUser(input.creatorUid);
-  if (tokens.length > 0) {
-    await sendNotificationToTokens(tokens, {
-      title: input.roomName,
-      body: `${input.joinedName} joined your room.`,
-      route: `/rooms/${input.roomId}`,
-      type: "room_member_joined",
-    });
+  const membersSnap = await roomRef(input.roomId).collection("members").get();
+  const recipientUids = membersSnap.docs
+    .map((doc) => doc.id)
+    .filter((id) => id !== input.joinedUid);
+  if (recipientUids.length === 0 || recipientUids.length > MAX_JOIN_NOTIFY_FANOUT) {
     return;
   }
 
-  const authUser = await getAuth().getUser(input.creatorUid).catch(() => null);
-  const email = String(authUser?.email ?? "").trim().toLowerCase();
-  if (!authUser?.emailVerified || !isValidEmail(email)) return;
-  await sendPostmarkEmail(memberJoinedEmail({
-    to: email,
-    displayName: String(creatorProfile.displayName ?? authUser.displayName ?? "Reader"),
-    joinedName: input.joinedName,
-    roomName: input.roomName,
-    roomUrl: `${APP_URL}/rooms/${input.roomId}`,
-  }));
+  // Members with a locked answer for the open day can revise predictions now.
+  const roomSnap = await roomRef(input.roomId).get();
+  const currentDailyKey = String(roomSnap.data()?.currentDailyKey ?? "");
+  let answeredUids = new Set<string>();
+  if (currentDailyKey) {
+    const answersSnap = await roomDayRef(input.roomId, currentDailyKey)
+      .collection("answers")
+      .get();
+    answeredUids = new Set(answersSnap.docs.map((doc) => doc.id));
+  }
+
+  for (const uid of recipientUids) {
+    const userSnap = await db.collection("users").doc(uid).get();
+    const profile = userSnap.data() ?? {};
+    if (profile.dailyReminder === false) continue;
+
+    const canUpdate = answeredUids.has(uid);
+    const payload = {
+      title: input.roomName,
+      body: canUpdate
+        ? `${input.joinedName} joined. Want to update your predictions?`
+        : `${input.joinedName} joined ${input.roomName}.`,
+      route: canUpdate
+        ? `/rooms/${input.roomId}?edit=1`
+        : `/rooms/${input.roomId}`,
+      type: "room_member_joined" as const,
+    };
+
+    const tokens = await enabledNotificationTokensForUser(uid);
+    if (tokens.length > 0) {
+      await sendNotificationToTokens(tokens, payload);
+      continue;
+    }
+
+    // Email fallback keeps the prior creator-only behavior for push-less users.
+    if (uid !== input.creatorUid) continue;
+    const authUser = await getAuth().getUser(uid).catch(() => null);
+    const email = String(authUser?.email ?? "").trim().toLowerCase();
+    if (!authUser?.emailVerified || !isValidEmail(email)) continue;
+    await sendPostmarkEmail(memberJoinedEmail({
+      to: email,
+      displayName: String(profile.displayName ?? authUser.displayName ?? "Reader"),
+      joinedName: input.joinedName,
+      roomName: input.roomName,
+      roomUrl: `${APP_URL}/rooms/${input.roomId}`,
+    }));
+  }
 }
 
 async function aggregateQuestionCounters(questionId: string): Promise<Record<string, number>> {
@@ -3252,7 +3294,7 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
         .limit(1)
         .get();
       const creatorUid = creatorSnap.docs[0]?.id ?? "";
-      await notifyCreatorMemberJoined({
+      await notifyMembersOfJoin({
         roomId,
         creatorUid,
         joinedUid: uid,
@@ -3445,9 +3487,11 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
     .filter((question) => question.pulled !== true);
   const activeQids = new Set(activeQuestions.map((question) => question.qid));
 
-  const worldLocked = isWorld && !(await appFeatureEnabled("feature_world_room_unlocked"));
-  const solo = Number(room.memberCount ?? 1) <= 1 && !isWorld;
-  const answerOnly = worldLocked || solo;
+  // Solo rooms now always capture a prediction (the reader guesses what share
+  // of people would agree). It simply goes unscored until the room has other
+  // responses to compare against, so an early answer still counts once the room
+  // fills [Mike]. The World stays answer-only until its lifecycle unlocks.
+  const answerOnly = isWorld && !(await appFeatureEnabled("feature_world_room_unlocked"));
 
   const rawPicks = Array.isArray(request.data?.picks) ? request.data.picks : [];
   let picks: RoomPick[];

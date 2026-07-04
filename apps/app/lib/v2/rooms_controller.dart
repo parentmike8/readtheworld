@@ -668,10 +668,9 @@ class RoomsController extends ChangeNotifier {
     unawaited(HapticFeedback.mediumImpact());
     final binding = bindingFor(card.roomId);
     final worldLocked = card.isWorld && !worldPredictionsUnlocked;
-    final solo = !card.isWorld && (binding?.room?.isSolo ?? false);
-    if (worldLocked || solo) {
+    if (worldLocked) {
       session.stage = PlayStage.answerSaved;
-      session.answerSavedReason = worldLocked ? 'world' : 'solo';
+      session.answerSavedReason = 'world';
       session.side = side;
       session.dragX = 0;
       notifyListeners();
@@ -679,7 +678,8 @@ class RoomsController extends ChangeNotifier {
     }
     session.stage = PlayStage.predict;
     session.side = side;
-    // Duo rooms start at "the other person matched" (prototype: pred=100).
+    // Duo rooms start at "the other person matched" (prototype: pred=100);
+    // solo rooms predict a free share of everyone (infinite meter).
     final defaultPred = (binding?.room?.isDuo ?? false) ? 100 : 50;
     session.pred = _snapPredictionForSession(session, defaultPred);
     session.dragX = 0;
@@ -765,18 +765,14 @@ class RoomsController extends ChangeNotifier {
     final card = session.card;
     final pick = _savedPickForCurrent(session);
     if (card == null || pick == null) return;
-    final binding = bindingFor(card.roomId);
-    final worldSaved = card.isWorld;
-    final soloSaved = !card.isWorld && (binding?.room?.isSolo ?? false);
     session.side = pick.side;
     session.pred = _snapPredictionForSession(session, pick.prediction ?? 50);
     session.dragX = 0;
     session.dragging = false;
     if (pick.prediction == null) {
+      // Only World stays answer-only now (solo always carries a prediction).
       session.stage = PlayStage.answerSaved;
-      session.answerSavedReason = worldSaved
-          ? 'world'
-          : (soloSaved ? 'solo' : null);
+      session.answerSavedReason = 'world';
     } else {
       session.stage = PlayStage.predict;
       session.answerSavedReason = null;

@@ -686,6 +686,7 @@ class PredictionReadout extends StatelessWidget {
     this.promptSize = 24,
     this.primarySize = 80,
     this.primaryHeight = 1,
+    this.infinite = false,
   });
 
   static const countFirstThreshold = 25;
@@ -698,6 +699,10 @@ class PredictionReadout extends StatelessWidget {
   final double promptSize;
   final double primarySize;
   final double primaryHeight;
+
+  /// Solo / World: no fixed room size, so read the prediction as a share of
+  /// everyone who answers rather than a count of the current room [Mike].
+  final bool infinite;
 
   @override
   Widget build(BuildContext context) {
@@ -718,9 +723,11 @@ class PredictionReadout extends StatelessWidget {
     final countPercent = boundedPeople == 0
         ? boundedPercent
         : ((count / boundedPeople) * 100).round();
-    final percentPrimary = boundedPeople > countFirstThreshold;
+    final percentPrimary = infinite || boundedPeople > countFirstThreshold;
     final primary = percentPrimary ? '$boundedPercent%' : '$count';
-    final secondary = percentPrimary
+    final secondary = infinite
+        ? 'of people who answer'
+        : percentPrimary
         ? '$count of $boundedPeople players'
         : '$countPercent% of the room';
     final predictionColor = RtwV2Colors.meterBlue;
@@ -823,6 +830,7 @@ class PredictionAgreementMeter extends StatelessWidget {
     required this.onUpdate,
     this.height = 72,
     this.radius = 18,
+    this.infinite = false,
   });
 
   static const notchThreshold = 15;
@@ -833,6 +841,10 @@ class PredictionAgreementMeter extends StatelessWidget {
   final ValueChanged<double> onUpdate;
   final double height;
   final double radius;
+
+  /// Solo / World: continuous 0-100 with percent guides and an "EVERYONE"
+  /// end label instead of a fixed room headcount [Mike].
+  final bool infinite;
 
   @override
   Widget build(BuildContext context) {
@@ -883,7 +895,8 @@ class PredictionAgreementMeter extends StatelessWidget {
                     ..._meterMarks(
                       boundedPeople,
                       height,
-                      boundedPeople <= notchThreshold,
+                      !infinite && boundedPeople <= notchThreshold,
+                      infinite: infinite,
                     ),
                     Align(
                       alignment: Alignment(fraction * 2 - 1, 0),
@@ -920,7 +933,9 @@ class PredictionAgreementMeter extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  boundedPeople <= countReadoutThreshold
+                  infinite
+                      ? 'EVERYONE'
+                      : boundedPeople <= countReadoutThreshold
                       ? 'ALL $boundedPeople'
                       : 'ALL',
                   style: v2Mono(
@@ -937,8 +952,13 @@ class PredictionAgreementMeter extends StatelessWidget {
     );
   }
 
-  List<Widget> _meterMarks(int people, double height, bool showPersonNotches) {
-    if (people <= 1) return const [];
+  List<Widget> _meterMarks(
+    int people,
+    double height,
+    bool showPersonNotches, {
+    bool infinite = false,
+  }) {
+    if (!infinite && people <= 1) return const [];
     final fractions = showPersonNotches
         ? [for (var index = 1; index < people; index++) index / people]
         : const [0.25, 0.5, 0.75];

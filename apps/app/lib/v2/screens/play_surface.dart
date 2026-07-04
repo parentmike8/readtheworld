@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../main.dart';
+import '../countdown.dart';
 import '../models_v2.dart';
 import '../rooms_controller.dart';
 import '../sheets/room_sheets.dart';
@@ -1015,12 +1016,14 @@ class _PredictStage extends StatelessWidget {
                 people: others,
                 sideLabel: sideLabel,
                 sideColor: sideColor,
+                infinite: others <= 0,
               ),
               const SizedBox(height: 28),
               PredictionAgreementMeter(
                 percent: pred,
                 people: others,
                 onUpdate: rooms.meterUpdate,
+                infinite: others <= 0,
               ),
             ],
           ),
@@ -1547,14 +1550,14 @@ class _RoundSummary extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   V2Eyebrow(
-                    'Round complete · $roomName',
+                    'This round · $roomName',
                     size: 11,
                     color: RtwV2Colors.clay,
                     letterSpacing: 1.6,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "That's your three in.",
+                    'Your reads are in.',
                     style: v2Serif(34, height: 1.06, letterSpacing: -0.6),
                   ),
                   const SizedBox(height: 14),
@@ -1563,8 +1566,8 @@ class _RoundSummary extends ConsumerWidget {
                         ? 'Your World answers are saved. Predictions, reveals, and '
                               'Read Score movement unlock once The World reaches '
                               '${_formatThousands(room?.worldGoal ?? 5000)} players.'
-                        : "Your reads are in. You'll see how $roomName answered, and how "
-                              'it moves your Read Score, tomorrow.',
+                        : 'Nothing is final yet. You can still change your answers '
+                              'right up until the reveal.',
                     style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
                   ),
                   const SizedBox(height: 24),
@@ -1572,51 +1575,52 @@ class _RoundSummary extends ConsumerWidget {
                     _RoundAnswerSummary(day: day, answer: answer),
                     const SizedBox(height: 16),
                   ],
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 18,
-                    ),
-                    decoration: BoxDecoration(
-                      color: RtwV2Colors.card,
-                      border: Border.all(color: RtwV2Colors.border),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: RtwV2Colors.meterBlue.withValues(
-                              alpha: 0.12,
+                  if (worldLocked)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      decoration: BoxDecoration(
+                        color: RtwV2Colors.card,
+                        border: Border.all(color: RtwV2Colors.border),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: RtwV2Colors.meterBlue.withValues(
+                                alpha: 0.12,
+                              ),
+                              shape: BoxShape.circle,
                             ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.schedule,
-                            size: 20,
-                            color: RtwV2Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            worldLocked
-                                ? 'For now, every answer helps build the global split '
-                                      'and bring The World closer to unlocking.'
-                                : 'Come back tomorrow for the reveal and your accuracy.',
-                            style: v2Sans(
-                              13.5,
-                              color: const Color(0xFF5C584F),
-                              height: 1.5,
+                            child: const Icon(
+                              Icons.public,
+                              size: 20,
+                              color: RtwV2Colors.blue,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'For now, every answer helps build the global split '
+                              'and brings The World closer to unlocking.',
+                              style: v2Sans(
+                                13.5,
+                                color: const Color(0xFF5C584F),
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const _WhatHappensNextCard(),
                 ],
               ),
             ),
@@ -1664,6 +1668,135 @@ class _RoundSummary extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// "What happens next" for a normal room round: the live reveal countdown as
+/// the anchor, then the sequence of events at 00:00 ET.
+class _WhatHappensNextCard extends StatelessWidget {
+  const _WhatHappensNextCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.meterBlue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.schedule,
+                  size: 20,
+                  color: RtwV2Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const RevealCountdown(
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: RtwV2Colors.blue,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Everyone in the room locks in at the same moment.',
+                      style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _NextStep(
+            marker: '1',
+            label: 'Now',
+            detail: 'Your answers are saved, and still editable.',
+          ),
+          const SizedBox(height: 10),
+          const _NextStep(
+            marker: '2',
+            label: 'At the reveal',
+            detail: "You'll see how the room actually answered.",
+          ),
+          const SizedBox(height: 10),
+          const _NextStep(
+            marker: '3',
+            label: 'Then',
+            detail: 'Your Read Score moves with how well you read the room.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextStep extends StatelessWidget {
+  const _NextStep({
+    required this.marker,
+    required this.label,
+    required this.detail,
+  });
+
+  final String marker;
+  final String label;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: RtwV2Colors.border,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            marker,
+            style: v2Sans(11, color: RtwV2Colors.subText, weight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              text: '$label — ',
+              style: v2Sans(13, color: const Color(0xFF2C2A24), weight: FontWeight.w700),
+              children: [
+                TextSpan(
+                  text: detail,
+                  style: v2Sans(13, color: const Color(0xFF5C584F), weight: FontWeight.w400),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
