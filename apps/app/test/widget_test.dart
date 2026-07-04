@@ -350,6 +350,19 @@ void main() {
       expect(rooms.play!.pred, 100);
     });
 
+    test('large-room predictions move in one percent steps', () {
+      final rooms = _roomsWith([
+        _binding(id: 'large', name: 'Large Room', members: 102),
+      ]);
+      rooms.enterToday();
+      rooms.continueFromIntro();
+      rooms.commitSide('a');
+      rooms.meterUpdate(0.25);
+      expect(rooms.play!.pred, 25);
+      rooms.meterUpdate(0.26);
+      expect(rooms.play!.pred, 26);
+    });
+
     test(
       'intro session runs the real loop and captures picks one-shot',
       () async {
@@ -939,6 +952,45 @@ void main() {
 
       expect(party.side, 'b');
       expect(party.sub, PartySub.predict);
+    });
+
+    testWidgets('room play gutters choose the nearest side', (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final rooms = _roomsWith([
+        _binding(id: 'studio', name: 'The Studio', qids: const ['q1']),
+      ]);
+      rooms.startRoomPlay('studio');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: MaterialApp(home: PlaySurface(session: rooms.play!)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final pickZone = tester.getRect(
+        find.byKey(const ValueKey('play-pick-zone')),
+      );
+      final promptCenter = tester.getCenter(find.text('Prompt q1?'));
+      await tester.tapAt(Offset(pickZone.right - 24, promptCenter.dy));
+      await tester.pump(
+        RtwV2Motion.cardFling + const Duration(milliseconds: 1),
+      );
+
+      expect(rooms.play!.side, 'a');
+      expect(rooms.play!.stage, PlayStage.predict);
     });
   });
 }

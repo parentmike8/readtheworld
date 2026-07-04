@@ -689,176 +689,209 @@ class _PickStage extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Stack(
-              alignment: Alignment.center,
-              clipBehavior: Clip.none,
-              children: [
-                // Rotated side labels behind the card.
-                Positioned(
-                  left: -38,
-                  top: 0,
-                  bottom: 0,
-                  width: 72,
-                  child: IgnorePointer(
-                    child: Center(
-                      child: RotatedBox(
-                        quarterTurns: 1,
-                        child: Text(
-                          question.optB,
-                          maxLines: 1,
-                          style: v2Serif(
-                            32,
-                            color: RtwV2Colors.clay.withValues(
-                              alpha: 0.22 + noOn * 0.58,
-                            ),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: -38,
-                  top: 0,
-                  bottom: 0,
-                  width: 72,
-                  child: IgnorePointer(
-                    child: Center(
-                      child: RotatedBox(
-                        quarterTurns: -1,
-                        child: Text(
-                          question.optA,
-                          maxLines: 1,
-                          style: v2Serif(
-                            32,
-                            color: RtwV2Colors.blue.withValues(
-                              alpha: 0.22 + yesOn * 0.58,
-                            ),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onHorizontalDragStart: (_) => rooms.cardDragStart(),
-                  onHorizontalDragUpdate: (details) =>
-                      rooms.cardDragUpdate(details.delta.dx),
-                  onHorizontalDragEnd: (details) =>
-                      rooms.cardDragEnd(details.velocity.pixelsPerSecond.dx),
-                  child: AnimatedContainer(
-                    duration: session.dragging
-                        ? Duration.zero
-                        : RtwV2Motion.cardSettle,
-                    curve: _settleCurve,
-                    transform: Matrix4.identity()
-                      ..translateByDouble(dx, 0, 0, 1)
-                      ..rotateZ(dx * RtwV2Motion.tiltFactor * 3.14159 / 180),
-                    transformAlignment: Alignment.center,
-                    constraints: const BoxConstraints(
-                      maxWidth: 320,
-                      minHeight: 320,
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: RtwV2Colors.card,
-                      border: Border.all(color: borderColor, width: 1.5),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color.fromRGBO(
-                            40,
-                            40,
-                            40,
-                            0.08 + dx.abs() / 800,
-                          ),
-                          offset: const Offset(0, 12),
-                          blurRadius: 38,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return GestureDetector(
+                  key: const ValueKey('play-pick-zone'),
+                  behavior: HitTestBehavior.translucent,
+                  onTapUp: (details) {
+                    rooms.tapSide(
+                      details.localPosition.dx < constraints.maxWidth / 2
+                          ? 'b'
+                          : 'a',
+                    );
+                  },
+                  child: SizedBox.expand(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
                       children: [
-                        Text(
-                          question.tag.toUpperCase(),
-                          style: v2Mono(
-                            10,
-                            color: RtwV2Colors.clay,
-                            letterSpacing: 1.8,
-                          ),
-                        ),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 208),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              child: Text(
-                                question.prompt,
-                                style: v2Serif(
-                                  26,
-                                  height: 1.18,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => rooms.tapSide('b'),
+                        // Rotated side labels behind the card.
+                        Positioned(
+                          left: -38,
+                          top: 0,
+                          bottom: 0,
+                          width: 72,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: RotatedBox(
+                                quarterTurns: 1,
                                 child: Text(
-                                  '← ${question.optB}',
-                                  style: v2Sans(
-                                    15,
-                                    color: dx < -RtwV2Motion.borderTintThreshold
-                                        ? RtwV2Colors.clay
-                                        : const Color(0xFF4A463E),
-                                    weight: FontWeight.w700,
-                                    height: 1.22,
+                                  question.optB,
+                                  maxLines: 1,
+                                  style: v2Serif(
+                                    32,
+                                    color: RtwV2Colors.clay.withValues(
+                                      alpha: 0.22 + noOn * 0.58,
+                                    ),
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(
-                              width: 56,
-                              child: Icon(
-                                Icons.sync_alt,
-                                size: 18,
-                                color: Color(0xFFCFC8B7),
-                              ),
-                            ),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => rooms.tapSide('a'),
+                          ),
+                        ),
+                        Positioned(
+                          right: -38,
+                          top: 0,
+                          bottom: 0,
+                          width: 72,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: RotatedBox(
+                                quarterTurns: -1,
                                 child: Text(
-                                  '${question.optA} →',
-                                  textAlign: TextAlign.right,
-                                  style: v2Sans(
-                                    15,
-                                    color: dx > RtwV2Motion.borderTintThreshold
-                                        ? RtwV2Colors.blue
-                                        : const Color(0xFF4A463E),
-                                    weight: FontWeight.w700,
-                                    height: 1.22,
+                                  question.optA,
+                                  maxLines: 1,
+                                  style: v2Serif(
+                                    32,
+                                    color: RtwV2Colors.blue.withValues(
+                                      alpha: 0.22 + yesOn * 0.58,
+                                    ),
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),
                             ),
-                          ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onHorizontalDragStart: (_) => rooms.cardDragStart(),
+                          onHorizontalDragUpdate: (details) =>
+                              rooms.cardDragUpdate(details.delta.dx),
+                          onHorizontalDragEnd: (details) => rooms.cardDragEnd(
+                            details.velocity.pixelsPerSecond.dx,
+                          ),
+                          child: AnimatedContainer(
+                            duration: session.dragging
+                                ? Duration.zero
+                                : RtwV2Motion.cardSettle,
+                            curve: _settleCurve,
+                            transform: Matrix4.identity()
+                              ..translateByDouble(dx, 0, 0, 1)
+                              ..rotateZ(
+                                dx * RtwV2Motion.tiltFactor * 3.14159 / 180,
+                              ),
+                            transformAlignment: Alignment.center,
+                            constraints: const BoxConstraints(
+                              maxWidth: 320,
+                              minHeight: 320,
+                            ),
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: RtwV2Colors.card,
+                              border: Border.all(
+                                color: borderColor,
+                                width: 1.5,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color.fromRGBO(
+                                    40,
+                                    40,
+                                    40,
+                                    0.08 + dx.abs() / 800,
+                                  ),
+                                  offset: const Offset(0, 12),
+                                  blurRadius: 38,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  question.tag.toUpperCase(),
+                                  style: v2Mono(
+                                    10,
+                                    color: RtwV2Colors.clay,
+                                    letterSpacing: 1.8,
+                                  ),
+                                ),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 208,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      child: Text(
+                                        question.prompt,
+                                        style: v2Serif(
+                                          26,
+                                          height: 1.18,
+                                          letterSpacing: -0.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () => rooms.tapSide('b'),
+                                        child: Text(
+                                          '← ${question.optB}',
+                                          style: v2Sans(
+                                            15,
+                                            color:
+                                                dx <
+                                                    -RtwV2Motion
+                                                        .borderTintThreshold
+                                                ? RtwV2Colors.clay
+                                                : const Color(0xFF4A463E),
+                                            weight: FontWeight.w700,
+                                            height: 1.22,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      width: 56,
+                                      child: Icon(
+                                        Icons.sync_alt,
+                                        size: 18,
+                                        color: Color(0xFFCFC8B7),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () => rooms.tapSide('a'),
+                                        child: Text(
+                                          '${question.optA} →',
+                                          textAlign: TextAlign.right,
+                                          style: v2Sans(
+                                            15,
+                                            color:
+                                                dx >
+                                                    RtwV2Motion
+                                                        .borderTintThreshold
+                                                ? RtwV2Colors.blue
+                                                : const Color(0xFF4A463E),
+                                            weight: FontWeight.w700,
+                                            height: 1.22,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),
