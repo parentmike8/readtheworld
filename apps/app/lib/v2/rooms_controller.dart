@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -531,7 +532,19 @@ class RoomsController extends ChangeNotifier {
   void nudgePred(int delta) {
     final session = play;
     if (session == null || session.stage != PlayStage.predict) return;
-    session.pred = (session.pred + delta).clamp(0, 100);
+    final people = _predictionPeople(session);
+    if (people > 0 && people <= _countFirstPredictionThreshold) {
+      final current = ((session.pred / 100) * people).round();
+      final rawNext = current + delta;
+      final next = rawNext < 0
+          ? 0
+          : rawNext > people
+          ? people
+          : rawNext;
+      session.pred = ((next / people) * 100).round();
+    } else {
+      session.pred = _boundedPrediction(session.pred + delta);
+    }
     notifyListeners();
   }
 
@@ -614,10 +627,39 @@ class RoomsController extends ChangeNotifier {
     session.stage = PlayStage.predict;
     session.side = side;
     // Duo rooms start at "the other person matched" (prototype: pred=100).
-    session.pred = (binding?.room?.isDuo ?? false) ? 100 : 50;
+    final defaultPred = (binding?.room?.isDuo ?? false) ? 100 : 50;
+    session.pred = _snapPredictionForSession(session, defaultPred);
     session.dragX = 0;
     session.armSwitch = false;
     notifyListeners();
+  }
+
+  static const int _countFirstPredictionThreshold = 20;
+
+  int _predictionPeople(PlaySession session) {
+    final members = session.card?.roomMembers ?? 0;
+    return math.max(0, members - 1);
+  }
+
+  int _boundedPrediction(int value) => value < 0
+      ? 0
+      : value > 100
+      ? 100
+      : value;
+
+  int _snapPredictionForSession(PlaySession session, int value) {
+    final bounded = _boundedPrediction(value);
+    final people = _predictionPeople(session);
+    if (people <= 0 || people > _countFirstPredictionThreshold) {
+      return bounded;
+    }
+    final rawCount = ((bounded / 100) * people).round();
+    final count = rawCount < 0
+        ? 0
+        : rawCount > people
+        ? people
+        : rawCount;
+    return _boundedPrediction(((count / people) * 100).round());
   }
 
   /// Whether The World allows predictions (flipped from the admin panel).
@@ -631,7 +673,7 @@ class RoomsController extends ChangeNotifier {
     final raw = (fraction.clamp(0.0, 1.0) * 100).round();
     // Meter docks to the picked side: side A docks right (prototype).
     final pred = session.side == 'a' ? 100 - raw : raw;
-    session.pred = pred.clamp(0, 100);
+    session.pred = _snapPredictionForSession(session, pred);
     final arm = session.pred <= 2;
     if (arm && !session.armSwitch) unawaited(HapticFeedback.selectionClick());
     session.armSwitch = arm;
@@ -649,7 +691,7 @@ class RoomsController extends ChangeNotifier {
     if (session == null) return;
     unawaited(HapticFeedback.selectionClick());
     session.side = session.side == 'a' ? 'b' : 'a';
-    session.pred = 50;
+    session.pred = _snapPredictionForSession(session, 50);
     session.armSwitch = false;
     notifyListeners();
   }
@@ -684,7 +726,7 @@ class RoomsController extends ChangeNotifier {
     final worldSaved = card.isWorld;
     final soloSaved = !card.isWorld && (binding?.room?.isSolo ?? false);
     session.side = pick.side;
-    session.pred = pick.prediction ?? 50;
+    session.pred = _snapPredictionForSession(session, pick.prediction ?? 50);
     session.dragX = 0;
     session.dragging = false;
     session.armSwitch = false;

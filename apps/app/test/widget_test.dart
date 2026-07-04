@@ -10,6 +10,7 @@ import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/rooms_home.dart';
+import 'package:read_the_world/v2/widgets_v2.dart';
 
 RoomDayQuestion _question(String qid, {String tag = 'Social'}) =>
     RoomDayQuestion(
@@ -260,6 +261,20 @@ void main() {
       rooms.meterRelease();
       expect(rooms.play!.side, 'b'); // flip fired
       expect(rooms.play!.pred, 50);
+    });
+
+    test('small-room predictions snap to whole-person counts', () {
+      final rooms = _roomsWith([
+        _binding(id: 'small', name: 'Small Room', members: 4),
+      ]);
+      rooms.enterToday();
+      rooms.continueFromIntro();
+      rooms.commitSide('b');
+      expect(rooms.play!.pred, 67); // 2 of 3 others.
+      rooms.meterUpdate(0.0);
+      expect(rooms.play!.pred, 0);
+      rooms.meterUpdate(1.0);
+      expect(rooms.play!.pred, 100);
     });
 
     test(
@@ -605,6 +620,48 @@ void main() {
 
       expect(find.text('View or modify answers →'), findsOneWidget);
       expect(find.textContaining('Locked in'), findsNothing);
+    });
+
+    testWidgets('prediction readout uses fractions for small rooms', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: PredictionReadout(
+              percent: 67,
+              people: 3,
+              sideLabel: 'Yes',
+              sideColor: Colors.blue,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('How many others would agree with you?'), findsOneWidget);
+      expect(find.text('Would say “Yes”'), findsOneWidget);
+      expect(find.text('2/3'), findsOneWidget);
+      expect(find.text('67% of others'), findsOneWidget);
+    });
+
+    testWidgets('prediction readout uses percent plus count for large rooms', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: PredictionReadout(
+              percent: 75,
+              people: 32,
+              sideLabel: 'Yes',
+              sideColor: Colors.blue,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('75%'), findsOneWidget);
+      expect(find.text('24/32 others'), findsOneWidget);
     });
 
     testWidgets('party tab renders setup and starts a local round', (

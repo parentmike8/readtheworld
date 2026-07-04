@@ -786,32 +786,11 @@ class _PredictStage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Text(
-                  session.mode == 'intro'
-                      ? 'What share of the people in your life would say “$sideLabel” too?'
-                      : 'What share of the rest of ${session.mode == 'today' ? card.roomName : 'the room'} also said “$sideLabel”?',
-                  textAlign: TextAlign.center,
-                  style: v2Serif(22, color: const Color(0xFF2C2A24), height: 1.28, letterSpacing: -0.2),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text.rich(
-                TextSpan(
-                  text: '$pred',
-                  style: v2Serif(80, color: sideColor, height: 1),
-                  children: [
-                    TextSpan(text: '%', style: v2Serif(34, color: sideColor)),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '≈ ${(pred / 100 * others).round()} of $others people',
-                textAlign: TextAlign.center,
-                style: v2Sans(13, color: RtwV2Colors.muted),
+              PredictionReadout(
+                percent: pred,
+                people: others,
+                sideLabel: sideLabel,
+                sideColor: sideColor,
               ),
               const SizedBox(height: 28),
               _EdgeMeter(session: session, sideLabel: sideLabel, rooms: rooms),

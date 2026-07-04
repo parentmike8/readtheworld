@@ -658,6 +658,96 @@ class V2Hairline extends StatelessWidget {
       const Divider(height: 1, thickness: 1, color: RtwV2Colors.hairline);
 }
 
+/// Count-first prediction readout. Small rooms are easier to reason about as
+/// whole people; larger rooms keep percent primary while still showing count.
+class PredictionReadout extends StatelessWidget {
+  const PredictionReadout({
+    super.key,
+    required this.percent,
+    required this.people,
+    required this.sideLabel,
+    required this.sideColor,
+    this.prompt = 'How many others would agree with you?',
+    this.promptSize = 22,
+    this.primarySize = 80,
+    this.primaryHeight = 1,
+  });
+
+  static const countFirstThreshold = 20;
+
+  final int percent;
+  final int people;
+  final String sideLabel;
+  final Color sideColor;
+  final String prompt;
+  final double promptSize;
+  final double primarySize;
+  final double primaryHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final boundedPercent = percent < 0
+        ? 0
+        : percent > 100
+        ? 100
+        : percent;
+    final boundedPeople = people < 0 ? 0 : people;
+    final rawCount = ((boundedPercent / 100) * boundedPeople).round();
+    final count = boundedPeople == 0
+        ? 0
+        : rawCount < 0
+        ? 0
+        : rawCount > boundedPeople
+        ? boundedPeople
+        : rawCount;
+    final countPercent = boundedPeople == 0
+        ? boundedPercent
+        : ((count / boundedPeople) * 100).round();
+    final percentPrimary = boundedPeople > countFirstThreshold;
+    final primary = percentPrimary ? '$boundedPercent%' : '$count/$boundedPeople';
+    final peopleLabel = boundedPeople == 1 ? 'other' : 'others';
+    final secondary = percentPrimary
+        ? '$count/$boundedPeople $peopleLabel'
+        : '$countPercent% of $peopleLabel';
+
+    return Column(
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Text(
+            prompt,
+            textAlign: TextAlign.center,
+            style: v2Serif(
+              promptSize,
+              color: const Color(0xFF2C2A24),
+              height: 1.28,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Would say “$sideLabel”',
+          textAlign: TextAlign.center,
+          style: v2Sans(13, color: sideColor, weight: FontWeight.w700),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          primary,
+          textAlign: TextAlign.center,
+          style: v2Serif(primarySize, color: sideColor, height: primaryHeight),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          secondary,
+          textAlign: TextAlign.center,
+          style: v2Sans(13, color: RtwV2Colors.muted),
+        ),
+      ],
+    );
+  }
+}
+
 /// Transitional stub for v2 routes whose screens are still being built.
 /// Every instance disappears before the rebuild is called done.
 class V2InProgressScreen extends StatelessWidget {

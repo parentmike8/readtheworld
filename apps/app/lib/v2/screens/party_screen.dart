@@ -1247,6 +1247,7 @@ class _PredictPanel extends StatelessWidget {
     final sideLabel = sideA ? card.optA : card.optB;
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     final isLastTurn = party.turn + 1 >= party.players;
+    final others = math.max(0, party.players - 1);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1269,24 +1270,13 @@ class _PredictPanel extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'What share of the rest of the room will say “$sideLabel”?',
-                textAlign: TextAlign.center,
-                style: v2Serif(20, color: const Color(0xFF2C2A24), height: 1.3),
-              ),
-              const SizedBox(height: 14),
-              Text.rich(
-                TextSpan(
-                  text: '${party.pred}',
-                  style: v2Serif(72, color: sideColor, height: 1),
-                  children: [
-                    TextSpan(
-                      text: '%',
-                      style: v2Serif(30, color: sideColor),
-                    ),
-                  ],
-                ),
-                textAlign: TextAlign.center,
+              PredictionReadout(
+                percent: party.pred,
+                people: others,
+                sideLabel: sideLabel,
+                sideColor: sideColor,
+                promptSize: 20,
+                primarySize: 72,
               ),
               const SizedBox(height: 24),
               LayoutBuilder(
