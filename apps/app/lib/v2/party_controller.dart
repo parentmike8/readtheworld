@@ -357,7 +357,7 @@ class PartyController extends ChangeNotifier {
     }
     if (turn == 0) {
       sub = PartySub.predict;
-      pred = players <= 2 ? 100 : 50;
+      pred = _snapPredictionValue(players <= 2 ? 100 : 50);
       notifyListeners();
       return;
     }
@@ -383,14 +383,24 @@ class PartyController extends ChangeNotifier {
 
   // ── meter (reader's prediction; snaps to 100/(players-1) steps) ───────
 
+  int _snapPredictionValue(int value) {
+    final people = math.max(1, players - 1);
+    final bounded = value.clamp(0, 100);
+    if (people > 25) return bounded;
+    final count = ((bounded / 100) * people).round();
+    return ((count / people) * 100).round().clamp(0, 100);
+  }
+
   void meterUpdate(double fraction) {
     if (sub != PartySub.predict) return;
     final previousPred = pred;
-    final raw = (fraction.clamp(0.0, 1.0) * 100).round();
-    final next = side == 'a' ? 100 - raw : raw;
-    // Prototype: snap to steps of 100/(players−1) — whole other-players.
-    final step = 100 / math.max(1, players - 1);
-    pred = ((next / step).round() * step).round().clamp(0, 100);
+    final people = math.max(1, players - 1);
+    if (people <= 25) {
+      final count = (fraction.clamp(0.0, 1.0) * people).round();
+      pred = ((count / people) * 100).round().clamp(0, 100);
+    } else {
+      pred = (fraction.clamp(0.0, 1.0) * 100).round().clamp(0, 100);
+    }
     if (pred != previousPred) unawaited(HapticFeedback.selectionClick());
     notifyListeners();
   }

@@ -11,6 +11,25 @@ The app runs in demo mode when Firebase dart defines are absent:
 flutter run
 ```
 
+For local simulator testing against the live Firebase project, keep the root
+`.env.local` populated and run from the repository root:
+
+```sh
+npm run app:install:ios-sim
+```
+
+For an attached hot-reload session against live Firebase, run:
+
+```sh
+npm run app:run:ios-sim
+```
+
+For emulator-backed QA instead, run:
+
+```sh
+npm run app:run:ios-qa
+```
+
 Use the root build script for Flutter web deploy artifacts so the FCM service
 worker is copied into `build/web`:
 

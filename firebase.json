@@ -8,8 +8,9 @@
   },
   "auth": {
     "providers": {
-      "anonymous": true,
+      "anonymous": false,
       "emailPassword": true,
+      "phone": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "Read the World",
         "supportEmail": "mike@readtheworld.today",

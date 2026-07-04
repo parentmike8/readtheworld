@@ -1040,6 +1040,13 @@ Future<void> showRoomMenuSheet(
                     color: RtwV2Colors.danger,
                     onTap: () async {
                       final rooms = ref.read(roomsControllerProvider);
+                      final confirmed = await _confirmLeaveRoom(
+                        context,
+                        roomName: room?.name ?? 'this room',
+                        isCreator: isCreator,
+                        isLastMember: (room?.memberCount ?? 0) <= 1,
+                      );
+                      if (confirmed != true || !context.mounted) return;
                       final ok = await rooms.leaveRoom(roomId);
                       if (ok && context.mounted) {
                         Navigator.of(context).pop();
@@ -1055,6 +1062,52 @@ Future<void> showRoomMenuSheet(
         ],
       );
     });
+  });
+}
+
+Future<bool?> _confirmLeaveRoom(
+  BuildContext context, {
+  required String roomName,
+  required bool isCreator,
+  required bool isLastMember,
+}) {
+  final body = isLastMember
+      ? 'You are the last member. Leaving will delete this room, its history, and its leaderboard. There is no undo.'
+      : isCreator
+          ? 'You are the room creator. If you leave, creator status will move to the longest-standing remaining member.'
+          : 'You will lose access to this room, its questions, and its leaderboard.';
+  return showV2Sheet<bool>(context, (context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _sheetEyebrow('Leave room', color: RtwV2Colors.danger),
+        _sheetTitle('Leave $roomName?'),
+        _sheetBody(body),
+        const SizedBox(height: 18),
+        V2Button(
+          'Leave room',
+          background: RtwV2Colors.danger,
+          onPressed: () => Navigator.of(context).pop(true),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          radius: 16,
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Stay in room',
+              style: v2Sans(
+                14,
+                color: RtwV2Colors.subText,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   });
 }
 

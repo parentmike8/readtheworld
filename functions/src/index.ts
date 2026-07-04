@@ -84,6 +84,14 @@ import {
   type BroadcastAudience,
 } from "./notifications";
 import {
+  dailyHabitEmail,
+  isValidEmail,
+  memberJoinedEmail,
+  postmarkServerToken,
+  sendPostmarkEmail,
+  verificationEmail,
+} from "./email";
+import {
   ADMIN_FEATURE_FLAGS,
   adminFeatureFlagDefinition,
   remoteConfigBooleanValue,
@@ -111,6 +119,10 @@ const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
+const emailCallableOptions = {
+  ...callableOptions,
+  secrets: [postmarkServerToken],
+};
 
 class ShortCodeCollisionError extends Error {}
 
@@ -837,6 +849,109 @@ async function sendNotificationToTokens(
     failureCount,
     disabledCount,
   };
+}
+
+async function enabledNotificationTokensForUser(uid: string): Promise<NotificationToken[]> {
+  const tokensSnap = await db.collection("users").doc(uid)
+    .collection("notificationTokens")
+    .where("enabled", "==", true)
+    .get();
+  return tokensSnap.docs
+    .map((doc) => ({
+      uid,
+      refPath: doc.ref.path,
+      token: String(doc.data().token ?? ""),
+    }))
+    .filter((token) => token.token.length > 0);
+}
+
+async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise<{
+  attempted: number;
+  sent: number;
+  skippedWithPush: number;
+  skippedUnverified: number;
+  failed: number;
+}> {
+  const usersSnap = await db.collection("users")
+    .where("dailyReminder", "==", true)
+    .limit(1000)
+    .get();
+  let attempted = 0;
+  let sent = 0;
+  let skippedWithPush = 0;
+  let skippedUnverified = 0;
+  let failed = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    const data = userDoc.data();
+    if (data.lastDailyHabitEmailKey === dailyKey) continue;
+    const tokens = await enabledNotificationTokensForUser(userDoc.id);
+    if (tokens.length > 0) {
+      skippedWithPush += 1;
+      continue;
+    }
+    attempted += 1;
+    const authUser = await getAuth().getUser(userDoc.id).catch(() => null);
+    const email = String(data.email ?? authUser?.email ?? "").trim().toLowerCase();
+    if (!authUser?.emailVerified || !isValidEmail(email)) {
+      skippedUnverified += 1;
+      continue;
+    }
+    try {
+      await sendPostmarkEmail(dailyHabitEmail({
+        to: email,
+        displayName: String(data.displayName ?? authUser.displayName ?? "Reader"),
+        roomsUrl: `${APP_URL}/rooms`,
+        dailyKey,
+      }));
+      await userDoc.ref.set({
+        lastDailyHabitEmailKey: dailyKey,
+        lastDailyHabitEmailSentAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      logger.warn("Daily habit email failed", { uid: userDoc.id, error: String(error) });
+    }
+  }
+
+  return { attempted, sent, skippedWithPush, skippedUnverified, failed };
+}
+
+async function notifyCreatorMemberJoined(input: {
+  roomId: string;
+  creatorUid: string;
+  joinedUid: string;
+  joinedName: string;
+  roomName: string;
+}): Promise<void> {
+  if (!input.creatorUid || input.creatorUid === input.joinedUid) return;
+  const creatorSnap = await db.collection("users").doc(input.creatorUid).get();
+  const creatorProfile = creatorSnap.data() ?? {};
+  if (creatorProfile.dailyReminder === false) return;
+
+  const tokens = await enabledNotificationTokensForUser(input.creatorUid);
+  if (tokens.length > 0) {
+    await sendNotificationToTokens(tokens, {
+      title: input.roomName,
+      body: `${input.joinedName} joined your room.`,
+      route: `/rooms/${input.roomId}`,
+      type: "room_member_joined",
+    });
+    return;
+  }
+
+  const authUser = await getAuth().getUser(input.creatorUid).catch(() => null);
+  const email = String(creatorProfile.email ?? authUser?.email ?? "").trim().toLowerCase();
+  if (!authUser?.emailVerified || !isValidEmail(email)) return;
+  await sendPostmarkEmail(memberJoinedEmail({
+    to: email,
+    displayName: String(creatorProfile.displayName ?? authUser.displayName ?? "Reader"),
+    joinedName: input.joinedName,
+    roomName: input.roomName,
+    roomUrl: `${APP_URL}/rooms/${input.roomId}`,
+  }));
 }
 
 async function aggregateQuestionCounters(questionId: string): Promise<Record<string, number>> {
@@ -2197,17 +2312,22 @@ export const recomputeLeaderboards = onSchedule({
 });
 
 export const sendDailyNotifications = onSchedule({
-  schedule: "55 7 * * *",
+  schedule: "0 8 * * *",
   timeZone: EASTERN_TIME_ZONE,
+  secrets: [postmarkServerToken],
 }, async () => {
+  const todayKey = dailyKeyForEasternDate(new Date());
   const tokens = await activeNotificationTokens();
   const result = await sendNotificationToTokens(
     tokens,
-    dailyNotificationPayload("daily_question"),
+    dailyNotificationPayload("daily_room_ready"),
   );
+  const emailResult = await sendDailyHabitEmailsToUsersWithoutPush(todayKey);
 
   logger.info("Sent daily notifications", {
+    todayKey,
     ...result,
+    email: emailResult,
   });
 });
 
@@ -2215,15 +2335,38 @@ export const sendRevealReadyNotifications = onSchedule({
   schedule: "10 0 * * *",
   timeZone: EASTERN_TIME_ZONE,
 }, async () => {
-  const tokens = await activeNotificationTokens();
-  const result = await sendNotificationToTokens(
-    tokens,
-    dailyNotificationPayload("result_ready"),
-  );
+  logger.info("Skipped separate reveal-ready notifications; daily room-ready reminder covers reveals.");
+});
 
-  logger.info("Sent reveal-ready notifications", {
-    ...result,
+export const sendVerificationEmail = onCall(emailCallableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const authUser = await getAuth().getUser(uid);
+  const email = String(authUser.email ?? "").trim().toLowerCase();
+  if (!isValidEmail(email)) {
+    throw new HttpsError("failed-precondition", "Add an email address before verifying.");
+  }
+  if (authUser.emailVerified) {
+    return { sent: false, alreadyVerified: true };
+  }
+
+  const link = await getAuth().generateEmailVerificationLink(email, {
+    url: `${APP_URL}/rooms`,
+    handleCodeInApp: false,
   });
+  const profileSnap = await db.collection("users").doc(uid).get();
+  const profile = profileSnap.data() ?? {};
+  const result = await sendPostmarkEmail(verificationEmail({
+    to: email,
+    displayName: String(profile.displayName ?? authUser.displayName ?? "Reader"),
+    verificationUrl: link,
+  }));
+  await db.collection("users").doc(uid).set({
+    email,
+    verificationEmailSentAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  logger.info("Sent verification email", { uid, messageId: result.MessageID ?? null });
+  return { sent: true };
 });
 
 export const sendBroadcastNotification = onCall(callableOptions, async (request) => {
@@ -3024,7 +3167,7 @@ export const createRoom = onCall(callableOptions, async (request) => {
   return { roomId: newRoomRef.id, inviteCode: code, name };
 });
 
-export const joinRoom = onCall(callableOptions, async (request) => {
+export const joinRoom = onCall(emailCallableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const code = assertString(request.data?.code, "code").toUpperCase();
   const linkSnap = await db.collection("links").doc(code).get();
@@ -3057,16 +3200,20 @@ export const joinRoom = onCall(callableOptions, async (request) => {
   }
 
   const displayName = await displayNameForUid(uid);
+  let joinedNewMember = false;
+  let roomName = "Room";
   const tier = await db.runTransaction(async (tx) => {
     const roomSnap = await tx.get(targetRoomRef);
     if (!roomSnap.exists) {
       throw new HttpsError("not-found", "Room not found.");
     }
+    roomName = String(roomSnap.data()?.name ?? "Room");
     const memberRef = targetRoomRef.collection("members").doc(uid);
     const memberSnap = await tx.get(memberRef);
     if (memberSnap.exists) {
       return String(roomSnap.data()?.tier ?? "normal");
     }
+    joinedNewMember = true;
     tx.set(memberRef, {
       role: "member",
       displayName,
@@ -3086,6 +3233,24 @@ export const joinRoom = onCall(callableOptions, async (request) => {
     }, { merge: true });
     return String(roomSnap.data()?.tier ?? "normal");
   });
+  if (joinedNewMember) {
+    try {
+      const creatorSnap = await targetRoomRef.collection("members")
+        .where("role", "==", "creator")
+        .limit(1)
+        .get();
+      const creatorUid = creatorSnap.docs[0]?.id ?? "";
+      await notifyCreatorMemberJoined({
+        roomId,
+        creatorUid,
+        joinedUid: uid,
+        joinedName: displayName,
+        roomName,
+      });
+    } catch (error) {
+      logger.warn("Room join notification failed", { roomId, uid, error: String(error) });
+    }
+  }
   return { joined: true, roomId, tier };
 });
 

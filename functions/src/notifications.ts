@@ -1,5 +1,5 @@
 export type BroadcastAudience = "all" | "streak_at_risk" | "lapsed_7d";
-export type DailyNotificationKind = "daily_question" | "result_ready";
+export type DailyNotificationKind = "daily_room_ready" | "daily_question" | "result_ready";
 
 export type DailyNotificationPayload = {
   title: string;
@@ -37,6 +37,15 @@ export function userAllowsNotifications(user: Record<string, unknown>): boolean 
 }
 
 export function dailyNotificationPayload(kind: DailyNotificationKind): DailyNotificationPayload {
+  if (kind === "daily_room_ready") {
+    return {
+      title: "Read the World",
+      body: "Your rooms are ready. New questions are open, and yesterday's reveal is waiting.",
+      route: "/rooms",
+      type: "daily_room_ready",
+    };
+  }
+
   if (kind === "result_ready") {
     return {
       title: "Read the World",

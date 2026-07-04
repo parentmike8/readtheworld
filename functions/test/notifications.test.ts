@@ -7,7 +7,16 @@ import {
 } from "../src/notifications";
 
 describe("Daily notification payloads", () => {
-  it("keeps daily question and result-ready routes distinct", () => {
+  it("uses one morning room-ready payload for the daily habit", () => {
+    expect(dailyNotificationPayload("daily_room_ready")).toEqual({
+      title: "Read the World",
+      body: "Your rooms are ready. New questions are open, and yesterday's reveal is waiting.",
+      route: "/rooms",
+      type: "daily_room_ready",
+    });
+  });
+
+  it("keeps legacy daily question and result-ready routes distinct", () => {
     expect(dailyNotificationPayload("daily_question")).toEqual({
       title: "Read the World",
       body: "Today's question is live. Make your read before the reveal.",

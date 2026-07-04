@@ -79,13 +79,6 @@ Future<AppBootstrap> _configureFirebase() async {
   }
 
   final settings = await _configureFirebaseServices();
-  try {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-  } catch (error) {
-    debugPrint('Anonymous Firebase Auth sign-in failed: $error');
-  }
   return AppBootstrap(firebaseReady: true, settings: settings);
 }
 
@@ -314,6 +307,20 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (!appSettings.partyMode && state.uri.path == '/party') {
         return '/rooms';
       }
+      final signedOut =
+          firebaseReady && FirebaseAuth.instance.currentUser == null;
+      final path = state.uri.path;
+      final authRequiredPath =
+          path == '/onboarding' ||
+          path == '/profile' ||
+          path == '/party' ||
+          path == '/today' ||
+          path == '/today/play' ||
+          path == '/rooms' ||
+          path.startsWith('/rooms/');
+      if (signedOut && authRequiredPath) {
+        return '/auth';
+      }
       // First run: the default tabs hand off to the intro demo. Deep links
       // (join codes, room links, auth) stay untouched.
       const gatedTabs = {'/today', '/rooms', '/party'};
@@ -470,6 +477,8 @@ String? _notificationRouteFromData(Map<String, dynamic> data) {
     '/insights',
     '/account',
     '/invite',
+    '/rooms',
+    '/join',
   ];
   final allowed = allowedPaths.any(
     (prefix) => path == prefix || path.startsWith('$prefix/'),

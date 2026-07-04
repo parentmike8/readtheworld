@@ -97,7 +97,9 @@ class RoomIcon extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isWorld ? RtwV2Colors.worldInk : RtwV2Colors.roomColor(room.colorToken),
+        color: isWorld
+            ? RtwV2Colors.worldInk
+            : RtwV2Colors.roomColor(room.colorToken),
         borderRadius: BorderRadius.circular(radius),
       ),
       child: isWorld
@@ -323,7 +325,12 @@ class _NavItem extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               label,
-              style: v2Sans(11, color: color, weight: FontWeight.w600, letterSpacing: 0.3),
+              style: v2Sans(
+                11,
+                color: color,
+                weight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
             ),
           ],
         ),
@@ -383,7 +390,8 @@ class _TrianglePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_TrianglePainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(_TrianglePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// v2 page scaffold: phone-column surface centered on wide screens
@@ -494,7 +502,10 @@ class V2TopNav extends ConsumerWidget {
                       text: 'read the world',
                       style: v2Serif(20, letterSpacing: -0.4),
                       children: [
-                        TextSpan(text: '.', style: v2Serif(20, color: RtwV2Colors.clay)),
+                        TextSpan(
+                          text: '.',
+                          style: v2Serif(20, color: RtwV2Colors.clay),
+                        ),
                       ],
                     ),
                   ),
@@ -537,7 +548,11 @@ class V2TopNav extends ConsumerWidget {
 }
 
 class _TopNavTab extends StatelessWidget {
-  const _TopNavTab({required this.label, required this.active, required this.onTap});
+  const _TopNavTab({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   final String label;
   final bool active;
@@ -658,7 +673,7 @@ class V2Hairline extends StatelessWidget {
       const Divider(height: 1, thickness: 1, color: RtwV2Colors.hairline);
 }
 
-/// Count-first prediction readout. Small rooms are easier to reason about as
+/// Count-first prediction readout. Smaller rooms are easier to reason about as
 /// whole people; larger rooms keep percent primary while still showing count.
 class PredictionReadout extends StatelessWidget {
   const PredictionReadout({
@@ -667,13 +682,13 @@ class PredictionReadout extends StatelessWidget {
     required this.people,
     required this.sideLabel,
     required this.sideColor,
-    this.prompt = 'How many others would agree with you?',
-    this.promptSize = 22,
+    this.prompt = 'How many will agree with you?',
+    this.promptSize = 24,
     this.primarySize = 80,
     this.primaryHeight = 1,
   });
 
-  static const countFirstThreshold = 20;
+  static const countFirstThreshold = 25;
 
   final int percent;
   final int people;
@@ -704,16 +719,16 @@ class PredictionReadout extends StatelessWidget {
         ? boundedPercent
         : ((count / boundedPeople) * 100).round();
     final percentPrimary = boundedPeople > countFirstThreshold;
-    final primary = percentPrimary ? '$boundedPercent%' : '$count/$boundedPeople';
-    final peopleLabel = boundedPeople == 1 ? 'other' : 'others';
+    final primary = percentPrimary ? '$boundedPercent%' : '$count';
     final secondary = percentPrimary
-        ? '$count/$boundedPeople $peopleLabel'
-        : '$countPercent% of $peopleLabel';
+        ? '$count of $boundedPeople players'
+        : '$countPercent% of the room';
+    final predictionColor = RtwV2Colors.meterBlue;
 
     return Column(
       children: [
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
+          constraints: const BoxConstraints(maxWidth: 360),
           child: Text(
             prompt,
             textAlign: TextAlign.center,
@@ -725,19 +740,22 @@ class PredictionReadout extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          'Would say “$sideLabel”',
-          textAlign: TextAlign.center,
-          style: v2Sans(13, color: sideColor, weight: FontWeight.w700),
+        const SizedBox(height: 14),
+        _PredictionPrimaryValue(
+          primary: primary,
+          people: boundedPeople,
+          percentPrimary: percentPrimary,
+          primarySize: primarySize,
+          primaryHeight: primaryHeight,
+          color: predictionColor,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Text(
-          primary,
+          'Would pick “$sideLabel”',
           textAlign: TextAlign.center,
-          style: v2Serif(primarySize, color: sideColor, height: primaryHeight),
+          style: v2Sans(14, color: predictionColor, weight: FontWeight.w700),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           secondary,
           textAlign: TextAlign.center,
@@ -745,6 +763,206 @@ class PredictionReadout extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _PredictionPrimaryValue extends StatelessWidget {
+  const _PredictionPrimaryValue({
+    required this.primary,
+    required this.people,
+    required this.percentPrimary,
+    required this.primarySize,
+    required this.primaryHeight,
+    required this.color,
+  });
+
+  final String primary;
+  final int people;
+  final bool percentPrimary;
+  final double primarySize;
+  final double primaryHeight;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (percentPrimary) {
+      return Text(
+        primary,
+        textAlign: TextAlign.center,
+        style: v2Serif(primarySize, color: color, height: primaryHeight),
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          primary,
+          style: v2Serif(primarySize, color: color, height: primaryHeight),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'of $people',
+          style: v2Serif(
+            math.max(24, primarySize * 0.42),
+            color: RtwV2Colors.subText,
+            height: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class PredictionAgreementMeter extends StatelessWidget {
+  const PredictionAgreementMeter({
+    super.key,
+    required this.percent,
+    required this.people,
+    required this.onUpdate,
+    this.height = 72,
+    this.radius = 18,
+  });
+
+  static const notchThreshold = 15;
+  static const countReadoutThreshold = PredictionReadout.countFirstThreshold;
+
+  final int percent;
+  final int people;
+  final ValueChanged<double> onUpdate;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final boundedPercent = percent < 0
+        ? 0
+        : percent > 100
+        ? 100
+        : percent;
+    final boundedPeople = people < 0 ? 0 : people;
+    final fraction = boundedPercent / 100;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        void update(double localX) {
+          if (width <= 0) return;
+          onUpdate((localX / width).clamp(0.0, 1.0));
+        }
+
+        return Column(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragDown: (details) =>
+                  update(details.localPosition.dx),
+              onHorizontalDragUpdate: (details) =>
+                  update(details.localPosition.dx),
+              onTapUp: (details) => update(details.localPosition.dx),
+              child: Container(
+                height: height,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6E0D3),
+                  borderRadius: BorderRadius.circular(radius),
+                ),
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: fraction,
+                        child: Container(
+                          height: height,
+                          color: RtwV2Colors.meterBlue.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    ..._meterMarks(
+                      boundedPeople,
+                      height,
+                      boundedPeople <= notchThreshold,
+                    ),
+                    Align(
+                      alignment: Alignment(fraction * 2 - 1, 0),
+                      child: Container(
+                        width: 6,
+                        height: math.min(30, height - 20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(3),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x40000000),
+                              offset: Offset(0, 1),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'NO ONE',
+                  style: v2Mono(
+                    10,
+                    color: RtwV2Colors.muted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  boundedPeople <= countReadoutThreshold
+                      ? 'ALL $boundedPeople'
+                      : 'ALL',
+                  style: v2Mono(
+                    10,
+                    color: RtwV2Colors.muted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _meterMarks(int people, double height, bool showPersonNotches) {
+    if (people <= 1) return const [];
+    final fractions = showPersonNotches
+        ? [for (var index = 1; index < people; index++) index / people]
+        : const [0.25, 0.5, 0.75];
+    return [
+      for (final fraction in fractions)
+        Align(
+          alignment: Alignment(fraction * 2 - 1, 0),
+          child: Container(
+            key: ValueKey(
+              showPersonNotches
+                  ? 'prediction-meter-person-notch'
+                  : 'prediction-meter-guide',
+            ),
+            width: 2,
+            height: showPersonNotches ? height * 0.50 : height * 0.42,
+            decoration: BoxDecoration(
+              color: RtwV2Colors.ink.withValues(
+                alpha: showPersonNotches ? 0.14 : 0.10,
+              ),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+    ];
   }
 }
 
@@ -771,7 +989,11 @@ class V2InProgressScreen extends StatelessWidget {
               onPressed: () => context.go('/rooms'),
               child: Text(
                 '← Back to rooms',
-                style: v2Sans(14, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                style: v2Sans(
+                  14,
+                  color: RtwV2Colors.blue,
+                  weight: FontWeight.w600,
+                ),
               ),
             ),
           ],

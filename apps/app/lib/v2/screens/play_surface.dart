@@ -37,7 +37,8 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
   Widget build(BuildContext context) {
     final rooms = ref.watch(roomsControllerProvider);
     final session = rooms.play;
-    final todaySwipe = session != null && session.mode == 'today' && !session.atEnd;
+    final todaySwipe =
+        session != null && session.mode == 'today' && !session.atEnd;
     return V2Scaffold(
       wideWidth: 600,
       location: '/today',
@@ -109,7 +110,8 @@ class PlaySurface extends ConsumerWidget {
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
     if (session.isRoomIntro) {
-      if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.arrowRight) {
+      if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.arrowRight) {
         rooms.continueFromIntro();
         return KeyEventResult.handled;
       }
@@ -126,11 +128,13 @@ class PlaySurface extends ConsumerWidget {
           return KeyEventResult.handled;
         }
       case PlayStage.predict:
-        if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowRight) {
+        if (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowRight) {
           rooms.nudgePred(shift ? 5 : 1);
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowLeft) {
+        if (key == LogicalKeyboardKey.arrowDown ||
+            key == LogicalKeyboardKey.arrowLeft) {
           rooms.nudgePred(shift ? -5 : -1);
           return KeyEventResult.handled;
         }
@@ -161,49 +165,61 @@ class PlaySurface extends ConsumerWidget {
       autofocus: true,
       onKeyEvent: (node, event) => _onKey(rooms, event),
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(22, 54, 22, 26),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (todayMode)
-            _TodayBanner(session: session, card: card)
-          else if (!isIntro)
-            _RoomModeHeader(session: session, card: card, rooms: rooms),
-          if (!isIntro) ...[
-            const SizedBox(height: 16),
-            _ProgressDots(card: card, session: session),
-          ],
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.02),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
+        padding: const EdgeInsets.fromLTRB(22, 54, 22, 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (todayMode)
+              _TodayBanner(session: session, card: card)
+            else if (!isIntro)
+              _RoomModeHeader(session: session, card: card, rooms: rooms),
+            if (!isIntro) ...[
+              const SizedBox(height: 16),
+              _ProgressDots(card: card, session: session),
+            ],
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.02),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey('q${session.idx}-${session.stage}'),
+                  child: isIntro
+                      ? _IntroCard(session: session, card: card, rooms: rooms)
+                      : switch (session.stage) {
+                          PlayStage.pick => _PickStage(
+                            session: session,
+                            card: card,
+                            rooms: rooms,
+                          ),
+                          PlayStage.predict => _PredictStage(
+                            session: session,
+                            card: card,
+                            rooms: rooms,
+                          ),
+                          PlayStage.answerSaved => _AnswerSavedStage(
+                            session: session,
+                            card: card,
+                            rooms: rooms,
+                          ),
+                          PlayStage.reveal => const SizedBox.shrink(),
+                        },
                 ),
               ),
-              child: KeyedSubtree(
-                key: ValueKey('q${session.idx}-${session.stage}'),
-                child: isIntro
-                    ? _IntroCard(session: session, card: card, rooms: rooms)
-                    : switch (session.stage) {
-                        PlayStage.pick => _PickStage(session: session, card: card, rooms: rooms),
-                        PlayStage.predict => _PredictStage(session: session, card: card, rooms: rooms),
-                        PlayStage.answerSaved => _AnswerSavedStage(session: session, card: card, rooms: rooms),
-                        PlayStage.reveal => const SizedBox.shrink(),
-                      },
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -216,10 +232,18 @@ class _TodayBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final questionCards = session.deck.where((deckCard) => !deckCard.intro).length;
-    final answered = session.deck.take(session.idx).where((deckCard) => !deckCard.intro).length;
-    final overall = '${(answered + (card.intro ? 0 : 1)).clamp(1, questionCards)} / $questionCards';
-    final color = card.isWorld ? RtwV2Colors.worldInk : RtwV2Colors.roomColor(card.roomColorToken);
+    final questionCards = session.deck
+        .where((deckCard) => !deckCard.intro)
+        .length;
+    final answered = session.deck
+        .take(session.idx)
+        .where((deckCard) => !deckCard.intro)
+        .length;
+    final overall =
+        '${(answered + (card.intro ? 0 : 1)).clamp(1, questionCards)} / $questionCards';
+    final color = card.isWorld
+        ? RtwV2Colors.worldInk
+        : RtwV2Colors.roomColor(card.roomColorToken);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -246,7 +270,9 @@ class _TodayBanner extends ConsumerWidget {
                   child: card.isWorld
                       ? const Icon(Icons.public, size: 13, color: Colors.white)
                       : Text(
-                          card.roomName.isEmpty ? '?' : card.roomName.substring(0, 1),
+                          card.roomName.isEmpty
+                              ? '?'
+                              : card.roomName.substring(0, 1),
                           style: v2Serif(13, color: Colors.white),
                         ),
                 ),
@@ -256,13 +282,22 @@ class _TodayBanner extends ConsumerWidget {
                   children: [
                     Text(
                       card.roomName,
-                      style: v2Sans(14, color: RtwV2Colors.inkSoft, weight: FontWeight.w700, height: 1.1),
+                      style: v2Sans(
+                        14,
+                        color: RtwV2Colors.inkSoft,
+                        weight: FontWeight.w700,
+                        height: 1.1,
+                      ),
                     ),
                     Text(
                       card.intro
                           ? '${card.roomTotal} questions'
                           : '${card.indexInRoom + 1} of ${card.roomTotal}',
-                      style: v2Mono(9, color: RtwV2Colors.muted, letterSpacing: 0.8),
+                      style: v2Mono(
+                        9,
+                        color: RtwV2Colors.muted,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ],
                 ),
@@ -270,14 +305,21 @@ class _TodayBanner extends ConsumerWidget {
             ),
           ),
         ),
-        Text(overall, style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 1)),
+        Text(
+          overall,
+          style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 1),
+        ),
       ],
     );
   }
 }
 
 class _RoomModeHeader extends StatelessWidget {
-  const _RoomModeHeader({required this.session, required this.card, required this.rooms});
+  const _RoomModeHeader({
+    required this.session,
+    required this.card,
+    required this.rooms,
+  });
 
   final PlaySession session;
   final TodayDeckCard card;
@@ -291,8 +333,9 @@ class _RoomModeHeader extends StatelessWidget {
         GestureDetector(
           onTap: () {
             rooms.exitPlay(
-              returnRoomId:
-                  session.mode == 'intro' ? null : session.roomId ?? card.roomId,
+              returnRoomId: session.mode == 'intro'
+                  ? null
+                  : session.roomId ?? card.roomId,
             );
           },
           child: Container(
@@ -305,11 +348,18 @@ class _RoomModeHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('×', style: v2Sans(15, color: const Color(0xFF5C584F), height: 1)),
+                Text(
+                  '×',
+                  style: v2Sans(15, color: const Color(0xFF5C584F), height: 1),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   session.mode == 'intro' ? 'Skip' : 'Exit',
-                  style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                  style: v2Sans(
+                    14,
+                    color: const Color(0xFF5C584F),
+                    weight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -346,8 +396,8 @@ class _ProgressDots extends StatelessWidget {
                 color: i < current
                     ? RtwV2Colors.blue
                     : i == current
-                        ? RtwV2Colors.meterBlue.withValues(alpha: 0.45)
-                        : const Color(0xFFE1DBCE),
+                    ? RtwV2Colors.meterBlue.withValues(alpha: 0.45)
+                    : const Color(0xFFE1DBCE),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
@@ -362,7 +412,11 @@ class _ProgressDots extends StatelessWidget {
 // ── INTRO CARD ──────────────────────────────────────────────────────────
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard({required this.session, required this.card, required this.rooms});
+  const _IntroCard({
+    required this.session,
+    required this.card,
+    required this.rooms,
+  });
 
   final PlaySession session;
   final TodayDeckCard card;
@@ -378,8 +432,9 @@ class _IntroCard extends StatelessWidget {
         .where((deckCard) => deckCard.intro)
         .length;
     final introRooms = session.deck.where((deckCard) => deckCard.intro).length;
-    final badgeColor =
-        card.isWorld ? RtwV2Colors.worldInk : RtwV2Colors.roomColor(card.roomColorToken);
+    final badgeColor = card.isWorld
+        ? RtwV2Colors.worldInk
+        : RtwV2Colors.roomColor(card.roomColorToken);
 
     return Padding(
       padding: const EdgeInsets.only(top: 20),
@@ -390,9 +445,13 @@ class _IntroCard extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 320),
               child: GestureDetector(
-                onTap: () => context.go('/rooms/${card.roomId}/reveal?from=today'),
+                onTap: () =>
+                    context.go('/rooms/${card.roomId}/reveal?from=today'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
                   decoration: BoxDecoration(
                     color: RtwV2Colors.ink,
                     borderRadius: BorderRadius.circular(14),
@@ -405,12 +464,20 @@ class _IntroCard extends StatelessWidget {
                         children: [
                           Text(
                             revealLabelFor(binding?.room?.lastClosedDailyKey),
-                            style: v2Mono(9, color: const Color(0xFF8E887C), letterSpacing: 1.2),
+                            style: v2Mono(
+                              9,
+                              color: const Color(0xFF8E887C),
+                              letterSpacing: 1.2,
+                            ),
                           ),
                           const SizedBox(height: 1),
                           Text(
                             'See how it moved your score',
-                            style: v2Sans(13, color: RtwV2Colors.onDarkPaper, weight: FontWeight.w600),
+                            style: v2Sans(
+                              13,
+                              color: RtwV2Colors.onDarkPaper,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -427,7 +494,10 @@ class _IntroCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text('›', style: v2Serif(16, color: const Color(0xFF8E887C))),
+                          Text(
+                            '›',
+                            style: v2Serif(16, color: const Color(0xFF8E887C)),
+                          ),
                         ],
                       ),
                     ],
@@ -457,7 +527,12 @@ class _IntroCard extends StatelessWidget {
                     ),
                     child: Text(
                       'NEW QUESTIONS',
-                      style: v2Mono(9, color: const Color(0xFFAEA894), weight: FontWeight.w600, letterSpacing: 2),
+                      style: v2Mono(
+                        9,
+                        color: const Color(0xFFAEA894),
+                        weight: FontWeight.w600,
+                        letterSpacing: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -465,7 +540,10 @@ class _IntroCard extends StatelessWidget {
                   onTap: rooms.continueFromIntro,
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 30),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 30,
+                    ),
                     decoration: BoxDecoration(
                       color: RtwV2Colors.card,
                       border: Border.all(color: RtwV2Colors.border, width: 1.5),
@@ -482,7 +560,11 @@ class _IntroCard extends StatelessWidget {
                       children: [
                         Text(
                           'NEXT UP · ROOM $introOrd OF $introRooms',
-                          style: v2Mono(10, color: RtwV2Colors.muted, letterSpacing: 1.8),
+                          style: v2Mono(
+                            10,
+                            color: RtwV2Colors.muted,
+                            letterSpacing: 1.8,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         Container(
@@ -494,9 +576,15 @@ class _IntroCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: card.isWorld
-                              ? const Icon(Icons.public, size: 30, color: Colors.white)
+                              ? const Icon(
+                                  Icons.public,
+                                  size: 30,
+                                  color: Colors.white,
+                                )
                               : Text(
-                                  card.roomName.isEmpty ? '?' : card.roomName.substring(0, 1),
+                                  card.roomName.isEmpty
+                                      ? '?'
+                                      : card.roomName.substring(0, 1),
                                   style: v2Serif(32, color: Colors.white),
                                 ),
                         ),
@@ -514,7 +602,11 @@ class _IntroCard extends StatelessWidget {
                         const SizedBox(height: 22),
                         Text(
                           'Tap to start →',
-                          style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                          style: v2Sans(
+                            12,
+                            color: RtwV2Colors.blue,
+                            weight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -536,18 +628,45 @@ String revealLabelFor(String? dailyKey) {
   if (date == null) return "YESTERDAY'S REVEAL";
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final diff = today.difference(DateTime(date.year, date.month, date.day)).inDays;
+  final diff = today
+      .difference(DateTime(date.year, date.month, date.day))
+      .inDays;
   if (diff <= 1) return "YESTERDAY'S REVEAL";
-  const weekdays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+  const weekdays = [
+    'MONDAY',
+    'TUESDAY',
+    'WEDNESDAY',
+    'THURSDAY',
+    'FRIDAY',
+    'SATURDAY',
+    'SUNDAY',
+  ];
   if (diff < 7) return "${weekdays[date.weekday - 1]}'S REVEAL";
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
   return '${months[date.month - 1]} ${date.day} REVEAL';
 }
 
 // ── PICK STAGE ──────────────────────────────────────────────────────────
 
 class _PickStage extends StatelessWidget {
-  const _PickStage({required this.session, required this.card, required this.rooms});
+  const _PickStage({
+    required this.session,
+    required this.card,
+    required this.rooms,
+  });
 
   final PlaySession session;
   final TodayDeckCard card;
@@ -562,8 +681,8 @@ class _PickStage extends StatelessWidget {
     final borderColor = dx > RtwV2Motion.borderTintThreshold
         ? RtwV2Colors.blue
         : dx < -RtwV2Motion.borderTintThreshold
-            ? RtwV2Colors.clay
-            : RtwV2Colors.border;
+        ? RtwV2Colors.clay
+        : RtwV2Colors.border;
 
     return Column(
       children: [
@@ -625,17 +744,23 @@ class _PickStage extends StatelessWidget {
                 ),
                 GestureDetector(
                   onHorizontalDragStart: (_) => rooms.cardDragStart(),
-                  onHorizontalDragUpdate: (details) => rooms.cardDragUpdate(details.delta.dx),
+                  onHorizontalDragUpdate: (details) =>
+                      rooms.cardDragUpdate(details.delta.dx),
                   onHorizontalDragEnd: (details) =>
                       rooms.cardDragEnd(details.velocity.pixelsPerSecond.dx),
                   child: AnimatedContainer(
-                    duration: session.dragging ? Duration.zero : RtwV2Motion.cardSettle,
+                    duration: session.dragging
+                        ? Duration.zero
+                        : RtwV2Motion.cardSettle,
                     curve: _settleCurve,
                     transform: Matrix4.identity()
                       ..translateByDouble(dx, 0, 0, 1)
                       ..rotateZ(dx * RtwV2Motion.tiltFactor * 3.14159 / 180),
                     transformAlignment: Alignment.center,
-                    constraints: const BoxConstraints(maxWidth: 320, minHeight: 320),
+                    constraints: const BoxConstraints(
+                      maxWidth: 320,
+                      minHeight: 320,
+                    ),
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: RtwV2Colors.card,
@@ -643,7 +768,12 @@ class _PickStage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Color.fromRGBO(40, 40, 40, 0.08 + dx.abs() / 800),
+                          color: Color.fromRGBO(
+                            40,
+                            40,
+                            40,
+                            0.08 + dx.abs() / 800,
+                          ),
                           offset: const Offset(0, 12),
                           blurRadius: 38,
                         ),
@@ -655,7 +785,11 @@ class _PickStage extends StatelessWidget {
                       children: [
                         Text(
                           question.tag.toUpperCase(),
-                          style: v2Mono(10, color: RtwV2Colors.clay, letterSpacing: 1.8),
+                          style: v2Mono(
+                            10,
+                            color: RtwV2Colors.clay,
+                            letterSpacing: 1.8,
+                          ),
                         ),
                         ConstrainedBox(
                           constraints: const BoxConstraints(minHeight: 208),
@@ -665,7 +799,11 @@ class _PickStage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               child: Text(
                                 question.prompt,
-                                style: v2Serif(26, height: 1.18, letterSpacing: -0.3),
+                                style: v2Serif(
+                                  26,
+                                  height: 1.18,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
                             ),
                           ),
@@ -691,7 +829,11 @@ class _PickStage extends StatelessWidget {
                             ),
                             const SizedBox(
                               width: 56,
-                              child: Icon(Icons.sync_alt, size: 18, color: Color(0xFFCFC8B7)),
+                              child: Icon(
+                                Icons.sync_alt,
+                                size: 18,
+                                color: Color(0xFFCFC8B7),
+                              ),
                             ),
                             Expanded(
                               child: GestureDetector(
@@ -729,12 +871,20 @@ class _PickStage extends StatelessWidget {
               children: [
                 TextSpan(
                   text: question.optB,
-                  style: v2Sans(13, color: RtwV2Colors.subText, weight: FontWeight.w700),
+                  style: v2Sans(
+                    13,
+                    color: RtwV2Colors.subText,
+                    weight: FontWeight.w700,
+                  ),
                 ),
                 const TextSpan(text: ', right for '),
                 TextSpan(
                   text: question.optA,
-                  style: v2Sans(13, color: RtwV2Colors.subText, weight: FontWeight.w700),
+                  style: v2Sans(
+                    13,
+                    color: RtwV2Colors.subText,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -749,7 +899,11 @@ class _PickStage extends StatelessWidget {
 // ── PREDICT STAGE ───────────────────────────────────────────────────────
 
 class _PredictStage extends StatelessWidget {
-  const _PredictStage({required this.session, required this.card, required this.rooms});
+  const _PredictStage({
+    required this.session,
+    required this.card,
+    required this.rooms,
+  });
 
   final PlaySession session;
   final TodayDeckCard card;
@@ -760,7 +914,6 @@ class _PredictStage extends StatelessWidget {
     final question = card.question!;
     final sideA = session.side == 'a';
     final sideLabel = sideA ? question.optA : question.optB;
-    final otherLabel = sideA ? question.optB : question.optA;
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     final pred = session.pred;
     final others = (card.roomMembers - 1).clamp(0, 1 << 31);
@@ -774,14 +927,20 @@ class _PredictStage extends StatelessWidget {
           style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 1.6),
         ),
         const SizedBox(height: 11),
-        Text(question.prompt, style: v2Serif(27, height: 1.18, letterSpacing: -0.4)),
+        Text(
+          question.prompt,
+          style: v2Serif(27, height: 1.18, letterSpacing: -0.4),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: sideColor,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 8),
             Text.rich(
@@ -791,7 +950,11 @@ class _PredictStage extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: sideLabel,
-                    style: v2Sans(14, color: sideColor, weight: FontWeight.w700),
+                    style: v2Sans(
+                      14,
+                      color: sideColor,
+                      weight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -810,39 +973,11 @@ class _PredictStage extends StatelessWidget {
                 sideColor: sideColor,
               ),
               const SizedBox(height: 28),
-              _EdgeMeter(session: session, sideLabel: sideLabel, rooms: rooms),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    sideA ? 'NEARLY ALL' : 'NEARLY NONE',
-                    style: v2Mono(10, color: RtwV2Colors.muted, letterSpacing: 0.5),
-                  ),
-                  Text(
-                    sideA ? 'NEARLY NONE' : 'NEARLY ALL',
-                    style: v2Mono(10, color: RtwV2Colors.muted, letterSpacing: 0.5),
-                  ),
-                ],
+              PredictionAgreementMeter(
+                percent: pred,
+                people: others,
+                onUpdate: rooms.meterUpdate,
               ),
-              if (session.armSwitch)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.9, end: 1),
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.ease,
-                    builder: (context, scale, child) => Transform.scale(
-                      scale: scale,
-                      child: Opacity(opacity: (scale - 0.9) * 10, child: child),
-                    ),
-                    child: Text(
-                      'Release to switch to $otherLabel',
-                      textAlign: TextAlign.center,
-                      style: v2Sans(12, color: RtwV2Colors.clay, weight: FontWeight.w600),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -873,112 +1008,22 @@ class _PredictStage extends StatelessWidget {
 String _saveLabel(PlaySession session, TodayDeckCard card) {
   final isLast = session.idx + 1 >= session.deck.length;
   if (session.mode == 'today') {
-    return isLast ? 'Save · all done →' : 'Save · next →';
+    return isLast ? 'Submit · all done →' : 'Submit · next →';
   }
   if (session.mode == 'intro') {
-    return isLast ? 'Save it →' : 'Save · next →';
+    return isLast ? 'Submit →' : 'Submit · next →';
   }
-  return isLast ? 'Save answers →' : 'Save · next →';
-}
-
-/// The edge meter: fill docks to the picked side (side A → right), dragging
-/// toward the far edge shrinks the share; hitting ≤2 arms a side flip.
-class _EdgeMeter extends StatelessWidget {
-  const _EdgeMeter({required this.session, required this.sideLabel, required this.rooms});
-
-  final PlaySession session;
-  final String sideLabel;
-  final RoomsController rooms;
-
-  @override
-  Widget build(BuildContext context) {
-    final sideA = session.side == 'a';
-    final pred = session.pred;
-    final fillColor = sideA
-        ? RtwV2Colors.meterBlue.withValues(alpha: 0.85)
-        : RtwV2Colors.meterClay.withValues(alpha: 0.9);
-    final inverseColor = sideA
-        ? RtwV2Colors.meterClay.withValues(alpha: 0.10)
-        : RtwV2Colors.meterBlue.withValues(alpha: 0.10);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        void update(double localX) => rooms.meterUpdate(localX / width);
-        final handleFraction = (sideA ? (100 - pred) : pred) / 100;
-        return GestureDetector(
-          onHorizontalDragDown: (details) => update(details.localPosition.dx),
-          onHorizontalDragUpdate: (details) => update(details.localPosition.dx),
-          onHorizontalDragEnd: (_) => rooms.meterRelease(),
-          onHorizontalDragCancel: rooms.meterRelease,
-          onTapUp: (details) {
-            update(details.localPosition.dx);
-            rooms.meterRelease();
-          },
-          child: Container(
-            height: 72,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6E0D3),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Stack(
-              children: [
-                Align(
-                  alignment: sideA ? Alignment.centerLeft : Alignment.centerRight,
-                  child: FractionallySizedBox(
-                    widthFactor: (100 - pred) / 100,
-                    child: Container(height: 72, color: inverseColor),
-                  ),
-                ),
-                Align(
-                  alignment: sideA ? Alignment.centerRight : Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: pred / 100,
-                    child: Container(height: 72, color: fillColor),
-                  ),
-                ),
-                Align(
-                  alignment: sideA ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      sideLabel.toUpperCase(),
-                      style: v2Mono(12, color: Colors.white, letterSpacing: 1.5),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment(handleFraction * 2 - 1, 0),
-                  child: Container(
-                    width: 6,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(3),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x40000000),
-                          offset: Offset(0, 1),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  return isLast ? 'Submit answers →' : 'Submit · next →';
 }
 
 // ── ANSWER SAVED (solo / locked world) ──────────────────────────────────
 
 class _AnswerSavedStage extends ConsumerWidget {
-  const _AnswerSavedStage({required this.session, required this.card, required this.rooms});
+  const _AnswerSavedStage({
+    required this.session,
+    required this.card,
+    required this.rooms,
+  });
 
   final PlaySession session;
   final TodayDeckCard card;
@@ -992,9 +1037,10 @@ class _AnswerSavedStage extends ConsumerWidget {
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     final isWorld = session.answerSavedReason == 'world';
     final threshold = question.threshold ?? 1000;
-    final existingPick = rooms.bindingFor(card.roomId)?.myTodayAnswer?.pickFor(
-      question.qid,
-    );
+    final existingPick = rooms
+        .bindingFor(card.roomId)
+        ?.myTodayAnswer
+        ?.pickFor(question.qid);
     final answers =
         (rooms.worldToday?.answerCounts[question.qid] ?? 0) +
         (existingPick == null ? 1 : 0);
@@ -1008,14 +1054,20 @@ class _AnswerSavedStage extends ConsumerWidget {
           style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 1.6),
         ),
         const SizedBox(height: 11),
-        Text(question.prompt, style: v2Serif(27, height: 1.18, letterSpacing: -0.4)),
+        Text(
+          question.prompt,
+          style: v2Serif(27, height: 1.18, letterSpacing: -0.4),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: sideColor,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 8),
             Text.rich(
@@ -1025,7 +1077,11 @@ class _AnswerSavedStage extends ConsumerWidget {
                 children: [
                   TextSpan(
                     text: sideLabel,
-                    style: v2Sans(14, color: sideColor, weight: FontWeight.w700),
+                    style: v2Sans(
+                      14,
+                      color: sideColor,
+                      weight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -1045,7 +1101,11 @@ class _AnswerSavedStage extends ConsumerWidget {
                     color: RtwV2Colors.blue.withValues(alpha: 0.10),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.check, size: 24, color: RtwV2Colors.blue),
+                  child: const Icon(
+                    Icons.check,
+                    size: 24,
+                    color: RtwV2Colors.blue,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (isWorld) ...[
@@ -1054,7 +1114,11 @@ class _AnswerSavedStage extends ConsumerWidget {
                     child: Text(
                       'Saved. Predicting opens once this question crosses ${_formatThousands(threshold)} answers.',
                       textAlign: TextAlign.center,
-                      style: v2Serif(22, color: const Color(0xFF2C2A24), height: 1.3),
+                      style: v2Serif(
+                        22,
+                        color: const Color(0xFF2C2A24),
+                        height: 1.3,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1088,7 +1152,11 @@ class _AnswerSavedStage extends ConsumerWidget {
                     child: Text(
                       'Saved. No one else here yet, so no prediction to make.',
                       textAlign: TextAlign.center,
-                      style: v2Serif(22, color: const Color(0xFF2C2A24), height: 1.3),
+                      style: v2Serif(
+                        22,
+                        color: const Color(0xFF2C2A24),
+                        height: 1.3,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1097,7 +1165,11 @@ class _AnswerSavedStage extends ConsumerWidget {
                     child: Text(
                       "Invite someone into this room and you'll both start predicting each other.",
                       textAlign: TextAlign.center,
-                      style: v2Sans(13.5, color: RtwV2Colors.faint, height: 1.5),
+                      style: v2Sans(
+                        13.5,
+                        color: RtwV2Colors.faint,
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ],
@@ -1144,150 +1216,175 @@ String _formatThousands(int value) {
 /// Room-switch sheet: jump to an upcoming block, or drag upcoming blocks
 /// into a new order (prototype drag reorder — only rooms after the current
 /// one move).
-void _showRoomSwitchSheet(BuildContext context, WidgetRef ref, PlaySession session) {
+void _showRoomSwitchSheet(
+  BuildContext context,
+  WidgetRef ref,
+  PlaySession session,
+) {
   showV2Sheet(context, (sheetContext) {
-    return Consumer(builder: (context, ref, _) {
-      final rooms = ref.watch(roomsControllerProvider);
-      final live = rooms.play;
-      if (live == null || live.mode != 'today') {
-        return const SizedBox.shrink();
-      }
-      final deck = live.deck;
-      final blocks = <({TodayDeckCard first, int start, int size})>[];
-      var i = 0;
-      while (i < deck.length) {
-        final roomId = deck[i].roomId;
-        var j = i;
-        while (j < deck.length && deck[j].roomId == roomId) {
-          j++;
+    return Consumer(
+      builder: (context, ref, _) {
+        final rooms = ref.watch(roomsControllerProvider);
+        final live = rooms.play;
+        if (live == null || live.mode != 'today') {
+          return const SizedBox.shrink();
         }
-        blocks.add((first: deck[i], start: i, size: j - i));
-        i = j;
-      }
-      final currentBlock = blocks.indexWhere(
-        (block) => live.idx >= block.start && live.idx < block.start + block.size,
-      );
-      final fixed = blocks.sublist(0, currentBlock + 1);
-      final movable = blocks.sublist(currentBlock + 1);
-
-      Widget rowFor(
-        ({TodayDeckCard first, int start, int size}) block, {
-        required bool isCurrent,
-        required bool isPast,
-        Widget? trailing,
-        Key? key,
-      }) {
-        final card = block.first;
-        return GestureDetector(
-          key: key,
-          onTap: !isCurrent && !isPast
-              ? () {
-                  rooms.jumpToDeckIndex(block.start);
-                  Navigator.of(sheetContext).pop();
-                }
-              : null,
-          child: Opacity(
-            opacity: isPast ? 0.55 : 1,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isCurrent
-                    ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
-                    : RtwV2Colors.card,
-                border: Border.all(
-                  color: isCurrent ? Colors.transparent : RtwV2Colors.border,
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: card.isWorld
-                          ? RtwV2Colors.worldInk
-                          : RtwV2Colors.roomColor(card.roomColorToken),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: card.isWorld
-                        ? const Icon(Icons.public, size: 17, color: Colors.white)
-                        : Text(
-                            card.roomName.isEmpty ? '?' : card.roomName.substring(0, 1),
-                            style: v2Serif(15, color: Colors.white),
-                          ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(child: Text(card.roomName, style: v2Serif(17))),
-                  Text(
-                    isCurrent
-                        ? 'Playing now'
-                        : isPast
-                            ? 'Done'
-                            : '${block.size - 1} questions',
-                    style: v2Sans(12, color: RtwV2Colors.muted, weight: FontWeight.w600),
-                  ),
-                  if (trailing != null) ...[const SizedBox(width: 8), trailing],
-                ],
-              ),
-            ),
-          ),
+        final deck = live.deck;
+        final blocks = <({TodayDeckCard first, int start, int size})>[];
+        var i = 0;
+        while (i < deck.length) {
+          final roomId = deck[i].roomId;
+          var j = i;
+          while (j < deck.length && deck[j].roomId == roomId) {
+            j++;
+          }
+          blocks.add((first: deck[i], start: i, size: j - i));
+          i = j;
+        }
+        final currentBlock = blocks.indexWhere(
+          (block) =>
+              live.idx >= block.start && live.idx < block.start + block.size,
         );
-      }
+        final fixed = blocks.sublist(0, currentBlock + 1);
+        final movable = blocks.sublist(currentBlock + 1);
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const V2Eyebrow('Today\u2019s rooms'),
-          const SizedBox(height: 14),
-          for (final (index, block) in fixed.indexed)
-            rowFor(
-              block,
-              isCurrent: index == currentBlock,
-              isPast: index < currentBlock,
-            ),
-          if (movable.isNotEmpty) ...[
-            ReorderableListView(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              buildDefaultDragHandles: false,
-              onReorder: (oldIndex, newIndex) {
-                final order = movable.map((block) => block.first.roomId).toList();
-                if (newIndex > oldIndex) newIndex -= 1;
-                final moved = order.removeAt(oldIndex);
-                order.insert(newIndex, moved);
-                rooms.reorderTodayBlocks(order);
-              },
-              children: [
-                for (final (index, block) in movable.indexed)
-                  ReorderableDragStartListener(
-                    key: ValueKey('switch-${block.first.roomId}'),
-                    index: index,
-                    child: rowFor(
-                      block,
-                      isCurrent: false,
-                      isPast: false,
-                      trailing: const Icon(
-                        Icons.drag_indicator,
-                        size: 18,
-                        color: RtwV2Colors.faint,
+        Widget rowFor(
+          ({TodayDeckCard first, int start, int size}) block, {
+          required bool isCurrent,
+          required bool isPast,
+          Widget? trailing,
+          Key? key,
+        }) {
+          final card = block.first;
+          return GestureDetector(
+            key: key,
+            onTap: !isCurrent && !isPast
+                ? () {
+                    rooms.jumpToDeckIndex(block.start);
+                    Navigator.of(sheetContext).pop();
+                  }
+                : null,
+            child: Opacity(
+              opacity: isPast ? 0.55 : 1,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isCurrent
+                      ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+                      : RtwV2Colors.card,
+                  border: Border.all(
+                    color: isCurrent ? Colors.transparent : RtwV2Colors.border,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: card.isWorld
+                            ? RtwV2Colors.worldInk
+                            : RtwV2Colors.roomColor(card.roomColorToken),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: card.isWorld
+                          ? const Icon(
+                              Icons.public,
+                              size: 17,
+                              color: Colors.white,
+                            )
+                          : Text(
+                              card.roomName.isEmpty
+                                  ? '?'
+                                  : card.roomName.substring(0, 1),
+                              style: v2Serif(15, color: Colors.white),
+                            ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(child: Text(card.roomName, style: v2Serif(17))),
+                    Text(
+                      isCurrent
+                          ? 'Playing now'
+                          : isPast
+                          ? 'Done'
+                          : '${block.size - 1} questions',
+                      style: v2Sans(
+                        12,
+                        color: RtwV2Colors.muted,
+                        weight: FontWeight.w600,
                       ),
                     ),
-                  ),
-              ],
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing,
+                    ],
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Drag to reorder what comes next.',
-              style: v2Sans(12, color: RtwV2Colors.faint),
-            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const V2Eyebrow('Today\u2019s rooms'),
+            const SizedBox(height: 14),
+            for (final (index, block) in fixed.indexed)
+              rowFor(
+                block,
+                isCurrent: index == currentBlock,
+                isPast: index < currentBlock,
+              ),
+            if (movable.isNotEmpty) ...[
+              ReorderableListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                onReorder: (oldIndex, newIndex) {
+                  final order = movable
+                      .map((block) => block.first.roomId)
+                      .toList();
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final moved = order.removeAt(oldIndex);
+                  order.insert(newIndex, moved);
+                  rooms.reorderTodayBlocks(order);
+                },
+                children: [
+                  for (final (index, block) in movable.indexed)
+                    ReorderableDragStartListener(
+                      key: ValueKey('switch-${block.first.roomId}'),
+                      index: index,
+                      child: rowFor(
+                        block,
+                        isCurrent: false,
+                        isPast: false,
+                        trailing: const Icon(
+                          Icons.drag_indicator,
+                          size: 18,
+                          color: RtwV2Colors.faint,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Drag to reorder what comes next.',
+                style: v2Sans(12, color: RtwV2Colors.faint),
+              ),
+            ],
           ],
-        ],
-      );
-    });
+        );
+      },
+    );
   });
 }
 
@@ -1366,7 +1463,12 @@ class _RoundSummary extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          V2Eyebrow('Round complete · $roomName', size: 11, color: RtwV2Colors.clay, letterSpacing: 1.6),
+          V2Eyebrow(
+            'Round complete · $roomName',
+            size: 11,
+            color: RtwV2Colors.clay,
+            letterSpacing: 1.6,
+          ),
           const SizedBox(height: 12),
           Text(
             "That's your three in.",
@@ -1396,13 +1498,21 @@ class _RoundSummary extends ConsumerWidget {
                     color: RtwV2Colors.meterBlue.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.schedule, size: 20, color: RtwV2Colors.blue),
+                  child: const Icon(
+                    Icons.schedule,
+                    size: 20,
+                    color: RtwV2Colors.blue,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Come back tomorrow for the reveal and your accuracy.',
-                    style: v2Sans(13.5, color: const Color(0xFF5C584F), height: 1.5),
+                    style: v2Sans(
+                      13.5,
+                      color: const Color(0xFF5C584F),
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ],
@@ -1419,7 +1529,8 @@ class _RoundSummary extends ConsumerWidget {
             ),
             child: Text.rich(
               TextSpan(
-                text: 'Every friend you bring gets the World closer to unlocking. ',
+                text:
+                    'Every friend you bring gets the World closer to unlocking. ',
                 style: v2Sans(13, color: const Color(0xFFC7C1B3), height: 1.5),
                 children: [
                   WidgetSpan(
@@ -1427,7 +1538,11 @@ class _RoundSummary extends ConsumerWidget {
                       onTap: () => showInviteSheet(context, rooms, roomId),
                       child: Text(
                         'Invite →',
-                        style: v2Sans(13, color: RtwV2Colors.onDarkBlue, weight: FontWeight.w600),
+                        style: v2Sans(
+                          13,
+                          color: RtwV2Colors.onDarkBlue,
+                          weight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

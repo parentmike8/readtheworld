@@ -51,6 +51,11 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     final binding = rooms.bindingFor(widget.roomId);
     final room = binding?.room;
     if (room == null) {
+      if (!rooms.loadingRooms) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) context.go('/rooms');
+        });
+      }
       return V2Scaffold(
         location: '/rooms/${widget.roomId}',
         wideWidth: 760,

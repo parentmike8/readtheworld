@@ -35,6 +35,9 @@ class RtwController extends ChangeNotifier {
   int liveCount = 0;
   String displayName = 'Reader';
   String email = '';
+  bool emailVerified = false;
+  String phoneNumber = '';
+  bool phoneCodeSent = false;
   bool dailyReminder = false;
   int avatarIndex = 0;
   DateTime? birthdate;
@@ -73,6 +76,9 @@ class RtwController extends ChangeNotifier {
   String? _pendingHandoffQuestionId;
   String? _pendingHandoffOptionId;
   int? _pendingHandoffPrediction;
+  ConfirmationResult? _webPhoneConfirmation;
+  String? _phoneVerificationId;
+  int? _phoneResendToken;
   String? _postOnboardingRoute;
   final Map<String, Future<String?>> _handoffRedemptions = {};
   final Map<String, String?> _redeemedHandoffRoutes = {};
@@ -264,6 +270,8 @@ class RtwController extends ChangeNotifier {
     final uid = user?.uid;
     final authDisplayName = user?.displayName;
     final authEmail = user?.email;
+    final authEmailVerified = user?.emailVerified ?? false;
+    final authPhoneNumber = user?.phoneNumber;
     if (_boundUid == uid) {
       if (user != null) {
         _applyAuthUserDefaults(user, resetScoring: false);
@@ -297,6 +305,11 @@ class RtwController extends ChangeNotifier {
             authDisplayName ??
             displayName;
         email = _nonEmptyString(data['email']) ?? authEmail ?? email;
+        emailVerified = authEmailVerified;
+        phoneNumber =
+            _nonEmptyString(data['phoneNumber']) ??
+            authPhoneNumber ??
+            phoneNumber;
         dailyReminder = data['dailyReminder'] as bool? ?? dailyReminder;
         avatarIndex = _avatarIndexFromColor(data['avatarColor']);
         final demographics = _stringKeyedMap(data['demographics']);
@@ -433,6 +446,8 @@ class RtwController extends ChangeNotifier {
         _displayNameFromEmail(user.email) ??
         'Reader';
     email = _nonEmptyString(user.email) ?? '';
+    emailVerified = user.emailVerified;
+    phoneNumber = _nonEmptyString(user.phoneNumber) ?? '';
     dailyReminder = false;
     avatarIndex = 0;
     birthdate = null;
@@ -476,6 +491,8 @@ class RtwController extends ChangeNotifier {
           'displayName': displayName,
         if (!exists || _nonEmptyString(data?['email']) == null)
           'email': _nonEmptyString(user.email),
+        if (!exists || _nonEmptyString(data?['phoneNumber']) == null)
+          'phoneNumber': _nonEmptyString(user.phoneNumber),
         if (!exists || _nonEmptyString(data?['avatarColor']) == null)
           'avatarColor': _avatarColorName(avatarIndex),
         if (!exists || data?['dailyReminder'] is! bool)
@@ -708,6 +725,9 @@ class RtwController extends ChangeNotifier {
           password: password,
         );
       }
+      if (creating) {
+        unawaited(sendVerificationEmail(silent: true));
+      }
       unawaited(
         _logEvent(creating ? 'sign_up' : 'login', {'method': 'password'}),
       );
@@ -721,6 +741,163 @@ class RtwController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<bool> startPhoneSignIn(String rawPhoneNumber) async {
+    lastError = null;
+    phoneCodeSent = false;
+    _webPhoneConfirmation = null;
+    _phoneVerificationId = null;
+    final normalizedPhoneNumber = _normalizePhoneNumber(rawPhoneNumber);
+    if (normalizedPhoneNumber == null) {
+      lastError = 'Enter a phone number with country code.';
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      final auth = FirebaseAuth.instance;
+      phoneNumber = normalizedPhoneNumber;
+      if (kIsWeb) {
+        _webPhoneConfirmation = await auth.signInWithPhoneNumber(
+          normalizedPhoneNumber,
+        );
+        phoneCodeSent = true;
+        lastError = 'Code sent.';
+        notifyListeners();
+        unawaited(_logEvent('phone_code_sent'));
+        return false;
+      }
+
+      final completer = Completer<bool>();
+      await auth.verifyPhoneNumber(
+        phoneNumber: normalizedPhoneNumber,
+        forceResendingToken: _phoneResendToken,
+        timeout: const Duration(seconds: 60),
+        verificationCompleted: (credential) async {
+          try {
+            await _authenticateWithCredential(credential);
+            phoneCodeSent = false;
+            _phoneVerificationId = null;
+            unawaited(_logEvent('login', {'method': 'phone'}));
+            if (!completer.isCompleted) completer.complete(true);
+          } on FirebaseAuthException catch (error) {
+            lastError = _authMessage(error);
+            if (!completer.isCompleted) completer.complete(false);
+          } catch (error) {
+            lastError = error.toString();
+            if (!completer.isCompleted) completer.complete(false);
+          }
+          notifyListeners();
+        },
+        verificationFailed: (error) {
+          lastError = _authMessage(error);
+          phoneCodeSent = false;
+          if (!completer.isCompleted) completer.complete(false);
+          notifyListeners();
+        },
+        codeSent: (verificationId, resendToken) {
+          _phoneVerificationId = verificationId;
+          _phoneResendToken = resendToken;
+          phoneCodeSent = true;
+          lastError = 'Code sent.';
+          if (!completer.isCompleted) completer.complete(false);
+          notifyListeners();
+          unawaited(_logEvent('phone_code_sent'));
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          _phoneVerificationId = verificationId;
+          notifyListeners();
+        },
+      );
+      return completer.future.timeout(
+        const Duration(seconds: 65),
+        onTimeout: () => false,
+      );
+    } on FirebaseAuthException catch (error) {
+      lastError = _authMessage(error);
+      phoneCodeSent = false;
+      notifyListeners();
+      return false;
+    } catch (error) {
+      lastError = error.toString();
+      phoneCodeSent = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> verifyPhoneCode(String rawCode) async {
+    lastError = null;
+    final code = rawCode.trim().replaceAll(RegExp(r'\s+'), '');
+    if (code.isEmpty) {
+      lastError = 'Enter the code from the text message.';
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady) {
+      lastError = 'Live authentication is unavailable.';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      if (kIsWeb) {
+        final confirmation = _webPhoneConfirmation;
+        if (confirmation == null) {
+          lastError = 'Ask for a new code first.';
+          notifyListeners();
+          return false;
+        }
+        await confirmation.confirm(code);
+      } else {
+        final verificationId = _phoneVerificationId;
+        if (verificationId == null || verificationId.isEmpty) {
+          lastError = 'Ask for a new code first.';
+          notifyListeners();
+          return false;
+        }
+        final credential = PhoneAuthProvider.credential(
+          verificationId: verificationId,
+          smsCode: code,
+        );
+        await _authenticateWithCredential(credential);
+      }
+      phoneCodeSent = false;
+      _webPhoneConfirmation = null;
+      _phoneVerificationId = null;
+      _phoneResendToken = null;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        phoneNumber = _nonEmptyString(user.phoneNumber) ?? phoneNumber;
+        await _writeInitialUserProfile(user);
+      }
+      unawaited(_logEvent('login', {'method': 'phone'}));
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (error) {
+      lastError = _authMessage(error);
+      notifyListeners();
+      return false;
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void resetPhoneSignIn() {
+    phoneCodeSent = false;
+    _webPhoneConfirmation = null;
+    _phoneVerificationId = null;
+    _phoneResendToken = null;
+    lastError = null;
+    notifyListeners();
   }
 
   /// v2: returning members (any room membership) land on their rooms;
@@ -995,6 +1172,55 @@ class RtwController extends ChangeNotifier {
     }
   }
 
+  Future<void> sendVerificationEmail({bool silent = false}) async {
+    lastError = null;
+    if (!firebaseReady) {
+      if (!silent) {
+        lastError = 'Live authentication is unavailable.';
+        notifyListeners();
+      }
+      return;
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || _nonEmptyString(user.email) == null) {
+      if (!silent) {
+        lastError = 'Add an email address before verifying.';
+        notifyListeners();
+      }
+      return;
+    }
+    await user.reload();
+    final refreshed = FirebaseAuth.instance.currentUser;
+    emailVerified = refreshed?.emailVerified ?? emailVerified;
+    if (emailVerified) {
+      if (!silent) {
+        lastError = 'Email is already verified.';
+        notifyListeners();
+      }
+      return;
+    }
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('sendVerificationEmail');
+      await callable.call();
+      if (!silent) {
+        lastError = 'Verification email sent.';
+        notifyListeners();
+      }
+    } on FirebaseFunctionsException catch (error) {
+      if (!silent) {
+        lastError = error.message ?? error.code;
+        notifyListeners();
+      }
+    } catch (error) {
+      if (!silent) {
+        lastError = error.toString();
+        notifyListeners();
+      }
+    }
+  }
+
   String _authMessage(FirebaseAuthException error) {
     switch (error.code) {
       case 'invalid-email':
@@ -1007,6 +1233,19 @@ class RtwController extends ChangeNotifier {
         return 'Email or password was not recognized.';
       case 'weak-password':
         return 'Use a stronger password.';
+      case 'invalid-phone-number':
+        return 'Enter a phone number with country code.';
+      case 'missing-verification-code':
+        return 'Enter the code from the text message.';
+      case 'invalid-verification-code':
+        return 'That code was not recognized.';
+      case 'session-expired':
+        return 'That code expired. Ask for a new one.';
+      case 'quota-exceeded':
+      case 'too-many-requests':
+        return 'Too many code requests. Try again later.';
+      case 'captcha-check-failed':
+        return 'Phone verification failed. Try again.';
       case 'network-request-failed':
         return 'Network error. Try again.';
       case 'popup-closed-by-user':
@@ -1338,9 +1577,13 @@ class RtwController extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      await _ensureApplePushToken(messaging);
       final token = await messaging.getToken(
         vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
       );
+      if (token == null || token.isEmpty) {
+        throw StateError('Push notification token was not available.');
+      }
       await _writeNotificationToken(token: token, enabled: true);
       dailyReminder = true;
       await _writeUserProfile({'dailyReminder': true});
@@ -1351,6 +1594,22 @@ class RtwController extends ChangeNotifier {
       lastError = error.toString();
       notifyListeners();
     }
+  }
+
+  Future<void> _ensureApplePushToken(FirebaseMessaging messaging) async {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.iOS &&
+            defaultTargetPlatform != TargetPlatform.macOS)) {
+      return;
+    }
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final token = await messaging.getAPNSToken();
+      if (token != null && token.isNotEmpty) return;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    throw StateError(
+      'Apple push registration is not ready. Check APNs entitlements and Firebase Cloud Messaging setup.',
+    );
   }
 
   Future<void> _setCurrentNotificationTokenEnabled(bool enabled) async {
@@ -1537,12 +1796,14 @@ class RtwController extends ChangeNotifier {
     try {
       if (firebaseReady) {
         await FirebaseAuth.instance.signOut();
-        await FirebaseAuth.instance.signInAnonymously();
       }
       _clearUserSubscriptions();
       _boundUid = null;
       displayName = 'Reader';
       email = '';
+      emailVerified = false;
+      phoneNumber = '';
+      phoneCodeSent = false;
       dailyReminder = false;
       avatarIndex = 0;
       birthdate = null;
@@ -1677,6 +1938,15 @@ String? _nonEmptyString(Object? value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+String? _normalizePhoneNumber(String value) {
+  final compact = value.trim().replaceAll(RegExp(r'[\s().-]+'), '');
+  if (RegExp(r'^\+[1-9]\d{6,14}$').hasMatch(compact)) return compact;
+  final digits = compact.replaceAll(RegExp(r'\D'), '');
+  if (digits.length == 10) return '+1$digits';
+  if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
+  return null;
 }
 
 const _emptyOptions = [

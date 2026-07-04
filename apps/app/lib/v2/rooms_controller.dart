@@ -53,11 +53,7 @@ class RoomRevealData {
 
 /// In-flight play state, mirroring the prototype's `play` object.
 class PlaySession {
-  PlaySession({
-    required this.mode,
-    required this.deck,
-    this.roomId,
-  });
+  PlaySession({required this.mode, required this.deck, this.roomId});
 
   /// 'today' (cross-room deck with intro cards) or 'room' (single block).
   final String mode;
@@ -70,7 +66,6 @@ class PlaySession {
   int pred = 50;
   double dragX = 0;
   bool dragging = false;
-  bool armSwitch = false;
   String? answerSavedReason; // 'world' | 'solo'
 
   /// Accumulated picks per room; a room's picks submit when its block ends.
@@ -161,9 +156,12 @@ class RoomsController extends ChangeNotifier {
   }
 
   void _bindProfile(String uid) {
-    _profileSub = _db.collection('users').doc(uid).snapshots().listen((snapshot) {
+    _profileSub = _db.collection('users').doc(uid).snapshots().listen((
+      snapshot,
+    ) {
       hasOnboarded = hasOnboarded || snapshot.data()?['onboardedAt'] != null;
-      hasMatureConsent = hasMatureConsent || snapshot.data()?['matureContent'] == true;
+      hasMatureConsent =
+          hasMatureConsent || snapshot.data()?['matureContent'] == true;
       profileLoaded = true;
       notifyListeners();
     }, onError: _handleError);
@@ -202,12 +200,16 @@ class RoomsController extends ChangeNotifier {
     final currentUid = uid;
     if (currentUid == null) return;
     unawaited(
-      _db.collection('users').doc(currentUid).set({
-        'onboardedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true)).catchError((Object error) {
-        _handleError(error);
-      }),
+      _db
+          .collection('users')
+          .doc(currentUid)
+          .set({
+            'onboardedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .catchError((Object error) {
+            _handleError(error);
+          }),
     );
   }
 
@@ -252,24 +254,28 @@ class RoomsController extends ChangeNotifier {
     _roomSubs[roomId] = subs;
     final roomDoc = _db.collection('rooms').doc(roomId);
 
-    subs.add(roomDoc.snapshots().listen((snapshot) {
-      final data = snapshot.data();
-      if (data == null) return;
-      final previousKey = binding.room?.currentDailyKey;
-      binding.room = roomFromFirestore(snapshot.id, data);
-      final nextKey = binding.room!.currentDailyKey;
-      if (nextKey != null && nextKey != previousKey) {
-        _bindRoomDay(roomId, uid, nextKey, subs, binding);
-      }
-      notifyListeners();
-    }, onError: _handleError));
+    subs.add(
+      roomDoc.snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        if (data == null) return;
+        final previousKey = binding.room?.currentDailyKey;
+        binding.room = roomFromFirestore(snapshot.id, data);
+        final nextKey = binding.room!.currentDailyKey;
+        if (nextKey != null && nextKey != previousKey) {
+          _bindRoomDay(roomId, uid, nextKey, subs, binding);
+        }
+        notifyListeners();
+      }, onError: _handleError),
+    );
 
-    subs.add(roomDoc.collection('members').doc(uid).snapshots().listen((snapshot) {
-      final data = snapshot.data();
-      if (data == null) return;
-      binding.me = roomMemberFromFirestore(uid, data);
-      notifyListeners();
-    }, onError: _handleError));
+    subs.add(
+      roomDoc.collection('members').doc(uid).snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        if (data == null) return;
+        binding.me = roomMemberFromFirestore(uid, data);
+        notifyListeners();
+      }, onError: _handleError),
+    );
   }
 
   void _bindRoomDay(
@@ -288,65 +294,80 @@ class RoomsController extends ChangeNotifier {
         .doc(roomId)
         .collection('days')
         .doc(dailyKey);
-    subs.add(dayRef.snapshots().listen((snapshot) {
-      final data = snapshot.data();
-      binding.today = data == null ? null : roomDayFromFirestore(snapshot.id, data);
-      notifyListeners();
-    }, onError: _handleError));
-    subs.add(dayRef.collection('answers').doc(uid).snapshots().listen((snapshot) {
-      final data = snapshot.data();
-      binding.myTodayAnswer = data == null ? null : roomAnswerFromFirestore(data);
-      notifyListeners();
-    }, onError: _handleError));
+    subs.add(
+      dayRef.snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        binding.today = data == null
+            ? null
+            : roomDayFromFirestore(snapshot.id, data);
+        notifyListeners();
+      }, onError: _handleError),
+    );
+    subs.add(
+      dayRef.collection('answers').doc(uid).snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        binding.myTodayAnswer = data == null
+            ? null
+            : roomAnswerFromFirestore(data);
+        notifyListeners();
+      }, onError: _handleError),
+    );
   }
 
   void _bindWorld(String uid) {
     final worldDoc = _db.collection('rooms').doc(worldRoomId);
-    _worldSubs.add(worldDoc.snapshots().listen((snapshot) {
-      final data = snapshot.data();
-      if (data == null) return;
-      final previousKey = worldRoom?.currentDailyKey;
-      worldRoom = roomFromFirestore(snapshot.id, data);
-      final binding = bindings.putIfAbsent(worldRoomId, () => RoomBinding());
-      binding.room = worldRoom;
-      final nextKey = worldRoom!.currentDailyKey;
-      if (nextKey != null && nextKey != previousKey) {
-        while (_worldSubs.length > 1) {
-          _worldSubs.removeLast().cancel();
+    _worldSubs.add(
+      worldDoc.snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        if (data == null) return;
+        final previousKey = worldRoom?.currentDailyKey;
+        worldRoom = roomFromFirestore(snapshot.id, data);
+        final binding = bindings.putIfAbsent(worldRoomId, () => RoomBinding());
+        binding.room = worldRoom;
+        final nextKey = worldRoom!.currentDailyKey;
+        if (nextKey != null && nextKey != previousKey) {
+          while (_worldSubs.length > 1) {
+            _worldSubs.removeLast().cancel();
+          }
+          worldToday = null;
+          binding.today = null;
+          binding.myTodayAnswer = null;
+          _worldSubs.add(
+            worldDoc.collection('days').doc(nextKey).snapshots().listen((
+              daySnap,
+            ) {
+              final dayData = daySnap.data();
+              worldToday = dayData == null
+                  ? null
+                  : roomDayFromFirestore(daySnap.id, dayData);
+              binding.today = worldToday;
+              notifyListeners();
+            }, onError: _handleError),
+          );
+          _worldSubs.add(
+            worldDoc
+                .collection('days')
+                .doc(nextKey)
+                .collection('answers')
+                .doc(uid)
+                .snapshots()
+                .listen((answerSnap) {
+                  final answerData = answerSnap.data();
+                  binding.myTodayAnswer = answerData == null
+                      ? null
+                      : roomAnswerFromFirestore(answerData);
+                  notifyListeners();
+                }, onError: _handleError),
+          );
         }
-        worldToday = null;
-        binding.today = null;
-        binding.myTodayAnswer = null;
-        _worldSubs.add(
-          worldDoc.collection('days').doc(nextKey).snapshots().listen((daySnap) {
-            final dayData = daySnap.data();
-            worldToday =
-                dayData == null ? null : roomDayFromFirestore(daySnap.id, dayData);
-            binding.today = worldToday;
-            notifyListeners();
-          }, onError: _handleError),
-        );
-        _worldSubs.add(
-          worldDoc
-              .collection('days')
-              .doc(nextKey)
-              .collection('answers')
-              .doc(uid)
-              .snapshots()
-              .listen((answerSnap) {
-                final answerData = answerSnap.data();
-                binding.myTodayAnswer =
-                    answerData == null ? null : roomAnswerFromFirestore(answerData);
-                notifyListeners();
-              }, onError: _handleError),
-        );
-      }
-      notifyListeners();
-    }, onError: _handleError));
+        notifyListeners();
+      }, onError: _handleError),
+    );
   }
 
   void _unbindRoom(String roomId) {
-    for (final sub in _roomSubs.remove(roomId) ?? const <StreamSubscription<dynamic>>[]) {
+    for (final sub
+        in _roomSubs.remove(roomId) ?? const <StreamSubscription<dynamic>>[]) {
       sub.cancel();
     }
     bindings.remove(roomId);
@@ -385,14 +406,17 @@ class RoomsController extends ChangeNotifier {
   List<RoomBinding> get unplayedRooms => visibleRooms
       .where(
         (binding) =>
-            !binding.played && (binding.today?.activeQuestions.isNotEmpty ?? false),
+            !binding.played &&
+            (binding.today?.activeQuestions.isNotEmpty ?? false),
       )
       .toList();
 
-  int get caughtUpCount => visibleRooms.where((binding) => binding.played).length;
+  int get caughtUpCount =>
+      visibleRooms.where((binding) => binding.played).length;
 
-  RoomBinding? bindingFor(String? roomId) =>
-      roomId == null ? null : (roomId == worldRoomId ? _worldBinding : bindings[roomId]);
+  RoomBinding? bindingFor(String? roomId) => roomId == null
+      ? null
+      : (roomId == worldRoomId ? _worldBinding : bindings[roomId]);
 
   RoomBinding? get _worldBinding {
     if (worldRoom == null) return null;
@@ -409,25 +433,29 @@ class RoomsController extends ChangeNotifier {
     void addRoomBlock(RtwRoom room, RoomDay day) {
       final questions = day.activeQuestions;
       if (questions.isEmpty) return;
-      deck.add(TodayDeckCard.intro(
-        roomId: room.id,
-        roomName: room.name,
-        roomColorToken: room.colorToken,
-        roomMembers: room.memberCount,
-        roomTotal: questions.length,
-        isWorld: room.isWorld,
-      ));
-      for (var i = 0; i < questions.length; i++) {
-        deck.add(TodayDeckCard.question(
+      deck.add(
+        TodayDeckCard.intro(
           roomId: room.id,
           roomName: room.name,
           roomColorToken: room.colorToken,
           roomMembers: room.memberCount,
           roomTotal: questions.length,
           isWorld: room.isWorld,
-          question: questions[i],
-          indexInRoom: i,
-        ));
+        ),
+      );
+      for (var i = 0; i < questions.length; i++) {
+        deck.add(
+          TodayDeckCard.question(
+            roomId: room.id,
+            roomName: room.name,
+            roomColorToken: room.colorToken,
+            roomMembers: room.memberCount,
+            roomTotal: questions.length,
+            isWorld: room.isWorld,
+            question: questions[i],
+            indexInRoom: i,
+          ),
+        );
       }
     }
 
@@ -575,8 +603,10 @@ class RoomsController extends ChangeNotifier {
   void cardDragUpdate(double deltaX) {
     final session = play;
     if (session == null || !session.dragging) return;
-    session.dragX = (session.dragX + deltaX)
-        .clamp(-RtwV2Motion.dragClamp, RtwV2Motion.dragClamp);
+    session.dragX = (session.dragX + deltaX).clamp(
+      -RtwV2Motion.dragClamp,
+      RtwV2Motion.dragClamp,
+    );
     final crossed = session.dragX.abs() > RtwV2Motion.commitThreshold;
     if (crossed && !_crossedCommitThreshold) {
       unawaited(HapticFeedback.selectionClick());
@@ -591,12 +621,14 @@ class RoomsController extends ChangeNotifier {
     session.dragging = false;
     const flingVelocity = 700.0;
     final dx = session.dragX;
-    final fastFling = velocityX.abs() > flingVelocity &&
+    final fastFling =
+        velocityX.abs() > flingVelocity &&
         dx.sign == velocityX.sign &&
         dx.abs() > 12;
     if (dx > RtwV2Motion.commitThreshold || (fastFling && velocityX > 0)) {
       commitSide('a');
-    } else if (dx < -RtwV2Motion.commitThreshold || (fastFling && velocityX < 0)) {
+    } else if (dx < -RtwV2Motion.commitThreshold ||
+        (fastFling && velocityX < 0)) {
       commitSide('b');
     } else {
       session.dragX = 0;
@@ -608,7 +640,9 @@ class RoomsController extends ChangeNotifier {
     final session = play;
     if (session == null || session.stage != PlayStage.pick) return;
     session.dragging = false;
-    session.dragX = side == 'a' ? RtwV2Motion.flingDistance : -RtwV2Motion.flingDistance;
+    session.dragX = side == 'a'
+        ? RtwV2Motion.flingDistance
+        : -RtwV2Motion.flingDistance;
     notifyListeners();
     Timer(RtwV2Motion.cardFling, () {
       if (play == session && session.stage == PlayStage.pick) commitSide(side);
@@ -628,7 +662,6 @@ class RoomsController extends ChangeNotifier {
       session.answerSavedReason = worldLocked ? 'world' : 'solo';
       session.side = side;
       session.dragX = 0;
-      session.armSwitch = false;
       notifyListeners();
       return;
     }
@@ -638,11 +671,10 @@ class RoomsController extends ChangeNotifier {
     final defaultPred = (binding?.room?.isDuo ?? false) ? 100 : 50;
     session.pred = _snapPredictionForSession(session, defaultPred);
     session.dragX = 0;
-    session.armSwitch = false;
     notifyListeners();
   }
 
-  static const int _countFirstPredictionThreshold = 20;
+  static const int _countFirstPredictionThreshold = 25;
 
   int _predictionPeople(PlaySession session) {
     final members = session.card?.roomMembers ?? 0;
@@ -670,6 +702,16 @@ class RoomsController extends ChangeNotifier {
     return _boundedPrediction(((count / people) * 100).round());
   }
 
+  int _snapPredictionFractionForSession(PlaySession session, double fraction) {
+    final boundedFraction = fraction.clamp(0.0, 1.0);
+    final people = _predictionPeople(session);
+    if (people <= 0 || people > _countFirstPredictionThreshold) {
+      return _boundedPrediction((boundedFraction * 100).round());
+    }
+    final count = (boundedFraction * people).round().clamp(0, people);
+    return _boundedPrediction(((count / people) * 100).round());
+  }
+
   /// Whether The World allows predictions (flipped from the admin panel).
   /// Mirrored from whether today's world answers carry predictions server-side;
   /// clients treat locked as the default until the flag round-trips.
@@ -679,31 +721,10 @@ class RoomsController extends ChangeNotifier {
     final session = play;
     if (session == null || session.stage != PlayStage.predict) return;
     final previousPred = session.pred;
-    final raw = (fraction.clamp(0.0, 1.0) * 100).round();
-    // Meter docks to the picked side: side A docks right (prototype).
-    final pred = session.side == 'a' ? 100 - raw : raw;
-    session.pred = _snapPredictionForSession(session, pred);
-    final arm = session.pred <= 2;
-    if (session.pred != previousPred || (arm && !session.armSwitch)) {
+    session.pred = _snapPredictionFractionForSession(session, fraction);
+    if (session.pred != previousPred) {
       unawaited(HapticFeedback.selectionClick());
     }
-    session.armSwitch = arm;
-    notifyListeners();
-  }
-
-  void meterRelease() {
-    final session = play;
-    if (session == null) return;
-    if (session.armSwitch) flipSide();
-  }
-
-  void flipSide() {
-    final session = play;
-    if (session == null) return;
-    unawaited(HapticFeedback.selectionClick());
-    session.side = session.side == 'a' ? 'b' : 'a';
-    session.pred = _snapPredictionForSession(session, 50);
-    session.armSwitch = false;
     notifyListeners();
   }
 
@@ -714,7 +735,6 @@ class RoomsController extends ChangeNotifier {
     session.side = null;
     session.pred = 50;
     session.dragX = 0;
-    session.armSwitch = false;
     notifyListeners();
   }
 
@@ -740,10 +760,11 @@ class RoomsController extends ChangeNotifier {
     session.pred = _snapPredictionForSession(session, pick.prediction ?? 50);
     session.dragX = 0;
     session.dragging = false;
-    session.armSwitch = false;
     if (pick.prediction == null) {
       session.stage = PlayStage.answerSaved;
-      session.answerSavedReason = worldSaved ? 'world' : (soloSaved ? 'solo' : null);
+      session.answerSavedReason = worldSaved
+          ? 'world'
+          : (soloSaved ? 'solo' : null);
     } else {
       session.stage = PlayStage.predict;
       session.answerSavedReason = null;
@@ -799,7 +820,6 @@ class RoomsController extends ChangeNotifier {
     session.side = null;
     session.pred = 50;
     session.dragX = 0;
-    session.armSwitch = false;
     session.answerSavedReason = null;
     _restoreCurrentSavedPick(session);
     notifyListeners();
@@ -817,7 +837,6 @@ class RoomsController extends ChangeNotifier {
     session.side = null;
     session.pred = 50;
     session.dragX = 0;
-    session.armSwitch = false;
     session.answerSavedReason = null;
     if (session.atEnd) {
       if (session.mode == 'room' && session.roomId != null) {
@@ -880,7 +899,9 @@ class RoomsController extends ChangeNotifier {
       return RoomRevealData(
         dailyKey: dailyKey,
         day: roomDayFromFirestore(dailyKey, dayData),
-        myAnswer: answerData == null ? null : roomAnswerFromFirestore(answerData),
+        myAnswer: answerData == null
+            ? null
+            : roomAnswerFromFirestore(answerData),
       );
     } catch (error) {
       lastError = error.toString();
@@ -890,7 +911,10 @@ class RoomsController extends ChangeNotifier {
   }
 
   /// Closed days for the room-history sheet (newest first).
-  Future<List<RoomHistoryDay>> loadRoomHistory(String roomId, {int limitDays = 90}) async {
+  Future<List<RoomHistoryDay>> loadRoomHistory(
+    String roomId, {
+    int limitDays = 90,
+  }) async {
     final currentUid = uid;
     if (currentUid == null) return const [];
     try {
@@ -991,7 +1015,10 @@ class RoomsController extends ChangeNotifier {
     final currentCard = session.card;
     session.deck
       ..clear()
-      ..addAll([...fixed.expand((block) => block), ...reordered.expand((block) => block)]);
+      ..addAll([
+        ...fixed.expand((block) => block),
+        ...reordered.expand((block) => block),
+      ]);
     if (currentCard != null) {
       session.idx = session.deck.indexOf(currentCard);
     }
@@ -1011,15 +1038,16 @@ class RoomsController extends ChangeNotifier {
     String dailyKey,
   ) async {
     try {
-      final result = await _callable('getRoomDayDetail').call({
-        'roomId': roomId,
-        'dailyKey': dailyKey,
-      });
+      final result = await _callable(
+        'getRoomDayDetail',
+      ).call({'roomId': roomId, 'dailyKey': dailyKey});
       final data = Map<String, dynamic>.from(result.data as Map);
       final rows = data['rows'] as List? ?? const [];
       return rows
           .whereType<Map>()
-          .map((row) => roomDayDetailRowFromData(Map<String, dynamic>.from(row)))
+          .map(
+            (row) => roomDayDetailRowFromData(Map<String, dynamic>.from(row)),
+          )
           .toList();
     } catch (error) {
       lastError = error.toString();
@@ -1078,9 +1106,11 @@ class RoomsController extends ChangeNotifier {
     }
   }
 
-  Future<bool> leaveRoom(String roomId) => _simpleCall('leaveRoom', {'roomId': roomId});
+  Future<bool> leaveRoom(String roomId) =>
+      _simpleCall('leaveRoom', {'roomId': roomId});
 
-  Future<bool> deleteRoom(String roomId) => _simpleCall('deleteRoom', {'roomId': roomId});
+  Future<bool> deleteRoom(String roomId) =>
+      _simpleCall('deleteRoom', {'roomId': roomId});
 
   Future<bool> updateRoomSettings(
     String roomId, {
@@ -1089,22 +1119,24 @@ class RoomsController extends ChangeNotifier {
     String? colorToken,
     List<String>? cats,
     bool? customEnabled,
-  }) =>
-      _simpleCall('updateRoomSettings', {
-        'roomId': roomId,
-        'name': ?name,
-        'tier': ?tier?.wire,
-        'color': ?colorToken,
-        'cats': ?cats,
-        'customEnabled': ?customEnabled,
-      });
+  }) => _simpleCall('updateRoomSettings', {
+    'roomId': roomId,
+    'name': ?name,
+    'tier': ?tier?.wire,
+    'color': ?colorToken,
+    'cats': ?cats,
+    'customEnabled': ?customEnabled,
+  });
 
-  Future<bool> setRoomQuestionEnabled(String roomId, String qid, bool enabled) =>
-      _simpleCall('setRoomQuestionEnabled', {
-        'roomId': roomId,
-        'qid': qid,
-        'enabled': enabled,
-      });
+  Future<bool> setRoomQuestionEnabled(
+    String roomId,
+    String qid,
+    bool enabled,
+  ) => _simpleCall('setRoomQuestionEnabled', {
+    'roomId': roomId,
+    'qid': qid,
+    'enabled': enabled,
+  });
 
   Future<bool> setAnswerVisibility(String roomId, bool revealMine) =>
       _simpleCall('setRoomAnswerVisibility', {
@@ -1117,13 +1149,12 @@ class RoomsController extends ChangeNotifier {
     String text,
     String optA,
     String optB,
-  ) =>
-      _simpleCall('queueCustomQuestion', {
-        'roomId': roomId,
-        'text': text,
-        'optA': optA,
-        'optB': optB,
-      });
+  ) => _simpleCall('queueCustomQuestion', {
+    'roomId': roomId,
+    'text': text,
+    'optA': optA,
+    'optB': optB,
+  });
 
   Future<bool> deleteCustomQuestion(String roomId, String itemId) =>
       _simpleCall('deleteCustomQuestion', {'roomId': roomId, 'itemId': itemId});
@@ -1149,10 +1180,11 @@ class RoomsController extends ChangeNotifier {
       .collection('members')
       .snapshots()
       .map(
-        (snapshot) => snapshot.docs
-            .map((doc) => roomMemberFromFirestore(doc.id, doc.data()))
-            .toList()
-          ..sort((a, b) => b.roomScore.compareTo(a.roomScore)),
+        (snapshot) =>
+            snapshot.docs
+                .map((doc) => roomMemberFromFirestore(doc.id, doc.data()))
+                .toList()
+              ..sort((a, b) => b.roomScore.compareTo(a.roomScore)),
       );
 
   Future<bool> _simpleCall(String name, Map<String, dynamic> payload) async {

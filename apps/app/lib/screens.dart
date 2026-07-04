@@ -27,7 +27,6 @@ Future<void> _openMarketingSite() async {
   );
 }
 
-
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
@@ -37,11 +36,14 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool creating = false;
+  bool phoneMode = false;
   bool obscure = true;
   bool authBusy = false;
   bool handoffStarted = false;
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final phoneController = TextEditingController();
+  final phoneCodeController = TextEditingController();
 
   @override
   void initState() {
@@ -55,6 +57,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (email != null && email.isNotEmpty) {
       emailController.text = email;
     }
+    final phone = Uri.base.queryParameters['phone'];
+    if (phone != null && phone.isNotEmpty) {
+      phoneMode = true;
+      phoneController.text = phone;
+    }
     final handoffCode = Uri.base.queryParameters['handoff'];
     if (handoffCode != null && handoffCode.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -67,6 +74,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    phoneController.dispose();
+    phoneCodeController.dispose();
     super.dispose();
   }
 
@@ -80,6 +89,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (!mounted) return;
     setState(() => authBusy = false);
     if (route != null) context.go(route);
+  }
+
+  Future<void> _sendPhoneCode() async {
+    if (authBusy) return;
+    setState(() => authBusy = true);
+    final ok = await ref
+        .read(rtwControllerProvider)
+        .startPhoneSignIn(phoneController.text);
+    final route = ok
+        ? await ref.read(rtwControllerProvider).postAuthRoute()
+        : null;
+    if (!mounted) return;
+    setState(() => authBusy = false);
+    if (route != null) context.go(route);
+  }
+
+  Future<void> _verifyPhoneCode() async {
+    await _runAuth(
+      () => ref
+          .read(rtwControllerProvider)
+          .verifyPhoneCode(phoneCodeController.text),
+    );
   }
 
   Future<void> _redeemHandoff(String code) async {
@@ -111,12 +142,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     Widget authForm({bool mobile = false}) {
       return _AuthForm(
         creating: creating,
+        phoneMode: phoneMode,
         obscure: obscure,
         busy: authBusy,
         errorText: controller.lastError,
         emailController: emailController,
         passwordController: passwordController,
+        phoneController: phoneController,
+        phoneCodeController: phoneCodeController,
+        phoneCodeSent: controller.phoneCodeSent,
         mobile: mobile,
+        onSelectEmail: () {
+          ref.read(rtwControllerProvider).resetPhoneSignIn();
+          setState(() => phoneMode = false);
+        },
+        onSelectPhone: () => setState(() => phoneMode = true),
         onToggleMode: () => setState(() {
           creating = !creating;
           obscure = !creating;
@@ -131,6 +171,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 creating: creating,
               ),
         ),
+        onSendPhoneCode: _sendPhoneCode,
+        onVerifyPhoneCode: _verifyPhoneCode,
+        onEditPhone: () {
+          ref.read(rtwControllerProvider).resetPhoneSignIn();
+          phoneCodeController.clear();
+        },
         onGoogle: () =>
             _runAuth(ref.read(rtwControllerProvider).authenticateWithGoogle),
         onApple: () =>
@@ -405,14 +451,23 @@ class _AuthMiniSpectrum extends StatelessWidget {
 class _AuthForm extends StatelessWidget {
   const _AuthForm({
     required this.creating,
+    required this.phoneMode,
     required this.obscure,
     required this.busy,
     required this.errorText,
     required this.emailController,
     required this.passwordController,
+    required this.phoneController,
+    required this.phoneCodeController,
+    required this.phoneCodeSent,
+    required this.onSelectEmail,
+    required this.onSelectPhone,
     required this.onToggleMode,
     required this.onToggleObscure,
     required this.onSubmitEmail,
+    required this.onSendPhoneCode,
+    required this.onVerifyPhoneCode,
+    required this.onEditPhone,
     required this.onGoogle,
     required this.onApple,
     required this.onForgotPassword,
@@ -420,14 +475,23 @@ class _AuthForm extends StatelessWidget {
   });
 
   final bool creating;
+  final bool phoneMode;
   final bool obscure;
   final bool busy;
   final String? errorText;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final TextEditingController phoneController;
+  final TextEditingController phoneCodeController;
+  final bool phoneCodeSent;
+  final VoidCallback onSelectEmail;
+  final VoidCallback onSelectPhone;
   final VoidCallback onToggleMode;
   final VoidCallback onToggleObscure;
   final VoidCallback onSubmitEmail;
+  final VoidCallback onSendPhoneCode;
+  final VoidCallback onVerifyPhoneCode;
+  final VoidCallback onEditPhone;
   final VoidCallback onGoogle;
   final VoidCallback onApple;
   final VoidCallback onForgotPassword;
@@ -435,8 +499,14 @@ class _AuthForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = creating ? 'Create your account.' : 'Welcome back.';
-    final subtitle = creating
+    final title = phoneMode
+        ? 'Sign in by phone.'
+        : creating
+        ? 'Create your account.'
+        : 'Welcome back.';
+    final subtitle = phoneMode
+        ? 'We’ll text you a one-time code.'
+        : creating
         ? 'Free, forever. One question a day.'
         : 'Sign in to keep your streak going.';
     return Column(
@@ -456,67 +526,87 @@ class _AuthForm extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 30),
-        const Eyebrow('Email'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: emailController,
-          keyboardType: TextInputType.emailAddress,
-          textInputAction: TextInputAction.next,
-          enabled: !busy,
-          decoration: InputDecoration(hintText: 'you@email.com'),
+        const SizedBox(height: 24),
+        _AuthMethodTabs(
+          phoneMode: phoneMode,
+          busy: busy,
+          onSelectEmail: onSelectEmail,
+          onSelectPhone: onSelectPhone,
         ),
-        const SizedBox(height: 18),
-        if (!mobile || creating)
-          Row(
-            children: [
-              Eyebrow(creating ? 'Choose a password' : 'Password'),
-              const Spacer(),
-              if (!creating)
-                TextButton(
-                  onPressed: busy ? null : onForgotPassword,
-                  style: _authTextButtonStyle(),
-                  child: const Text('Forgot?'),
-                ),
-            ],
+        const SizedBox(height: 22),
+        if (phoneMode)
+          _PhoneAuthFields(
+            busy: busy,
+            codeSent: phoneCodeSent,
+            phoneController: phoneController,
+            codeController: phoneCodeController,
+            onSendCode: onSendPhoneCode,
+            onVerifyCode: onVerifyPhoneCode,
+            onEditPhone: onEditPhone,
           )
-        else
-          const Eyebrow('Password'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: passwordController,
-          obscureText: obscure,
-          enabled: !busy,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => onSubmitEmail(),
-          decoration: InputDecoration(
-            hintText: creating ? 'at least 8 characters' : '••••••••',
-            suffixIcon: TextButton(
-              onPressed: onToggleObscure,
-              child: Text(obscure ? 'Show' : 'Hide'),
+        else ...[
+          const Eyebrow('Email'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            enabled: !busy,
+            decoration: InputDecoration(hintText: 'you@email.com'),
+          ),
+          const SizedBox(height: 18),
+          if (!mobile || creating)
+            Row(
+              children: [
+                Eyebrow(creating ? 'Choose a password' : 'Password'),
+                const Spacer(),
+                if (!creating)
+                  TextButton(
+                    onPressed: busy ? null : onForgotPassword,
+                    style: _authTextButtonStyle(),
+                    child: const Text('Forgot?'),
+                  ),
+              ],
+            )
+          else
+            const Eyebrow('Password'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: passwordController,
+            obscureText: obscure,
+            enabled: !busy,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => onSubmitEmail(),
+            decoration: InputDecoration(
+              hintText: creating ? 'at least 8 characters' : '••••••••',
+              suffixIcon: TextButton(
+                onPressed: onToggleObscure,
+                child: Text(obscure ? 'Show' : 'Hide'),
+              ),
             ),
           ),
-        ),
-        if (mobile && !creating) ...[
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: busy ? null : onForgotPassword,
-              style: _authTextButtonStyle(),
-              child: const Text('Forgot password?'),
+          if (mobile && !creating) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: busy ? null : onForgotPassword,
+                style: _authTextButtonStyle(),
+                child: const Text('Forgot password?'),
+              ),
             ),
-          ),
+          ],
         ],
         SizedBox(height: mobile ? 22 : 24),
-        RtwButton(
-          label: busy
-              ? 'Working...'
-              : creating
-              ? 'Create account'
-              : 'Sign in',
-          onPressed: busy ? null : onSubmitEmail,
-        ),
+        if (!phoneMode)
+          RtwButton(
+            label: busy
+                ? 'Working...'
+                : creating
+                ? 'Create account'
+                : 'Sign in',
+            onPressed: busy ? null : onSubmitEmail,
+          ),
         if (errorText != null && errorText!.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
@@ -530,7 +620,7 @@ class _AuthForm extends StatelessWidget {
             ),
           ),
         ],
-        if (creating) ...[
+        if (creating && !phoneMode) ...[
           const SizedBox(height: 12),
           Center(
             child: Text(
@@ -605,23 +695,215 @@ class _AuthForm extends StatelessWidget {
           child: Wrap(
             alignment: WrapAlignment.center,
             children: [
-              Text(
-                creating
-                    ? 'Already have an account? '
-                    : 'New to Read the World? ',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              InkWell(
-                onTap: onToggleMode,
-                child: Text(
-                  creating ? 'Sign in' : 'Create an account',
-                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                    color: RtwColors.blue,
-                    fontWeight: FontWeight.w800,
+              if (phoneMode) ...[
+                Text(
+                  'Prefer email? ',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                InkWell(
+                  onTap: onSelectEmail,
+                  child: Text(
+                    'Use email instead',
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                      color: RtwColors.blue,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
+              ] else ...[
+                Text(
+                  creating
+                      ? 'Already have an account? '
+                      : 'New to Read the World? ',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                InkWell(
+                  onTap: onToggleMode,
+                  child: Text(
+                    creating ? 'Sign in' : 'Create an account',
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                      color: RtwColors.blue,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthMethodTabs extends StatelessWidget {
+  const _AuthMethodTabs({
+    required this.phoneMode,
+    required this.busy,
+    required this.onSelectEmail,
+    required this.onSelectPhone,
+  });
+
+  final bool phoneMode;
+  final bool busy;
+  final VoidCallback onSelectEmail;
+  final VoidCallback onSelectPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: RtwColors.card,
+        border: Border.all(color: RtwColors.border),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _AuthMethodTab(
+              label: 'Email',
+              selected: !phoneMode,
+              onTap: busy ? null : onSelectEmail,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _AuthMethodTab(
+              label: 'Phone',
+              selected: phoneMode,
+              onTap: busy ? null : onSelectPhone,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthMethodTab extends StatelessWidget {
+  const _AuthMethodTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? RtwColors.ink : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+              color: selected ? RtwColors.paper : RtwColors.subText,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneAuthFields extends StatelessWidget {
+  const _PhoneAuthFields({
+    required this.busy,
+    required this.codeSent,
+    required this.phoneController,
+    required this.codeController,
+    required this.onSendCode,
+    required this.onVerifyCode,
+    required this.onEditPhone,
+  });
+
+  final bool busy;
+  final bool codeSent;
+  final TextEditingController phoneController;
+  final TextEditingController codeController;
+  final VoidCallback onSendCode;
+  final VoidCallback onVerifyCode;
+  final VoidCallback onEditPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    if (codeSent) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Eyebrow('Verification code'),
+              const Spacer(),
+              TextButton(
+                onPressed: busy ? null : onEditPhone,
+                style: _authTextButtonStyle(),
+                child: const Text('Edit phone'),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: codeController,
+            keyboardType: TextInputType.number,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            textInputAction: TextInputAction.done,
+            enabled: !busy,
+            onSubmitted: (_) => onVerifyCode(),
+            decoration: const InputDecoration(hintText: '123456'),
+          ),
+          const SizedBox(height: 14),
+          RtwButton(
+            label: busy ? 'Checking...' : 'Verify code',
+            onPressed: busy ? null : onVerifyCode,
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: busy ? null : onSendCode,
+              style: _authTextButtonStyle(),
+              child: const Text('Send a new code'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Eyebrow('Phone number'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: phoneController,
+          keyboardType: TextInputType.phone,
+          autofillHints: const [AutofillHints.telephoneNumber],
+          textInputAction: TextInputAction.done,
+          enabled: !busy,
+          onSubmitted: (_) => onSendCode(),
+          decoration: const InputDecoration(hintText: '+1 555 123 4567'),
+        ),
+        const SizedBox(height: 14),
+        RtwButton(
+          label: busy ? 'Sending...' : 'Text me a code',
+          onPressed: busy ? null : onSendCode,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Message and data rates may apply.',
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+            color: RtwColors.faint,
+            fontSize: 12,
           ),
         ),
       ],
@@ -706,7 +988,6 @@ ButtonStyle _authTextButtonStyle() {
     textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
   );
 }
-
 
 class ShortLinkScreen extends ConsumerStatefulWidget {
   const ShortLinkScreen({super.key, required this.code});
@@ -822,4 +1103,3 @@ class _ShortLinkScreenState extends ConsumerState<ShortLinkScreen> {
     );
   }
 }
-

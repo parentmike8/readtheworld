@@ -59,7 +59,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                   },
                   child: Text(
                     '← Back',
-                    style: v2Sans(15, color: RtwV2Colors.subText, weight: FontWeight.w600),
+                    style: v2Sans(
+                      15,
+                      color: RtwV2Colors.subText,
+                      weight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const V2Eyebrow('Profile', size: 11, letterSpacing: 1.6),
@@ -76,10 +80,15 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                       height: 84,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: _avatarColors[profile.avatarIndex % _avatarColors.length],
+                        color:
+                            _avatarColors[profile.avatarIndex %
+                                _avatarColors.length],
                         shape: BoxShape.circle,
                       ),
-                      child: Text(initial, style: v2Serif(36, color: Colors.white)),
+                      child: Text(
+                        initial,
+                        style: v2Serif(36, color: Colors.white),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -89,7 +98,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                     onTap: () => ref.read(rtwControllerProvider).cycleAvatar(),
                     child: Text(
                       'Change colour',
-                      style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                      style: v2Sans(
+                        12,
+                        color: RtwV2Colors.blue,
+                        weight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -109,7 +122,10 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: RtwV2Colors.card,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: RtwV2Colors.borderStrong),
@@ -136,7 +152,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                       children: [
                         Text(
                           'Daily reminder',
-                          style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
+                          style: v2Sans(
+                            15,
+                            color: RtwV2Colors.inkSoft,
+                            weight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -148,7 +168,8 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                   ),
                   V2Toggle(
                     value: profile.dailyReminder,
-                    onChanged: (_) => ref.read(rtwControllerProvider).toggleReminder(),
+                    onChanged: (_) =>
+                        ref.read(rtwControllerProvider).toggleReminder(),
                   ),
                 ],
               ),
@@ -163,6 +184,15 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
               ),
               child: Column(
                 children: [
+                  if (profile.email.isNotEmpty && !profile.emailVerified) ...[
+                    _ProfileRow(
+                      label: 'Verify email',
+                      onTap: () => ref
+                          .read(rtwControllerProvider)
+                          .sendVerificationEmail(),
+                    ),
+                    const V2Hairline(),
+                  ],
                   _ProfileRow(
                     label: 'Replay the intro',
                     onTap: () => context.go('/onboarding'),
@@ -184,11 +214,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                 ],
               ),
             ),
-            if (profile.email.isNotEmpty) ...[
+            if (profile.email.isNotEmpty || profile.phoneNumber.isNotEmpty) ...[
               const SizedBox(height: 14),
               Center(
                 child: Text(
-                  'Signed in as ${profile.email}',
+                  'Signed in as ${profile.email.isNotEmpty ? profile.email : profile.phoneNumber}',
                   style: v2Sans(12, color: RtwV2Colors.faint),
                 ),
               ),
@@ -208,7 +238,10 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
           const V2Eyebrow('Clear all data', color: RtwV2Colors.danger),
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text('Start over completely?', style: v2Serif(26, letterSpacing: -0.3)),
+            child: Text(
+              'Start over completely?',
+              style: v2Serif(26, letterSpacing: -0.3),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 10),
@@ -235,7 +268,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
               onPressed: () => Navigator.of(sheetContext).pop(),
               child: Text(
                 'Keep my data',
-                style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),
+                style: v2Sans(
+                  14,
+                  color: RtwV2Colors.subText,
+                  weight: FontWeight.w600,
+                ),
               ),
             ),
           ),

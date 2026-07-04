@@ -11,7 +11,10 @@ import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/play_surface.dart';
+import 'package:read_the_world/v2/screens/room_detail.dart';
 import 'package:read_the_world/v2/screens/rooms_home.dart';
+import 'package:read_the_world/v2/sheets/room_sheets.dart';
+import 'package:read_the_world/v2/tokens_v2.dart';
 import 'package:read_the_world/v2/widgets_v2.dart';
 
 RoomDayQuestion _question(String qid, {String tag = 'Social'}) =>
@@ -110,19 +113,14 @@ void main() {
   });
 
   testWidgets('room play exit returns to that room detail', (tester) async {
-    final rooms = _roomsWith([
-      _binding(id: 'studio', name: 'The Studio'),
-    ]);
+    final rooms = _roomsWith([_binding(id: 'studio', name: 'The Studio')]);
     rooms.startRoomPlay('studio');
 
     final router = GoRouter(
       initialLocation: '/today/play',
       routes: [
         GoRoute(path: '/today/play', builder: (_, _) => const RoomPlayScreen()),
-        GoRoute(
-          path: '/rooms',
-          builder: (_, _) => const Text('Rooms index'),
-        ),
+        GoRoute(path: '/rooms', builder: (_, _) => const Text('Rooms index')),
         GoRoute(
           path: '/rooms/:roomId',
           builder: (_, state) => Text('Room ${state.pathParameters['roomId']}'),
@@ -149,6 +147,38 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(router.routeInformationProvider.value.uri.path, '/rooms/studio');
+  });
+
+  testWidgets('room detail redirects once membership is gone', (tester) async {
+    final rooms = _roomsWith([]);
+    final router = GoRouter(
+      initialLocation: '/rooms/studio',
+      routes: [
+        GoRoute(path: '/rooms', builder: (_, _) => const Text('Rooms index')),
+        GoRoute(
+          path: '/rooms/:roomId',
+          builder: (_, state) =>
+              RoomDetailScreen(roomId: state.pathParameters['roomId'] ?? ''),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseReadyProvider.overrideWithValue(false),
+          appSettingsProvider.overrideWithValue(AppSettings.defaults),
+          roomsControllerProvider.overrideWith(
+            (_) => rooms,
+            disposeNotifier: false,
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/rooms');
   });
 
   group('today deck', () {
@@ -195,11 +225,8 @@ void main() {
     });
 
     test('skips world questions once the live world answer exists', () {
-      final world = _binding(
-        id: worldRoomId,
-        name: 'The World',
-        isWorld: true,
-      )..myTodayAnswer = const RoomAnswer(
+      final world = _binding(id: worldRoomId, name: 'The World', isWorld: true)
+        ..myTodayAnswer = const RoomAnswer(
           picks: [RoomPick(qid: 'q1', side: 'a')],
           answerOnly: true,
         );
@@ -256,55 +283,57 @@ void main() {
       expect(rooms.play!.stage, PlayStage.predict);
     });
 
-    test('answered world room reopens with saved picks for modification', () async {
-      final world = _binding(
-        id: worldRoomId,
-        name: 'The World',
-        members: 900,
-        isWorld: true,
-      )..myTodayAnswer = const RoomAnswer(
-          picks: [
-            RoomPick(qid: 'q1', side: 'b'),
-            RoomPick(qid: 'q2', side: 'a'),
-            RoomPick(qid: 'q3', side: 'b'),
-          ],
-          answerOnly: true,
-        );
-      final rooms = _roomsWith([])
-        ..worldRoom = world.room
-        ..worldToday = world.today
-        ..bindings[worldRoomId] = world;
+    test(
+      'answered world room reopens with saved picks for modification',
+      () async {
+        final world =
+            _binding(
+                id: worldRoomId,
+                name: 'The World',
+                members: 900,
+                isWorld: true,
+              )
+              ..myTodayAnswer = const RoomAnswer(
+                picks: [
+                  RoomPick(qid: 'q1', side: 'b'),
+                  RoomPick(qid: 'q2', side: 'a'),
+                  RoomPick(qid: 'q3', side: 'b'),
+                ],
+                answerOnly: true,
+              );
+        final rooms = _roomsWith([])
+          ..worldRoom = world.room
+          ..worldToday = world.today
+          ..bindings[worldRoomId] = world;
 
-      rooms.startRoomPlay(worldRoomId);
-      expect(rooms.play!.stage, PlayStage.answerSaved);
-      expect(rooms.play!.answerSavedReason, 'world');
-      expect(rooms.play!.side, 'b');
+        rooms.startRoomPlay(worldRoomId);
+        expect(rooms.play!.stage, PlayStage.answerSaved);
+        expect(rooms.play!.answerSavedReason, 'world');
+        expect(rooms.play!.side, 'b');
 
-      rooms.changeAnswer();
-      rooms.commitSide('a');
-      await rooms.lockCurrent(answerOnly: true);
+        rooms.changeAnswer();
+        rooms.commitSide('a');
+        await rooms.lockCurrent(answerOnly: true);
 
-      final picks = rooms.play!.results[worldRoomId]!;
-      expect(picks, hasLength(3));
-      expect(picks.firstWhere((pick) => pick.qid == 'q1').side, 'a');
-      expect(rooms.play!.idx, 1);
-      expect(rooms.play!.stage, PlayStage.answerSaved);
-      expect(rooms.play!.side, 'a');
-    });
+        final picks = rooms.play!.results[worldRoomId]!;
+        expect(picks, hasLength(3));
+        expect(picks.firstWhere((pick) => pick.qid == 'q1').side, 'a');
+        expect(rooms.play!.idx, 1);
+        expect(rooms.play!.stage, PlayStage.answerSaved);
+        expect(rooms.play!.side, 'a');
+      },
+    );
 
-    test('meter docks to the picked side and arms the flip at <=2', () {
+    test('meter always runs left to right without switching sides', () {
       final rooms = _roomsWith([_binding(id: 'studio', name: 'The Studio')]);
       rooms.enterToday();
       rooms.continueFromIntro();
       rooms.commitSide('a');
-      rooms.meterUpdate(0.0); // side A docks right: left edge = 100%
-      expect(rooms.play!.pred, 100);
-      rooms.meterUpdate(1.0);
+      rooms.meterUpdate(0.0);
       expect(rooms.play!.pred, 0);
-      expect(rooms.play!.armSwitch, isTrue);
-      rooms.meterRelease();
-      expect(rooms.play!.side, 'b'); // flip fired
-      expect(rooms.play!.pred, 50);
+      rooms.meterUpdate(1.0);
+      expect(rooms.play!.pred, 100);
+      expect(rooms.play!.side, 'a');
     });
 
     test('small-room predictions snap to whole-person counts', () {
@@ -614,11 +643,8 @@ void main() {
     testWidgets('world hero CTA changes after answers are submitted', (
       tester,
     ) async {
-      final world = _binding(
-        id: worldRoomId,
-        name: 'The World',
-        isWorld: true,
-      )..myTodayAnswer = const RoomAnswer(
+      final world = _binding(id: worldRoomId, name: 'The World', isWorld: true)
+        ..myTodayAnswer = const RoomAnswer(
           picks: [RoomPick(qid: 'q1', side: 'a')],
           answerOnly: true,
         );
@@ -646,9 +672,7 @@ void main() {
       expect(find.text('Answer world questions →'), findsNothing);
     });
 
-    testWidgets('submitted room card exposes a modify action', (
-      tester,
-    ) async {
+    testWidgets('submitted room card exposes a modify action', (tester) async {
       final room = _binding(id: 'studio', name: 'The Studio')
         ..myTodayAnswer = const RoomAnswer(
           picks: [RoomPick(qid: 'q1', side: 'a', prediction: 60)],
@@ -675,6 +699,60 @@ void main() {
       expect(find.textContaining('Locked in'), findsNothing);
     });
 
+    testWidgets('leave room confirms creator transfer', (tester) async {
+      final binding = _binding(id: 'studio', name: 'The Studio', members: 3)
+        ..me = const RtwRoomMember(
+          uid: 'u1',
+          displayName: 'You',
+          role: 'creator',
+          revealMine: false,
+          roomScore: 1500,
+          streak: 0,
+          questionsAnswered: 0,
+        );
+      final rooms = _roomsWith([binding]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, _) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    onPressed: () => showRoomMenuSheet(
+                      context,
+                      ref,
+                      'studio',
+                      onHistory: () {},
+                    ),
+                    child: const Text('Open room menu'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open room menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Leave room'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leave The Studio?'), findsOneWidget);
+      expect(find.textContaining('creator status will move'), findsOneWidget);
+      expect(find.text('Stay in room'), findsOneWidget);
+    });
+
     testWidgets('prediction readout uses fractions for small rooms', (
       tester,
     ) async {
@@ -691,10 +769,11 @@ void main() {
         ),
       );
 
-      expect(find.text('How many others would agree with you?'), findsOneWidget);
-      expect(find.text('Would say “Yes”'), findsOneWidget);
-      expect(find.text('2/3'), findsOneWidget);
-      expect(find.text('67% of others'), findsOneWidget);
+      expect(find.text('How many will agree with you?'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('of 3'), findsOneWidget);
+      expect(find.text('Would pick “Yes”'), findsOneWidget);
+      expect(find.text('67% of the room'), findsOneWidget);
     });
 
     testWidgets('prediction readout uses percent plus count for large rooms', (
@@ -714,7 +793,43 @@ void main() {
       );
 
       expect(find.text('75%'), findsOneWidget);
-      expect(find.text('24/32 others'), findsOneWidget);
+      expect(find.text('24 of 32 players'), findsOneWidget);
+    });
+
+    testWidgets('prediction meter switches from notches to guide lines', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                PredictionAgreementMeter(
+                  percent: 67,
+                  people: 3,
+                  onUpdate: (_) {},
+                ),
+                PredictionAgreementMeter(
+                  percent: 75,
+                  people: 16,
+                  onUpdate: (_) {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('prediction-meter-person-notch')),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byKey(const ValueKey('prediction-meter-guide')),
+        findsNWidgets(3),
+      );
+      expect(find.text('ALL 3'), findsOneWidget);
+      expect(find.text('ALL 16'), findsOneWidget);
     });
 
     testWidgets('party tab renders setup and starts a local round', (
@@ -735,6 +850,7 @@ void main() {
         ..setPlayers(4)
         ..setRounds(1);
       party.start([for (var i = 1; i <= 8; i++) _partyQuestion('p$i')]);
+      party.scores[1] = 42;
 
       await tester.pumpWidget(
         ProviderScope(
@@ -763,11 +879,66 @@ void main() {
 
       expect(find.text('Game menu'), findsOneWidget);
       expect(find.text('LEADERBOARD'), findsOneWidget);
+      expect(find.text('EDIT PLAYER NAMES'), findsOneWidget);
       expect(find.text('Restart game'), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextField, 'Player 2'), 'Sam');
       await tester.pump();
       expect(party.playerName(1), 'Sam');
+
+      await tester.ensureVisible(find.widgetWithText(V2Button, 'Restart game'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(V2Button, 'Restart game'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start over?'), findsOneWidget);
+      expect(party.scores[1], 42);
+
+      await tester.tap(find.widgetWithText(V2Button, 'Restart now'));
+      await tester.pumpAndSettle();
+      expect(party.scores[1], 0);
+      expect(party.playerName(1), 'Sam');
+    });
+
+    testWidgets('party pick gutters choose the nearest side', (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final party = PartyController()
+        ..setPlayers(4)
+        ..setRounds(1);
+      party.start([_partyQuestion('p1')]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            partyControllerProvider.overrideWith(
+              (_) => party,
+              disposeNotifier: false,
+            ),
+            roomsControllerProvider.overrideWith(
+              (_) => RoomsController(firebaseReady: false),
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final pickZone = tester.getRect(
+        find.byKey(const ValueKey('party-pick-zone')),
+      );
+      final promptCenter = tester.getCenter(find.text('Party p1?'));
+      await tester.tapAt(Offset(pickZone.left + 24, promptCenter.dy));
+      await tester.pump(
+        RtwV2Motion.cardFling + const Duration(milliseconds: 1),
+      );
+
+      expect(party.side, 'b');
+      expect(party.sub, PartySub.predict);
     });
   });
 }
