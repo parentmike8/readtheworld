@@ -238,7 +238,7 @@ class _WorldHero extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          unlocked ? 'OPEN' : 'OPEN · ANSWER ONLY',
+                          unlocked ? 'OPEN · SCORING LIVE' : 'OPEN',
                           style: v2Mono(10, color: const Color(0xFFB8B2A4), letterSpacing: 1),
                         ),
                       ),
@@ -257,8 +257,8 @@ class _WorldHero extends StatelessWidget {
                   const SizedBox(height: 9),
                   Text(
                     unlocked
-                        ? 'Predictions and scoring are live. Read the whole world, one question at a time.'
-                        : 'Answering is always open. Predictions and scoring unlock once the game hits ${_formatCount(goal)} players.',
+                        ? 'Scoring is live. Read the whole world, one question at a time.'
+                        : 'Make your read on every question. Each one scores your World Read Score once it crosses its threshold and the game hits ${_formatCount(goal)} players.',
                     style: v2Sans(13.5, color: const Color(0xFFC7C1B3), height: 1.5),
                   ),
                   const SizedBox(height: 16),
@@ -326,7 +326,7 @@ class _WorldHero extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       alignment: Alignment.center,
                       child: Text(
-                        'Invite friends to help unlock predictions and scoring',
+                        'Invite friends to help unlock world scoring',
                         textAlign: TextAlign.center,
                         style: v2Sans(
                           13,
