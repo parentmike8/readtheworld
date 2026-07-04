@@ -13,6 +13,13 @@ import 'tokens_v2.dart';
 
 const worldRoomId = 'world';
 
+int? _timestampMillis(Object? value) {
+  if (value is Timestamp) return value.millisecondsSinceEpoch;
+  if (value is DateTime) return value.millisecondsSinceEpoch;
+  if (value is num) return value.toInt();
+  return null;
+}
+
 /// Live view of one room the user belongs to: room doc + my member doc +
 /// today's question set + my locked answer for it.
 class RoomBinding {
@@ -236,11 +243,16 @@ class RoomsController extends ChangeNotifier {
           for (final doc in snapshot.docs) {
             if (!bindings.containsKey(doc.id)) _bindRoom(doc.id, uid);
           }
+          final joinedAtByRoom = {
+            for (final doc in snapshot.docs)
+              doc.id: _timestampMillis(doc.data()['joinedAt']),
+          };
           roomOrder = snapshot.docs.map((doc) => doc.id).toList()
             ..sort((a, b) {
-              final aJoined = bindings[a]?.room?.createdBy ?? '';
-              final bJoined = bindings[b]?.room?.createdBy ?? '';
-              return aJoined.compareTo(bJoined);
+              final aJoined = joinedAtByRoom[a] ?? 0;
+              final bJoined = joinedAtByRoom[b] ?? 0;
+              if (aJoined != bJoined) return aJoined.compareTo(bJoined);
+              return a.compareTo(b);
             });
           loadingRooms = false;
           notifyListeners();
@@ -584,9 +596,9 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void dismissSummary() {
+  void dismissSummary({bool notify = true}) {
     summaryRoomId = null;
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   // ── swipe / gesture handlers (prototype thresholds, native physics) ───
@@ -785,9 +797,11 @@ class RoomsController extends ChangeNotifier {
     final card = session?.card;
     final question = card?.question;
     if (session == null || card == null || question == null) return;
+    if (submitting) return;
     final side = session.side;
     if (side == null) return;
     unawaited(HapticFeedback.mediumImpact());
+    lastError = null;
 
     final picks = session.results.putIfAbsent(card.roomId, () => []);
     final pick = RoomPick(
@@ -806,7 +820,8 @@ class RoomsController extends ChangeNotifier {
     if (blockDone && session.mode == 'intro') {
       introPicks = List.of(picks);
     } else if (blockDone) {
-      unawaited(_submitRoomPicks(card.roomId, List.of(picks)));
+      final submitted = await _submitRoomPicks(card.roomId, List.of(picks));
+      if (!submitted) return;
     }
     _advance(session);
   }
@@ -849,7 +864,7 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _submitRoomPicks(String roomId, List<RoomPick> picks) async {
+  Future<bool> _submitRoomPicks(String roomId, List<RoomPick> picks) async {
     submitting = true;
     notifyListeners();
     try {
@@ -864,12 +879,16 @@ class RoomsController extends ChangeNotifier {
             },
         ],
       });
+      return true;
     } on FirebaseFunctionsException catch (error) {
       if (error.code != 'already-exists') {
         lastError = error.message ?? error.code;
+        return false;
       }
+      return true;
     } catch (error) {
       lastError = error.toString();
+      return false;
     } finally {
       submitting = false;
       notifyListeners();

@@ -11,7 +11,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        (
+          request.auth.token.email == "mike@readtheworld.today" &&
+          request.auth.token.email_verified == true &&
+          request.auth.token.firebase.sign_in_provider == "google.com"
+        )
+      );
     }
 
     function clientProfileKeys() {

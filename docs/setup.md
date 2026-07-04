@@ -41,7 +41,7 @@ Current project targets:
 - Firestore default database is created in `nam5` (US multi-region), Native mode.
 - Firestore rules/indexes have been deployed to the default database.
 - Remote Config defaults have been deployed from `firebase/remoteconfig.template.json`.
-- Firebase Auth providers enabled by config deploy: anonymous, email/password, and Google Sign-In.
+- Firebase Auth providers enabled by config deploy: email/password, phone, and Google Sign-In. Anonymous auth is disabled.
 - Firebase web app: `1:863014025103:web:e05141b61c1f8f156bbdfa`.
 - Firebase Android app: `1:863014025103:android:66d363bc9b48c1596bbdfa`.
 - Firebase iOS app: `1:863014025103:ios:b20d5ea02d9ec2c76bbdfa`.

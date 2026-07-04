@@ -828,7 +828,7 @@ class _CustomQSheetState extends State<_CustomQSheet> {
               padding: const EdgeInsets.only(top: 10),
               child: Text(
                 'Adding your own is completely optional. Anything you queue is '
-                'shuffled in anonymously, so your name only shows once a '
+                'shuffled into the room. Your name only shows once a '
                 'question goes live.',
                 style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.55),
               ),

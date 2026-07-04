@@ -14,7 +14,7 @@ import 'play_surface.dart' show PlaySurface;
 /// ONBOARDING — two beats, ~30 seconds, on the REAL play surface:
 ///  1. Today's three World questions played with the real mechanic — swipe
 ///     card, fling physics, prediction meter ("the people in your life").
-///  2. "Who are your people?" closer with room CTAs.
+///  2. "3 ways to play" closer with room CTAs.
 /// Finishing locks the answer sides to The World (predictions in the intro
 /// are the lesson, not data — The World is answer-only until it unlocks),
 /// so the first 30 seconds produce real world answers, not a demo.
@@ -76,7 +76,8 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
 
   List<RoomDayQuestion>? _resolveQuestions(RoomsController rooms) {
     if (_questions != null) return _questions;
-    final world = rooms.worldToday?.activeQuestions ?? const <RoomDayQuestion>[];
+    final world =
+        rooms.worldToday?.activeQuestions ?? const <RoomDayQuestion>[];
     if (world.length >= 3) {
       _questions = world.take(3).toList();
       _usingFallback = false;
@@ -120,9 +121,11 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
     if (!_usingFallback && picks.length == 3) {
       // Sides only: The World is answer-only until it unlocks, and the
       // intro's predictions are the lesson, not data.
-      unawaited(rooms.lockIntroWorldAnswers([
-        for (final pick in picks) RoomPick(qid: pick.qid, side: pick.side),
-      ]));
+      unawaited(
+        rooms.lockIntroWorldAnswers([
+          for (final pick in picks) RoomPick(qid: pick.qid, side: pick.side),
+        ]),
+      );
     }
     rooms.markOnboarded();
     rooms.pendingHomeAction = homeAction;
@@ -186,45 +189,44 @@ class _CloserBeat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(26, 66, 26, 40),
+      padding: const EdgeInsets.fromLTRB(26, 66, 26, 34),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const V2Eyebrow('How it works · your people', letterSpacing: 1.8),
-          const SizedBox(height: 46),
+          const SizedBox(height: 26),
           Text(
-            'Who are your people?',
-            style: v2Serif(33, height: 1.1, letterSpacing: -0.6),
+            '3 ways to play',
+            style: v2Serif(40, height: 1.04, letterSpacing: -0.8),
           ),
           const SizedBox(height: 12),
           Text(
-            'You decide whose minds you’re reading. Your answers just joined '
-            'The World. Start a room to read your own crew.',
-            style: v2Sans(14.5, color: RtwV2Colors.subText, height: 1.55),
+            'How well do you know your people?',
+            style: v2Sans(15, color: RtwV2Colors.subText, height: 1.45),
+          ),
+          const SizedBox(height: 142),
+          const _PeopleRow(
+            glyph: _WayGlyph.party,
+            color: RtwV2Colors.clay,
+            title: 'Party',
+            body: 'In the room with you',
           ),
           const SizedBox(height: 26),
           const _PeopleRow(
             glyph: _WayGlyph.rooms,
             color: RtwV2Colors.blue,
             title: 'Rooms',
-            body: 'Your group chat, family or team. Three questions a day.',
+            body: 'Friends, family or coworkers\n3 questions every 24 hours',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 26),
           const _PeopleRow(
             glyph: _WayGlyph.world,
             color: RtwV2Colors.green,
             title: 'The World',
-            body: 'Everyone on Earth. Predicting unlocks as the game grows.',
+            body: 'Everyone, everywhere\n3 questions every 24 hours',
             badge: 'SOON',
           ),
-          const SizedBox(height: 18),
-          Text(
-            'Reveals land 24 hours later. The closer your read, the higher '
-            'your score.',
-            textAlign: TextAlign.center,
-            style: v2Sans(13, color: RtwV2Colors.muted, height: 1.5),
-          ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 136),
           V2Button(
             'Start a room →',
             onPressed: onCreate,
@@ -243,7 +245,11 @@ class _CloserBeat extends StatelessWidget {
 }
 
 class _GhostCta extends StatelessWidget {
-  const _GhostCta({required this.label, required this.onTap, this.muted = false});
+  const _GhostCta({
+    required this.label,
+    required this.onTap,
+    this.muted = false,
+  });
 
   final String label;
   final VoidCallback onTap;
@@ -270,7 +276,7 @@ class _GhostCta extends StatelessWidget {
   }
 }
 
-enum _WayGlyph { rooms, world }
+enum _WayGlyph { party, rooms, world }
 
 /// Prototype welcome-row icons (20px SVGs, stroke 1.5, round caps).
 class _WayGlyphPainter extends CustomPainter {
@@ -287,22 +293,33 @@ class _WayGlyphPainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     switch (glyph) {
+      case _WayGlyph.party:
+        final fill = Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+        canvas.drawPath(
+          Path()
+            ..moveTo(5, 4)
+            ..lineTo(16, 10)
+            ..lineTo(5, 16)
+            ..close(),
+          fill,
+        );
       case _WayGlyph.rooms:
-        // Two heads + shoulders.
-        canvas.drawCircle(const Offset(7, 8), 2.6, stroke);
-        canvas.drawCircle(const Offset(13, 8), 2.6, stroke);
-        canvas.drawPath(
-          Path()
-            ..moveTo(2.5, 15.5)
-            ..relativeCubicTo(0, -2.2, 1.8, -3.5, 4.5, -3.5),
-          stroke,
-        );
-        canvas.drawPath(
-          Path()
-            ..moveTo(13, 12)
-            ..relativeCubicTo(2.7, 0, 4.5, 1.3, 4.5, 3.5),
-          stroke,
-        );
+        for (final offset in const [
+          Offset(4, 4),
+          Offset(12, 4),
+          Offset(4, 12),
+          Offset(12, 12),
+        ]) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(offset.dx, offset.dy, 5, 5),
+              const Radius.circular(1.4),
+            ),
+            stroke,
+          );
+        }
       case _WayGlyph.world:
         // Globe: circle, equator, meridian lens.
         canvas.drawCircle(const Offset(10, 10), 7.5, stroke);
@@ -342,63 +359,73 @@ class _PeopleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      decoration: BoxDecoration(
-        color: RtwV2Colors.card,
-        border: Border.all(color: RtwV2Colors.border),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
-            ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 46,
+          child: Center(
             child: CustomPaint(
-              size: const Size(20, 20),
+              size: const Size(22, 22),
               painter: _WayGlyphPainter(glyph: glyph, color: color),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
+        ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
                       title,
-                      style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: v2Serif(
+                        29,
+                        color: RtwV2Colors.inkSoft,
+                        height: 1.05,
+                      ),
                     ),
-                    if (badge != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: RtwV2Colors.green.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          badge!,
-                          style: v2Mono(8.5, color: RtwV2Colors.green, letterSpacing: 1),
+                  ),
+                  if (badge != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: RtwV2Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        badge!,
+                        style: v2Mono(
+                          9.5,
+                          color: RtwV2Colors.green,
+                          letterSpacing: 1.2,
                         ),
                       ),
-                    ],
+                    ),
                   ],
+                ],
+              ),
+              const SizedBox(height: 7),
+              Text(
+                body,
+                style: v2Mono(
+                  12.5,
+                  color: RtwV2Colors.subText,
+                  letterSpacing: 0.2,
                 ),
-                const SizedBox(height: 3),
-                Text(body, style: v2Sans(13, color: RtwV2Colors.subText, height: 1.45)),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -14,7 +14,11 @@ import 'play_surface.dart' show revealLabelFor;
 /// ROOM REVEAL — one-time animated score reveal on first open after close
 /// (prototype lines 114-151; 1500ms ease-out-cubic, staggered rows).
 class RoomRevealScreen extends ConsumerStatefulWidget {
-  const RoomRevealScreen({super.key, required this.roomId, this.fromToday = false});
+  const RoomRevealScreen({
+    super.key,
+    required this.roomId,
+    this.fromToday = false,
+  });
 
   final String roomId;
   final bool fromToday;
@@ -36,6 +40,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
   RoomRevealData? reveal;
   bool _loading = false;
   String? _attemptedKey;
+  String? _loadError;
 
   Future<void> _load(String dailyKey) async {
     _loading = true;
@@ -44,8 +49,17 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
     final data = await rooms.loadRoomReveal(widget.roomId);
     _loading = false;
     if (!mounted) return;
-    setState(() => reveal = data);
-    if (data == null) return;
+    if (data == null) {
+      setState(() {
+        reveal = null;
+        _loadError = rooms.lastError ?? 'This reveal is not available yet.';
+      });
+      return;
+    }
+    setState(() {
+      reveal = data;
+      _loadError = null;
+    });
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = 1;
     } else {
@@ -83,6 +97,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
     final room = binding?.room;
     final me = binding?.me;
     final data = reveal;
+    final error = _loadError;
     _syncLoad(room?.lastClosedDailyKey);
 
     return V2Scaffold(
@@ -90,9 +105,23 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
       location: '/rooms/${widget.roomId}/reveal',
       showNav: false,
       backgroundColor: RtwV2Colors.ink,
-      child: data == null || room == null
+      child: room == null || (data == null && error == null)
           ? const Center(
               child: CircularProgressIndicator(color: RtwV2Colors.onDarkPaper),
+            )
+          : data == null
+          ? _RevealUnavailable(
+              message: error ?? 'This reveal is not available yet.',
+              onRetry: room.lastClosedDailyKey == null
+                  ? null
+                  : () {
+                      setState(() {
+                        _attemptedKey = null;
+                        _loadError = null;
+                      });
+                      _syncLoad(room.lastClosedDailyKey);
+                    },
+              onBack: _continue,
             )
           : AnimatedBuilder(
               animation: _t,
@@ -116,12 +145,20 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                             children: [
                               Text(
                                 '${_whenWord(data.dailyKey)} IN',
-                                style: v2Mono(10, color: const Color(0xFF8E887C), letterSpacing: 1.8),
+                                style: v2Mono(
+                                  10,
+                                  color: const Color(0xFF8E887C),
+                                  letterSpacing: 1.8,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 room.name,
-                                style: v2Serif(23, color: RtwV2Colors.onDarkPaper, height: 1.1),
+                                style: v2Serif(
+                                  23,
+                                  color: RtwV2Colors.onDarkPaper,
+                                  height: 1.1,
+                                ),
                               ),
                             ],
                           ),
@@ -131,7 +168,11 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                       Text(
                         'YOUR READ SCORE',
                         textAlign: TextAlign.center,
-                        style: v2Mono(11, color: const Color(0xFF8E887C), letterSpacing: 2),
+                        style: v2Mono(
+                          11,
+                          color: const Color(0xFF8E887C),
+                          letterSpacing: 2,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -141,7 +182,11 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                         children: [
                           Text(
                             _thousands(curScore),
-                            style: v2Serif(72, color: RtwV2Colors.onDarkPaper, height: 1),
+                            style: v2Serif(
+                              72,
+                              color: RtwV2Colors.onDarkPaper,
+                              height: 1,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           AnimatedOpacity(
@@ -164,21 +209,33 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                       Text(
                         "FROM ${_whenWord(data.dailyKey)}'S ANSWERS",
                         textAlign: TextAlign.center,
-                        style: v2Mono(10, color: const Color(0xFF8E887C), letterSpacing: 1),
+                        style: v2Mono(
+                          10,
+                          color: const Color(0xFF8E887C),
+                          letterSpacing: 1,
+                        ),
                       ),
                       const SizedBox(height: 36),
                       Text(
                         'HOW YOU READ IT',
-                        style: v2Mono(10, color: const Color(0xFF8E887C), letterSpacing: 1.6),
+                        style: v2Mono(
+                          10,
+                          color: const Color(0xFF8E887C),
+                          letterSpacing: 1.6,
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      for (final (index, question) in data.day.activeQuestions.indexed) ...[
+                      for (final (index, question)
+                          in data.day.activeQuestions.indexed) ...[
                         _RevealQuestionRow(
                           question: question,
                           day: data.day,
                           answer: data.myAnswer,
                           // Stagger: local = clamp((t - 0.35 - i*0.14) / 0.4, 0, 1)
-                          local: ((t - 0.35 - index * 0.14) / 0.4).clamp(0.0, 1.0),
+                          local: ((t - 0.35 - index * 0.14) / 0.4).clamp(
+                            0.0,
+                            1.0,
+                          ),
                         ),
                         const SizedBox(height: 10),
                       ],
@@ -204,6 +261,73 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
   String _whenWord(String dailyKey) {
     final label = revealLabelFor(dailyKey);
     return label.replaceAll("'S REVEAL", '').replaceAll(' REVEAL', '');
+  }
+}
+
+class _RevealUnavailable extends StatelessWidget {
+  const _RevealUnavailable({
+    required this.message,
+    required this.onRetry,
+    required this.onBack,
+  });
+
+  final String message;
+  final VoidCallback? onRetry;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 64, 24, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          const Icon(
+            Icons.hourglass_empty,
+            color: RtwV2Colors.onDarkPaper,
+            size: 38,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Reveal unavailable',
+            textAlign: TextAlign.center,
+            style: v2Serif(32, color: RtwV2Colors.onDarkPaper, height: 1.08),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: v2Sans(14, color: const Color(0xFFC7C1B3), height: 1.5),
+          ),
+          const Spacer(),
+          if (onRetry != null) ...[
+            V2Button(
+              'Try again',
+              background: RtwV2Colors.onDarkPaper,
+              foreground: RtwV2Colors.ink,
+              onPressed: onRetry,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              radius: 16,
+            ),
+            const SizedBox(height: 10),
+          ],
+          Center(
+            child: TextButton(
+              onPressed: onBack,
+              child: Text(
+                'Back to room',
+                style: v2Sans(
+                  14,
+                  color: const Color(0xFFC7C1B3),
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -238,9 +362,11 @@ class _RevealQuestionRow extends StatelessWidget {
     final youLabel = pick == null
         ? '—'
         : pick.side == 'a'
-            ? question.optA
-            : question.optB;
-    final roomPct = pick == null || pick.side == 'a' ? result.aPct : 100 - result.aPct;
+        ? question.optA
+        : question.optB;
+    final roomPct = pick == null || pick.side == 'a'
+        ? result.aPct
+        : 100 - result.aPct;
     final guess = pick?.prediction;
     final score = answer?.accuracies[question.qid];
 
@@ -259,17 +385,29 @@ class _RevealQuestionRow extends StatelessWidget {
             children: [
               Text(
                 question.tag.toUpperCase(),
-                style: v2Mono(10, color: const Color(0xFF8E887C), letterSpacing: 1.2),
+                style: v2Mono(
+                  10,
+                  color: const Color(0xFF8E887C),
+                  letterSpacing: 1.2,
+                ),
               ),
               if (score != null)
                 Text.rich(
                   TextSpan(
                     text: '${(score * local).round()}',
-                    style: v2Mono(11, color: const Color(0xFFE8A686), letterSpacing: 0),
+                    style: v2Mono(
+                      11,
+                      color: const Color(0xFFE8A686),
+                      letterSpacing: 0,
+                    ),
                     children: [
                       TextSpan(
                         text: '/100',
-                        style: v2Mono(11, color: const Color(0xFF6E695E), letterSpacing: 0),
+                        style: v2Mono(
+                          11,
+                          color: const Color(0xFF6E695E),
+                          letterSpacing: 0,
+                        ),
                       ),
                     ],
                   ),
@@ -298,10 +436,16 @@ class _RevealQuestionRow extends StatelessWidget {
                   ),
                   if (guess != null)
                     Align(
-                      alignment: Alignment((guess / 100).clamp(0.0, 1.0) * 2 - 1, 0),
+                      alignment: Alignment(
+                        (guess / 100).clamp(0.0, 1.0) * 2 - 1,
+                        0,
+                      ),
                       child: Opacity(
                         opacity: local,
-                        child: Container(width: 2, color: RtwV2Colors.onDarkPaper),
+                        child: Container(
+                          width: 2,
+                          color: RtwV2Colors.onDarkPaper,
+                        ),
                       ),
                     ),
                 ],
@@ -319,13 +463,20 @@ class _RevealQuestionRow extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: youLabel,
-                      style: v2Sans(12, color: RtwV2Colors.onDarkPaper, weight: FontWeight.w700),
+                      style: v2Sans(
+                        12,
+                        color: RtwV2Colors.onDarkPaper,
+                        weight: FontWeight.w700,
+                      ),
                     ),
                     if (guess != null) TextSpan(text: ' · guessed $guess%'),
                   ],
                 ),
               ),
-              Text('Room $roomPct%', style: v2Sans(12, color: const Color(0xFF8E887C))),
+              Text(
+                'Room $roomPct%',
+                style: v2Sans(12, color: const Color(0xFF8E887C)),
+              ),
             ],
           ),
         ],

@@ -285,7 +285,22 @@ describe("admin, links, invites, and leaderboards", () => {
     });
 
     await assertFails(getDoc(doc(authedDb("alex"), "notificationCampaigns/c1")));
+    await assertFails(getDoc(doc(authedDb("mike", {
+      email: "mike@readtheworld.today",
+      email_verified: true,
+      firebase: { sign_in_provider: "password" },
+    }), "notificationCampaigns/c1")));
+    await assertFails(getDoc(doc(authedDb("mike", {
+      email: "mike@readtheworld.today",
+      email_verified: false,
+      firebase: { sign_in_provider: "google.com" },
+    }), "notificationCampaigns/c1")));
     await assertSucceeds(getDoc(doc(authedDb("admin", { admin: true }), "notificationCampaigns/c1")));
+    await assertSucceeds(getDoc(doc(authedDb("mike", {
+      email: "mike@readtheworld.today",
+      email_verified: true,
+      firebase: { sign_in_provider: "google.com" },
+    }), "notificationCampaigns/c1")));
     await assertFails(
       setDoc(doc(authedDb("alex"), "notificationCampaigns/c2"), {
         title: "Nope",

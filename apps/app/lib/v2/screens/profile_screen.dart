@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app_state.dart';
 import '../../main.dart';
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
@@ -34,6 +36,12 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(rtwControllerProvider);
+    final authUser = profile.firebaseReady
+        ? FirebaseAuth.instance.currentUser
+        : null;
+    final authSummary = _authSummary(authUser, profile);
+    final authEmail = authUser?.email ?? profile.email;
+    final authEmailVerified = authUser?.emailVerified ?? profile.emailVerified;
     nameController ??= TextEditingController(text: profile.displayName);
     final initial = profile.displayName.isEmpty
         ? '?'
@@ -136,6 +144,8 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                 ),
               ),
             ),
+            const SizedBox(height: 18),
+            _AuthSummaryCard(summary: authSummary),
             const SizedBox(height: 22),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -184,7 +194,7 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
               ),
               child: Column(
                 children: [
-                  if (profile.email.isNotEmpty && !profile.emailVerified) ...[
+                  if (authEmail.isNotEmpty && !authEmailVerified) ...[
                     _ProfileRow(
                       label: 'Verify email',
                       onTap: () => ref
@@ -214,15 +224,7 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                 ],
               ),
             ),
-            if (profile.email.isNotEmpty || profile.phoneNumber.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Center(
-                child: Text(
-                  'Signed in as ${profile.email.isNotEmpty ? profile.email : profile.phoneNumber}',
-                  style: v2Sans(12, color: RtwV2Colors.faint),
-                ),
-              ),
-            ],
+            _ProfileStatusMessage(message: profile.lastError),
           ],
         ),
       ),
@@ -279,6 +281,128 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
         ],
       );
     });
+  }
+}
+
+class _AuthSummary {
+  const _AuthSummary({required this.method, required this.identifier});
+
+  final String method;
+  final String identifier;
+}
+
+_AuthSummary _authSummary(User? user, RtwController profile) {
+  final providers =
+      user?.providerData.map((info) => info.providerId).toSet() ??
+      const <String>{};
+  final authPhone = user?.phoneNumber;
+  final authEmail = user?.email;
+  final phone = authPhone != null && authPhone.isNotEmpty
+      ? authPhone
+      : profile.phoneNumber;
+  final email = authEmail != null && authEmail.isNotEmpty
+      ? authEmail
+      : profile.email;
+  if (phone.isNotEmpty && providers.contains('phone')) {
+    return _AuthSummary(method: 'Phone', identifier: phone);
+  }
+  if (providers.contains('google.com')) {
+    return _AuthSummary(method: 'Google', identifier: email);
+  }
+  if (providers.contains('apple.com')) {
+    return _AuthSummary(method: 'Apple', identifier: email);
+  }
+  if (email.isNotEmpty) {
+    return _AuthSummary(method: 'Email', identifier: email);
+  }
+  if (phone.isNotEmpty) {
+    return _AuthSummary(method: 'Phone', identifier: phone);
+  }
+  return const _AuthSummary(method: 'Account', identifier: 'Signed in');
+}
+
+class _AuthSummaryCard extends StatelessWidget {
+  const _AuthSummaryCard({required this.summary});
+
+  final _AuthSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: RtwV2Colors.blue.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.person_outline,
+              size: 19,
+              color: RtwV2Colors.blue,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Signed in with ${summary.method}',
+                  style: v2Sans(
+                    14,
+                    color: RtwV2Colors.inkSoft,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  summary.identifier,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: v2Sans(12.5, color: RtwV2Colors.faint),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileStatusMessage extends StatelessWidget {
+  const _ProfileStatusMessage({required this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = message?.trim();
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    final positive =
+        value.contains('sent') || value.contains('already verified');
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: v2Sans(
+          13,
+          color: positive ? RtwV2Colors.green : RtwV2Colors.danger,
+          weight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
 

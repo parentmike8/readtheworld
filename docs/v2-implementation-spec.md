@@ -125,8 +125,9 @@ Keep the existing scheduled rollover at **00:00 America/New_York** (`closeAndOpe
 
 ## 6. Custom questions & safety
 
-- Queue per member per room, **cap 10 queued** (design). Anonymous while queued;
-  author name shows once live. Author can edit/delete queued items.
+- Queue per member per room, **cap 10 queued** (design). Queued prompts are
+  not attributed in the queue; author name shows once live. Author can
+  edit/delete queued items.
 - **Flagging** (live custom questions only **[Mike confirmed]**): one flag from any
   member pulls the question for the whole room for the day, author gets a
   notification, question is replaced next rollover (not re-served). Flags visible in

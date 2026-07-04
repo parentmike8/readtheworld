@@ -1555,6 +1555,7 @@ class RtwController extends ChangeNotifier {
     }
     if (!firebaseReady) {
       dailyReminder = false;
+      lastError = 'Live notifications are unavailable.';
       notifyListeners();
       return;
     }

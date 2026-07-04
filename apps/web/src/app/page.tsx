@@ -81,13 +81,17 @@ function hasFirebaseConfig() {
 /** Animates a number from 0 the first time it scrolls into view. */
 function CountUp({ value, duration = 1100 }: { value: number; duration?: number }) {
   const ref = useRef<HTMLSpanElement | null>(null);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 1
+      : 0,
+  );
 
   useEffect(() => {
     const node = ref.current;
     if (!node) return undefined;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setProgress(1);
       return undefined;
     }
     const observer = new IntersectionObserver((entries) => {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,12 +141,12 @@ class PlaySurface extends ConsumerWidget {
           return KeyEventResult.handled;
         }
         if (key == LogicalKeyboardKey.enter) {
-          rooms.lockCurrent();
+          unawaited(rooms.lockCurrent());
           return KeyEventResult.handled;
         }
       case PlayStage.answerSaved:
         if (key == LogicalKeyboardKey.enter) {
-          rooms.lockCurrent(answerOnly: true);
+          unawaited(rooms.lockCurrent(answerOnly: true));
           return KeyEventResult.handled;
         }
       case PlayStage.reveal:
@@ -999,6 +1001,15 @@ class _PredictStage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (session.mode == 'intro') ...[
+                Text(
+                  'Practice round: imagine seven people in your life are '
+                  'answering too.',
+                  textAlign: TextAlign.center,
+                  style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+              ],
               PredictionReadout(
                 percent: pred,
                 people: others,
@@ -1015,12 +1026,15 @@ class _PredictStage extends StatelessWidget {
           ),
         ),
         V2Button(
-          saveLabel,
-          onPressed: () => rooms.lockCurrent(),
+          rooms.submitting ? 'Submitting...' : saveLabel,
+          onPressed: rooms.submitting
+              ? null
+              : () => unawaited(rooms.lockCurrent()),
           padding: const EdgeInsets.symmetric(vertical: 18),
           radius: 16,
           fontSize: 16,
         ),
+        _PlaySubmitError(error: rooms.lastError),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: rooms.changeAnswer,
@@ -1047,6 +1061,28 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
     return isLast ? 'Submit →' : 'Submit · next →';
   }
   return isLast ? 'Submit answers →' : 'Submit · next →';
+}
+
+class _PlaySubmitError extends StatelessWidget {
+  const _PlaySubmitError({required this.error});
+
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = error;
+    if (message == null || message.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: v2Sans(13, color: RtwV2Colors.danger, weight: FontWeight.w600),
+      ),
+    );
+  }
 }
 
 // ── ANSWER SAVED (solo / locked world) ──────────────────────────────────
@@ -1211,12 +1247,15 @@ class _AnswerSavedStage extends ConsumerWidget {
           ),
         ),
         V2Button(
-          _saveLabel(session, card),
-          onPressed: () => rooms.lockCurrent(answerOnly: true),
+          rooms.submitting ? 'Submitting...' : _saveLabel(session, card),
+          onPressed: rooms.submitting
+              ? null
+              : () => unawaited(rooms.lockCurrent(answerOnly: true)),
           padding: const EdgeInsets.symmetric(vertical: 18),
           radius: 16,
           fontSize: 16,
         ),
+        _PlaySubmitError(error: rooms.lastError),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: rooms.changeAnswer,
@@ -1490,69 +1529,99 @@ class _RoundSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = ref.watch(roomsControllerProvider);
-    final roomName = rooms.bindingFor(roomId)?.room?.name ?? 'your room';
+    final binding = rooms.bindingFor(roomId);
+    final room = binding?.room;
+    final roomName = room?.name ?? 'your room';
+    final isWorld = room?.isWorld ?? roomId == worldRoomId;
+    final worldLocked = isWorld && !rooms.worldPredictionsUnlocked;
+    final day = isWorld ? rooms.worldToday : binding?.today;
+    final answer = binding?.myTodayAnswer;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 64, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          V2Eyebrow(
-            'Round complete · $roomName',
-            size: 11,
-            color: RtwV2Colors.clay,
-            letterSpacing: 1.6,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "That's your three in.",
-            style: v2Serif(34, height: 1.06, letterSpacing: -0.6),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            "Your reads are in. You'll see how $roomName answered, and how "
-            'it moves your Read Score, tomorrow.',
-            style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            decoration: BoxDecoration(
-              color: RtwV2Colors.card,
-              border: Border.all(color: RtwV2Colors.border),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: RtwV2Colors.meterBlue.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  V2Eyebrow(
+                    'Round complete · $roomName',
+                    size: 11,
+                    color: RtwV2Colors.clay,
+                    letterSpacing: 1.6,
                   ),
-                  child: const Icon(
-                    Icons.schedule,
-                    size: 20,
-                    color: RtwV2Colors.blue,
+                  const SizedBox(height: 12),
+                  Text(
+                    "That's your three in.",
+                    style: v2Serif(34, height: 1.06, letterSpacing: -0.6),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Come back tomorrow for the reveal and your accuracy.',
-                    style: v2Sans(
-                      13.5,
-                      color: const Color(0xFF5C584F),
-                      height: 1.5,
+                  const SizedBox(height: 14),
+                  Text(
+                    worldLocked
+                        ? 'Your World answers are saved. Predictions, reveals, and '
+                              'Read Score movement unlock once The World reaches '
+                              '${_formatThousands(room?.worldGoal ?? 5000)} players.'
+                        : "Your reads are in. You'll see how $roomName answered, and how "
+                              'it moves your Read Score, tomorrow.',
+                    style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
+                  ),
+                  const SizedBox(height: 24),
+                  if (day != null && answer != null) ...[
+                    _RoundAnswerSummary(day: day, answer: answer),
+                    const SizedBox(height: 16),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: RtwV2Colors.card,
+                      border: Border.all(color: RtwV2Colors.border),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: RtwV2Colors.meterBlue.withValues(
+                              alpha: 0.12,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.schedule,
+                            size: 20,
+                            color: RtwV2Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            worldLocked
+                                ? 'For now, every answer helps build the global split '
+                                      'and bring The World closer to unlocking.'
+                                : 'Come back tomorrow for the reveal and your accuracy.',
+                            style: v2Sans(
+                              13.5,
+                              color: const Color(0xFF5C584F),
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const Spacer(),
-          const SizedBox(height: 26),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             margin: const EdgeInsets.only(bottom: 12),
@@ -1586,8 +1655,8 @@ class _RoundSummary extends ConsumerWidget {
           V2Button(
             'Back to $roomName',
             onPressed: () {
-              rooms.dismissSummary();
               context.go('/rooms/$roomId');
+              rooms.dismissSummary(notify: false);
             },
             padding: const EdgeInsets.symmetric(vertical: 17),
             radius: 16,
@@ -1595,6 +1664,103 @@ class _RoundSummary extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RoundAnswerSummary extends StatelessWidget {
+  const _RoundAnswerSummary({required this.day, required this.answer});
+
+  final RoomDay day;
+  final RoomAnswer answer;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <({RoomDayQuestion question, RoomPick pick})>[];
+    for (final question in day.activeQuestions) {
+      final pick = answer.pickFor(question.qid);
+      if (pick != null) rows.add((question: question, pick: pick));
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const V2Eyebrow('Your answers', letterSpacing: 1.4),
+          const SizedBox(height: 10),
+          for (final row in rows) ...[
+            _RoundAnswerRow(question: row.question, pick: row.pick),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RoundAnswerRow extends StatelessWidget {
+  const _RoundAnswerRow({required this.question, required this.pick});
+
+  final RoomDayQuestion question;
+  final RoomPick pick;
+
+  @override
+  Widget build(BuildContext context) {
+    final sideA = pick.side == 'a';
+    final sideLabel = sideA ? question.optA : question.optB;
+    final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 5),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                question.prompt,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: v2Sans(
+                  13,
+                  color: const Color(0xFF3B3831),
+                  height: 1.35,
+                  weight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(
+                  text: 'You said ',
+                  style: v2Sans(12.5, color: RtwV2Colors.subText),
+                  children: [
+                    TextSpan(
+                      text: sideLabel,
+                      style: v2Sans(
+                        12.5,
+                        color: sideColor,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

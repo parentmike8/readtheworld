@@ -324,6 +324,35 @@ void main() {
       },
     );
 
+    test(
+      'submitted room modification starts at question one with the saved pick',
+      () {
+        final room =
+            _binding(
+                id: 'studio',
+                name: 'The Studio',
+                qids: const ['q1', 'q2', 'q3'],
+              )
+              ..myTodayAnswer = const RoomAnswer(
+                picks: [
+                  RoomPick(qid: 'q1', side: 'b', prediction: 67),
+                  RoomPick(qid: 'q2', side: 'a', prediction: 33),
+                ],
+                answerOnly: false,
+              );
+        final rooms = _roomsWith([room]);
+
+        rooms.startRoomPlay('studio');
+
+        expect(rooms.play, isNotNull);
+        expect(rooms.play!.idx, 0);
+        expect(rooms.play!.card!.question!.qid, 'q1');
+        expect(rooms.play!.stage, PlayStage.predict);
+        expect(rooms.play!.side, 'b');
+        expect(rooms.play!.pred, 75);
+      },
+    );
+
     test('meter always runs left to right without switching sides', () {
       final rooms = _roomsWith([_binding(id: 'studio', name: 'The Studio')]);
       rooms.enterToday();
@@ -711,6 +740,69 @@ void main() {
       expect(find.text('View or modify answers →'), findsOneWidget);
       expect(find.textContaining('Locked in'), findsNothing);
     });
+
+    testWidgets(
+      'locked world summary avoids tomorrow copy and returns to world detail',
+      (tester) async {
+        final world =
+            _binding(id: worldRoomId, name: 'The World', isWorld: true)
+              ..myTodayAnswer = const RoomAnswer(
+                picks: [
+                  RoomPick(qid: 'q1', side: 'a'),
+                  RoomPick(qid: 'q2', side: 'b'),
+                  RoomPick(qid: 'q3', side: 'a'),
+                ],
+                answerOnly: true,
+              );
+        final rooms = _roomsWith([world])
+          ..worldRoom = world.room
+          ..worldToday = world.today
+          ..summaryRoomId = worldRoomId
+          ..worldPredictionsUnlocked = false;
+        final router = GoRouter(
+          initialLocation: '/today/play',
+          routes: [
+            GoRoute(
+              path: '/today/play',
+              builder: (_, _) => const RoomPlayScreen(),
+            ),
+            GoRoute(
+              path: '/rooms',
+              builder: (_, _) => const Text('Rooms index'),
+            ),
+            GoRoute(
+              path: '/rooms/:roomId',
+              builder: (_, state) =>
+                  Text('Room ${state.pathParameters['roomId']}'),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              firebaseReadyProvider.overrideWithValue(false),
+              appSettingsProvider.overrideWithValue(AppSettings.defaults),
+              roomsControllerProvider.overrideWith(
+                (_) => rooms,
+                disposeNotifier: false,
+              ),
+            ],
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('tomorrow'), findsNothing);
+        expect(find.text('YOUR ANSWERS'), findsOneWidget);
+        expect(find.textContaining('You said'), findsWidgets);
+
+        await tester.tap(find.widgetWithText(V2Button, 'Back to The World'));
+        await tester.pumpAndSettle();
+
+        expect(router.routeInformationProvider.value.uri.path, '/rooms/world');
+      },
+    );
 
     testWidgets('leave room confirms creator transfer', (tester) async {
       final binding = _binding(id: 'studio', name: 'The Studio', members: 3)

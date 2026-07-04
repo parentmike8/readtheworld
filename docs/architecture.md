@@ -30,7 +30,7 @@
 - Account data clearing runs through `clearMyData`, which resets scoring state, removes private answer/history/category/friend data, removes reciprocal friend rows, adjusts unscored live counters, and clears server-owned short-link/invite metadata tied to the user.
   Firestore rules block direct client user-document deletes so clients cannot bypass that cleanup path and leave stale counters, friend rows, links, or leaderboard data behind.
 - Firebase project: `read-the-world-74f2a` (`863014025103`) under the `readtheworld.today` parent org.
-- Firebase setup currently includes linked billing, Firestore Native mode in `nam5`, deployed Firestore rules/indexes, deployed Remote Config defaults, enabled anonymous/email/password/Google Auth providers, Firebase web/iOS/Android app registrations, Hosting sites for Flutter web/short links/redirects, and an App Hosting backend named `read-the-world-web` in `us-central1`.
+- Firebase setup currently includes linked billing, Firestore Native mode in `nam5`, deployed Firestore rules/indexes, deployed Remote Config defaults, enabled email/password/phone/Google Auth providers with anonymous auth disabled, Firebase web/iOS/Android app registrations, Hosting sites for Flutter web/short links/redirects, and an App Hosting backend named `read-the-world-web` in `us-central1`.
 - Firestore composite indexes are checked into `firebase/firestore.indexes.json` for the active runtime queries, including collection-group answer aggregation, scheduled-question opening, and live-question closing. Notification-token sends use Firestore single-field collection-group indexing, so no redundant composite index is committed. The readiness script validates the required composite indexes before deploy.
 
 ## Daily lifecycle

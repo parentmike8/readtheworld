@@ -4,7 +4,7 @@ export const postmarkServerToken = defineSecret("POSTMARK_SERVER_TOKEN");
 
 export const POSTMARK_FROM = "Read the World <hello@readtheworld.today>";
 export const POSTMARK_TRANSACTIONAL_STREAM = "outbound";
-export const POSTMARK_DAILY_STREAM = "daily-habit";
+export const POSTMARK_DAILY_STREAM = process.env.POSTMARK_DAILY_STREAM || "outbound";
 
 export type PostmarkEmail = {
   to: string;

@@ -8,10 +8,12 @@ import { getAuth } from "firebase-admin/auth";
 import { getMessaging } from "firebase-admin/messaging";
 import { getRemoteConfig } from "firebase-admin/remote-config";
 import {
+  FieldPath,
   FieldValue,
   type DocumentReference,
   type DocumentData,
   type Query,
+  type QueryDocumentSnapshot,
   WriteBatch,
   Timestamp,
   getFirestore,
@@ -872,47 +874,57 @@ async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise
   skippedUnverified: number;
   failed: number;
 }> {
-  const usersSnap = await db.collection("users")
-    .where("dailyReminder", "==", true)
-    .limit(1000)
-    .get();
   let attempted = 0;
   let sent = 0;
   let skippedWithPush = 0;
   let skippedUnverified = 0;
   let failed = 0;
 
-  for (const userDoc of usersSnap.docs) {
-    const data = userDoc.data();
-    if (data.lastDailyHabitEmailKey === dailyKey) continue;
-    const tokens = await enabledNotificationTokensForUser(userDoc.id);
-    if (tokens.length > 0) {
-      skippedWithPush += 1;
-      continue;
+  let lastDoc: QueryDocumentSnapshot | null = null;
+  while (true) {
+    let query: Query<DocumentData> = db.collection("users")
+      .where("dailyReminder", "==", true)
+      .orderBy(FieldPath.documentId())
+      .limit(1000);
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
     }
-    attempted += 1;
-    const authUser = await getAuth().getUser(userDoc.id).catch(() => null);
-    const email = String(data.email ?? authUser?.email ?? "").trim().toLowerCase();
-    if (!authUser?.emailVerified || !isValidEmail(email)) {
-      skippedUnverified += 1;
-      continue;
-    }
-    try {
-      await sendPostmarkEmail(dailyHabitEmail({
-        to: email,
-        displayName: String(data.displayName ?? authUser.displayName ?? "Reader"),
-        roomsUrl: `${APP_URL}/rooms`,
-        dailyKey,
-      }));
-      await userDoc.ref.set({
-        lastDailyHabitEmailKey: dailyKey,
-        lastDailyHabitEmailSentAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      sent += 1;
-    } catch (error) {
-      failed += 1;
-      logger.warn("Daily habit email failed", { uid: userDoc.id, error: String(error) });
+    const usersSnap = await query.get();
+    if (usersSnap.empty) break;
+    lastDoc = usersSnap.docs[usersSnap.docs.length - 1];
+
+    for (const userDoc of usersSnap.docs) {
+      const data = userDoc.data();
+      if (data.lastDailyHabitEmailKey === dailyKey) continue;
+      const tokens = await enabledNotificationTokensForUser(userDoc.id);
+      if (tokens.length > 0) {
+        skippedWithPush += 1;
+        continue;
+      }
+      attempted += 1;
+      const authUser = await getAuth().getUser(userDoc.id).catch(() => null);
+      const email = String(authUser?.email ?? "").trim().toLowerCase();
+      if (!authUser?.emailVerified || !isValidEmail(email)) {
+        skippedUnverified += 1;
+        continue;
+      }
+      try {
+        await sendPostmarkEmail(dailyHabitEmail({
+          to: email,
+          displayName: String(data.displayName ?? authUser.displayName ?? "Reader"),
+          roomsUrl: `${APP_URL}/rooms`,
+          dailyKey,
+        }));
+        await userDoc.ref.set({
+          lastDailyHabitEmailKey: dailyKey,
+          lastDailyHabitEmailSentAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        logger.warn("Daily habit email failed", { uid: userDoc.id, error: String(error) });
+      }
     }
   }
 
@@ -943,7 +955,7 @@ async function notifyCreatorMemberJoined(input: {
   }
 
   const authUser = await getAuth().getUser(input.creatorUid).catch(() => null);
-  const email = String(creatorProfile.email ?? authUser?.email ?? "").trim().toLowerCase();
+  const email = String(authUser?.email ?? "").trim().toLowerCase();
   if (!authUser?.emailVerified || !isValidEmail(email)) return;
   await sendPostmarkEmail(memberJoinedEmail({
     to: email,

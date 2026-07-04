@@ -32,8 +32,9 @@ The app currently looks live but still behaves like local/demo data. Replace tha
 
 ## Authentication Requirements
 
-- Anonymous auth should work for first launch if that is still the intended onboarding model.
+- Anonymous auth should remain disabled unless the onboarding model changes.
 - Email/password sign-up and sign-in should work.
+- Phone sign-in should work with SMS code verification.
 - Google sign-in should work on web and iOS where possible.
 - Apple sign-in should work on iOS and web where possible.
 - Auth upgrade/linking should preserve user data.
