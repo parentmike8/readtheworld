@@ -151,8 +151,14 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       });
       return;
     }
+    final router = GoRouter.of(context);
+    final navigator = Navigator.of(context);
+    final navigatorContext = navigator.context;
     Navigator.of(context).pop();
-    await showInviteSheet(context, rooms, roomId);
+    router.go('/rooms/$roomId');
+    await Future<void>.delayed(Duration.zero);
+    if (!navigatorContext.mounted) return;
+    await showInviteSheet(navigatorContext, rooms, roomId);
   }
 
   @override

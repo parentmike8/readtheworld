@@ -101,6 +101,9 @@ class RoomsController extends ChangeNotifier {
   /// Set when a room-mode round just finished — drives the summary screen.
   String? summaryRoomId;
 
+  /// One-shot destination when a user exits room-mode play before finishing.
+  String? pendingPlayExitRoomId;
+
   /// One-shot action for rooms home after the intro ('create' | 'join').
   String? pendingHomeAction;
 
@@ -484,9 +487,14 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void exitPlay() {
+  void exitPlay({String? returnRoomId}) {
+    pendingPlayExitRoomId = returnRoomId;
     play = null;
     notifyListeners();
+  }
+
+  void clearPendingPlayExitRoom() {
+    pendingPlayExitRoomId = null;
   }
 
   /// Intro answers lock straight to The World (auto-enrolls on first

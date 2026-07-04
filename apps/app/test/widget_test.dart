@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:read_the_world/app_settings.dart';
 import 'package:read_the_world/main.dart';
@@ -9,6 +10,7 @@ import 'package:read_the_world/v2/models_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
+import 'package:read_the_world/v2/screens/play_surface.dart';
 import 'package:read_the_world/v2/screens/rooms_home.dart';
 import 'package:read_the_world/v2/widgets_v2.dart';
 
@@ -105,6 +107,48 @@ void main() {
     container.read(roomsControllerProvider).enterToday();
 
     expect(identical(container.read(rtwRouterProvider), router), isTrue);
+  });
+
+  testWidgets('room play exit returns to that room detail', (tester) async {
+    final rooms = _roomsWith([
+      _binding(id: 'studio', name: 'The Studio'),
+    ]);
+    rooms.startRoomPlay('studio');
+
+    final router = GoRouter(
+      initialLocation: '/today/play',
+      routes: [
+        GoRoute(path: '/today/play', builder: (_, _) => const RoomPlayScreen()),
+        GoRoute(
+          path: '/rooms',
+          builder: (_, _) => const Text('Rooms index'),
+        ),
+        GoRoute(
+          path: '/rooms/:roomId',
+          builder: (_, state) => Text('Room ${state.pathParameters['roomId']}'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseReadyProvider.overrideWithValue(false),
+          appSettingsProvider.overrideWithValue(AppSettings.defaults),
+          roomsControllerProvider.overrideWith(
+            (_) => rooms,
+            disposeNotifier: false,
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Exit'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/rooms/studio');
   });
 
   group('today deck', () {
