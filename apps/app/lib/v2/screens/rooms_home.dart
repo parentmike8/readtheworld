@@ -184,7 +184,6 @@ class _WorldHero extends StatelessWidget {
     final players = world?.memberCount ?? 0;
     final goal = world?.worldGoal ?? 5000;
     final pct = goal > 0 ? ((players / goal) * 100).round() : 0;
-    final remaining = (goal - players).clamp(0, goal);
     final unlocked = rooms.worldPredictionsUnlocked;
     final answered = rooms.bindingFor(worldRoomId)?.played ?? false;
     final cta = answered
@@ -256,8 +255,8 @@ class _WorldHero extends StatelessWidget {
                   const SizedBox(height: 9),
                   Text(
                     unlocked
-                        ? 'Predicting is live. Read the whole world, one question at a time.'
-                        : 'Answering is always open. Predicting unlocks once the game hits ${_formatCount(goal)} players.',
+                        ? 'Predictions and scoring are live. Read the whole world, one question at a time.'
+                        : 'Answering is always open. Predictions and scoring unlock once the game hits ${_formatCount(goal)} players.',
                     style: v2Sans(13.5, color: const Color(0xFFC7C1B3), height: 1.5),
                   ),
                   const SizedBox(height: 16),
@@ -302,13 +301,6 @@ class _WorldHero extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!unlocked) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '${_formatCount(remaining)} more players to unlock predicting.',
-                      style: v2Sans(12, color: const Color(0xFF8E887C)),
-                    ),
-                  ],
                   const SizedBox(height: 14),
                   V2Button(
                     cta,
@@ -332,7 +324,7 @@ class _WorldHero extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       alignment: Alignment.center,
                       child: Text(
-                        'Invite friends to help unlock predicting',
+                        'Invite friends to help unlock predictions and scoring',
                         textAlign: TextAlign.center,
                         style: v2Sans(
                           13,

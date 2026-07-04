@@ -554,6 +554,15 @@ void main() {
       await tester.tap(find.text('Rooms'));
       await tester.pumpAndSettle();
       expect(find.text('Read all of humanity.'), findsOneWidget);
+      expect(
+        find.textContaining('Predictions and scoring unlock'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('more players to unlock'), findsNothing);
+      expect(
+        find.text('Invite friends to help unlock predictions and scoring'),
+        findsOneWidget,
+      );
       expect(find.text('No rooms yet'), findsOneWidget);
       expect(find.text('Have a code? Join a room'), findsOneWidget);
     });
