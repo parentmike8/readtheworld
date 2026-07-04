@@ -224,7 +224,7 @@ class _Setup extends ConsumerWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            'One round = everyone predicts once. Each round runs one question per player.',
+            'Each player makes one prediction per round. Every round has one question per player.',
             style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.45),
           ),
           const SizedBox(height: 28),
