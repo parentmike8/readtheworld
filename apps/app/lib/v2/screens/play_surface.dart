@@ -567,40 +567,48 @@ class _PickStage extends StatelessWidget {
               children: [
                 // Rotated side labels behind the card.
                 Positioned(
-                  left: -4,
+                  left: -38,
                   top: 0,
                   bottom: 0,
-                  width: 52,
-                  child: Center(
-                    child: RotatedBox(
-                      quarterTurns: 1,
-                      child: Text(
-                        question.optB,
-                        maxLines: 1,
-                        style: v2Serif(
-                          30,
-                          color: RtwV2Colors.clay.withValues(alpha: 0.16 + noOn * 0.72),
-                          letterSpacing: 0.5,
+                  width: 72,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: RotatedBox(
+                        quarterTurns: 1,
+                        child: Text(
+                          question.optB,
+                          maxLines: 1,
+                          style: v2Serif(
+                            32,
+                            color: RtwV2Colors.clay.withValues(
+                              alpha: 0.22 + noOn * 0.58,
+                            ),
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                  right: -4,
+                  right: -38,
                   top: 0,
                   bottom: 0,
-                  width: 52,
-                  child: Center(
-                    child: RotatedBox(
-                      quarterTurns: -1,
-                      child: Text(
-                        question.optA,
-                        maxLines: 1,
-                        style: v2Serif(
-                          30,
-                          color: RtwV2Colors.blue.withValues(alpha: 0.16 + yesOn * 0.72),
-                          letterSpacing: 0.5,
+                  width: 72,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: RotatedBox(
+                        quarterTurns: -1,
+                        child: Text(
+                          question.optA,
+                          maxLines: 1,
+                          style: v2Serif(
+                            32,
+                            color: RtwV2Colors.blue.withValues(
+                              alpha: 0.22 + yesOn * 0.58,
+                            ),
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
