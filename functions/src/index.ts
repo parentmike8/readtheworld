@@ -57,10 +57,12 @@ import {
   normalizeRoomName,
   normalizeRoomTier,
   roomDailyScoreDeltas,
+  scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
   type CandidateQuestion,
   type RoomMemberDayResult,
+  type WorldPredictorInput,
 } from "./rooms";
 import {
   BankValidationError,
@@ -937,6 +939,9 @@ async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise
  * notification entirely [Mike: most rooms are <=20, joins are slow].
  */
 const MAX_JOIN_NOTIFY_FANOUT = 30;
+
+/** Cap the World leaderboard's peer set (union of your rooms' members). */
+const WORLD_LEADERBOARD_PEER_CAP = 500;
 
 /**
  * Notify every existing room member that someone new joined. Members who have
@@ -3130,6 +3135,118 @@ async function closeRoomDay(
   await commitBatchedWrites(writes);
 }
 
+/** Total registered users — the gate for The World's global scoring. */
+async function countTotalUsers(): Promise<number> {
+  return countQuery(db.collection("users"));
+}
+
+/**
+ * The World scores predictions automatically once the app is big enough. The
+ * admin flag is a manual override so it can be exercised before then [Mike].
+ */
+async function worldScoringUnlocked(): Promise<boolean> {
+  if (await appFeatureEnabled("feature_world_room_unlocked")) return true;
+  return (await countTotalUsers()) >= WORLD_PLAYER_GOAL;
+}
+
+/**
+ * Reveal + score a single World question once it crosses its answer threshold.
+ * Unlike rooms (which close on the daily rollover), World questions accumulate
+ * answers across days and reveal per question. Idempotent: the first caller
+ * claims the qid; later callers no-op.
+ */
+async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boolean> {
+  const dayRef = roomDayRef(WORLD_ROOM_ID, dailyKey);
+
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(dayRef);
+    if (!snap.exists) return false;
+    const revealed = new Set(
+      (Array.isArray(snap.data()?.revealedQids) ? snap.data()?.revealedQids : []) as string[],
+    );
+    if (revealed.has(qid)) return false;
+    tx.update(dayRef, { revealedQids: FieldValue.arrayUnion(qid) });
+    return true;
+  });
+  if (!claimed) return false;
+
+  const answersSnap = await dayRef.collection("answers").get();
+  let aCount = 0;
+  let bCount = 0;
+  const rawPredictors: Array<{ uid: string; side: "a" | "b"; prediction: number }> = [];
+  for (const doc of answersSnap.docs) {
+    const picks = Array.isArray(doc.data().picks) ? doc.data().picks : [];
+    const pick = (picks as Array<Record<string, unknown>>).find((p) => p?.qid === qid);
+    if (!pick) continue;
+    const side = pick.side === "a" || pick.side === "b" ? pick.side : null;
+    if (!side) continue;
+    if (side === "a") aCount += 1;
+    else bCount += 1;
+    if (typeof pick.prediction === "number") {
+      rawPredictors.push({ uid: doc.id, side, prediction: pick.prediction });
+    }
+  }
+
+  // Fetch each predictor's lifetime world-scored count for the K-factor.
+  const predictorUids = rawPredictors.map((entry) => entry.uid);
+  const worldScoredByUid = new Map<string, number>();
+  for (const chunk of chunkArray(predictorUids, 300)) {
+    if (chunk.length === 0) continue;
+    const refs = chunk.map((uid) => db.collection("users").doc(uid));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap) => {
+      worldScoredByUid.set(snap.id, Number(snap.data()?.worldQuestionsScored ?? 0));
+    });
+  }
+
+  const predictors: WorldPredictorInput[] = rawPredictors.map((entry) => ({
+    uid: entry.uid,
+    side: entry.side,
+    prediction: entry.prediction,
+    worldQuestionsScored: worldScoredByUid.get(entry.uid) ?? 0,
+  }));
+  const { aPct, scores } = scoreWorldQuestion({ aCount, bCount, predictors });
+  const deltaByUid = new Map(scores.map((score) => [score.uid, score]));
+
+  const writes: Array<(batch: WriteBatch) => void> = [];
+  for (const predictor of predictors) {
+    const score = deltaByUid.get(predictor.uid);
+    if (!score) continue;
+    writes.push((batch) => batch.set(db.collection("users").doc(predictor.uid), {
+      worldReadScore: FieldValue.increment(score.delta),
+      worldQuestionsScored: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+    writes.push((batch) => batch.set(dayRef.collection("answers").doc(predictor.uid), {
+      [`worldAccuracies.${qid}`]: score.accuracy,
+      [`worldScoreDeltas.${qid}`]: score.delta,
+      scoredQids: FieldValue.arrayUnion(qid),
+    }, { merge: true }));
+  }
+
+  const answers = aCount + bCount;
+  writes.push((batch) => batch.set(dayRef, {
+    results: FieldValue.arrayUnion({ qid, answers, aCount, bCount, aPct }),
+    [`revealedAt.${qid}`]: FieldValue.serverTimestamp(),
+  }, { merge: true }));
+  await commitBatchedWrites(writes);
+
+  // Mark the day closed once every one of its questions has revealed.
+  const daySnap = await dayRef.get();
+  const day = daySnap.data() ?? {};
+  const activeQids = ((day.questions ?? []) as RoomDayQuestion[])
+    .filter((question) => question.pulled !== true)
+    .map((question) => question.qid);
+  const revealedQids = new Set(
+    (Array.isArray(day.revealedQids) ? day.revealedQids : []) as string[],
+  );
+  if (activeQids.length > 0 && activeQids.every((id) => revealedQids.has(id))) {
+    await dayRef.set({ status: "closed", closedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+  logger.info("World question revealed", { dailyKey, qid, answers, scored: scores.length });
+  return true;
+}
+
 export const rolloverRooms = onSchedule({
   schedule: "0 0 * * *",
   timeZone: EASTERN_TIME_ZONE,
@@ -3140,6 +3257,9 @@ export const rolloverRooms = onSchedule({
   let closed = 0;
   let assigned = 0;
   for (const roomDoc of roomsSnap.docs) {
+    // The World is admin-curated and reveals per question at its threshold, so
+    // it is never closed or auto-assembled by the daily rollover [Mike].
+    if (roomDoc.id === WORLD_ROOM_ID) continue;
     try {
       const liveDays = await roomDoc.ref.collection("days")
         .where("status", "==", "live")
@@ -3449,22 +3569,36 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   let memberSnap = await memberDocRef.get();
   if (!memberSnap.exists && isWorld) {
     // The World auto-enrolls on first answer.
+    const enrollDisplayName = await displayNameForUid(uid);
     await db.runTransaction(async (tx) => {
+      // All reads first (Firestore requires reads before writes).
       const fresh = await tx.get(memberDocRef);
       if (fresh.exists) return;
+      const userRef = db.collection("users").doc(uid);
+      const userSnap = await tx.get(userRef);
+
       tx.set(memberDocRef, {
         role: "member",
-        displayName: await displayNameForUid(uid),
+        displayName: enrollDisplayName,
         revealMine: false,
         roomScore: ROOM_STARTING_SCORE,
         streak: 0,
         questionsAnswered: 0,
         joinedAt: FieldValue.serverTimestamp(),
       });
-      tx.set(db.collection("users").doc(uid).collection("memberships").doc(roomId), {
+      tx.set(userRef.collection("memberships").doc(roomId), {
         roomId,
         joinedAt: FieldValue.serverTimestamp(),
       });
+      // Seed the reader's World Read Score so later reveal deltas move a real
+      // 1500 baseline rather than starting from zero.
+      if (typeof userSnap.data()?.worldReadScore !== "number") {
+        tx.set(userRef, {
+          worldReadScore: ROOM_STARTING_SCORE,
+          worldQuestionsScored: Number(userSnap.data()?.worldQuestionsScored ?? 0),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
       tx.set(roomRef(roomId), {
         memberCount: FieldValue.increment(1),
         updatedAt: FieldValue.serverTimestamp(),
@@ -3477,21 +3611,39 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   }
   const member = memberSnap.data() ?? {};
 
-  const dayRef = roomDayRef(roomId, todayKey);
+  // The World lets readers answer past, not-yet-revealed days too (instant
+  // lock, no 24h gap); everyone else answers only today's live set.
+  const requestedDailyKey = isWorld
+    ? (normalizeDailyKey(request.data?.dailyKey) ?? todayKey)
+    : todayKey;
+  if (requestedDailyKey > todayKey) {
+    throw new HttpsError("failed-precondition", "That day is not open yet.");
+  }
+  const dailyKey = requestedDailyKey;
+  const isToday = dailyKey === todayKey;
+
+  const dayRef = roomDayRef(roomId, dailyKey);
   const daySnap = await dayRef.get();
   if (!daySnap.exists || daySnap.data()?.status !== "live") {
-    throw new HttpsError("failed-precondition", "Today's questions are not open yet.");
+    throw new HttpsError("failed-precondition", "Those questions are not open.");
   }
   const day = daySnap.data() ?? {};
+  // World questions that already revealed are locked out; readers can only
+  // answer the ones still accumulating.
+  const revealedQids = new Set(
+    (Array.isArray(day.revealedQids) ? day.revealedQids : []) as string[],
+  );
   const activeQuestions = ((day.questions ?? []) as RoomDayQuestion[])
-    .filter((question) => question.pulled !== true);
+    .filter((question) => question.pulled !== true && !revealedQids.has(question.qid));
   const activeQids = new Set(activeQuestions.map((question) => question.qid));
+  if (activeQids.size === 0) {
+    throw new HttpsError("failed-precondition", "These questions have already revealed.");
+  }
 
-  // Solo rooms now always capture a prediction (the reader guesses what share
-  // of people would agree). It simply goes unscored until the room has other
-  // responses to compare against, so an early answer still counts once the room
-  // fills [Mike]. The World stays answer-only until its lifecycle unlocks.
-  const answerOnly = isWorld && !(await appFeatureEnabled("feature_world_room_unlocked"));
+  // Predictions are always captured now (solo and World included): the reader
+  // guesses what share of people would agree. Solo/early answers simply go
+  // unscored until there are other responses to compare against [Mike].
+  const answerOnly = false;
 
   const rawPicks = Array.isArray(request.data?.picks) ? request.data.picks : [];
   let picks: RoomPick[];
@@ -3514,7 +3666,7 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   }
   if (picks.length !== activeQids.size ||
       new Set(picks.map((pick) => pick.qid)).size !== picks.length) {
-    throw new HttpsError("invalid-argument", "Answers must cover each of today's questions exactly once.");
+    throw new HttpsError("invalid-argument", "Answers must cover each open question exactly once.");
   }
   if (!answerOnly && picks.some((pick) => pick.prediction == null)) {
     throw new HttpsError("invalid-argument", "Each answer needs a prediction in this room.");
@@ -3583,29 +3735,103 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
     }
 
     const memberUpdates: Record<string, unknown> = {
-      streak,
-      lastPlayedDailyKey: todayKey,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (predictedDelta !== 0) {
+    // Streak only advances for today's set; answering an older World day
+    // (catch-up) must not bump the streak or the day counter.
+    if (isToday) {
+      memberUpdates.streak = streak;
+      memberUpdates.lastPlayedDailyKey = todayKey;
+    }
+    // The World tracks its own worldQuestionsScored (bumped at reveal); only
+    // room predictions feed the room/global answered counters.
+    if (!isWorld && predictedDelta !== 0) {
       memberUpdates.questionsAnswered = FieldValue.increment(predictedDelta);
     }
     tx.set(memberDocRef, memberUpdates, { merge: true });
-    if (predictedDelta !== 0) {
+    if (!isWorld && predictedDelta !== 0) {
       tx.set(db.collection("users").doc(uid), {
         officialQuestionsAnswered: FieldValue.increment(predictedDelta),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
   });
+
+  // The World reveals + scores each question the moment it crosses its answer
+  // threshold and the app is big enough (5K users, or the admin override).
+  if (isWorld) {
+    try {
+      const freshDay = (await dayRef.get()).data() ?? {};
+      const counts = (freshDay.answerCounts ?? {}) as Record<string, number>;
+      const questionsById = new Map(
+        ((freshDay.questions ?? []) as RoomDayQuestion[]).map((question) => [question.qid, question]),
+      );
+      const crossed = picks.filter((pick) => {
+        const question = questionsById.get(pick.qid) as { threshold?: number } | undefined;
+        const threshold = Number(question?.threshold ?? 1000);
+        return Number(counts[pick.qid] ?? 0) >= threshold;
+      });
+      if (crossed.length > 0 && (await worldScoringUnlocked())) {
+        for (const pick of crossed) {
+          await revealWorldQuestion(dailyKey, pick.qid);
+        }
+      }
+    } catch (error) {
+      logger.warn("World reveal check failed", { dailyKey, error: String(error) });
+    }
+  }
+
   return {
     locked: createdAnswer,
     updated: !createdAnswer,
     roomId,
-    dailyKey: todayKey,
+    dailyKey,
     answerOnly,
-    streak,
+    streak: isToday ? streak : Number(member.streak ?? 0),
   };
+});
+
+/**
+ * The World leaderboard: how you read all of humanity versus everyone you
+ * share a (non-World) room with. Ranked by the dedicated World Read Score,
+ * which only moves as World questions cross their thresholds and score [Mike].
+ */
+export const getWorldLeaderboard = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const membershipsSnap = await db.collection("users").doc(uid)
+    .collection("memberships").get();
+  const roomIds = membershipsSnap.docs
+    .map((doc) => String(doc.data()?.roomId ?? doc.id))
+    .filter((id) => id.length > 0 && id !== WORLD_ROOM_ID);
+
+  const peerUids = new Set<string>([uid]);
+  for (const roomId of roomIds) {
+    if (peerUids.size >= WORLD_LEADERBOARD_PEER_CAP) break;
+    const membersSnap = await roomRef(roomId).collection("members").get();
+    membersSnap.docs.forEach((doc) => peerUids.add(doc.id));
+  }
+
+  const uids = [...peerUids].slice(0, WORLD_LEADERBOARD_PEER_CAP);
+  const rowsInput: LeaderboardInput[] = [];
+  for (const chunk of chunkArray(uids, 300)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(...chunk.map((id) => db.collection("users").doc(id)));
+    snaps.forEach((snap) => {
+      const data = snap.data() ?? {};
+      rowsInput.push({
+        uid: snap.id,
+        displayName: typeof data.displayName === "string" ? data.displayName : "Reader",
+        avatarColor: typeof data.avatarColor === "string" ? data.avatarColor : "blue",
+        readScore: Number(data.worldReadScore ?? STARTING_READ_SCORE),
+        officialQuestionsAnswered: Number(data.worldQuestionsScored ?? 0),
+        currentStreak: Number(data.currentStreak ?? 0),
+      });
+    });
+  }
+
+  const rows = rankedLeaderboardRows(rowsInput, WORLD_LEADERBOARD_PEER_CAP);
+  const me = rows.find((row) => row.uid === uid) ?? null;
+  return { rows, me, total: rows.length };
 });
 
 export const queueCustomQuestion = onCall(callableOptions, async (request) => {

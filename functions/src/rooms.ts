@@ -1,5 +1,6 @@
 import type { BankShape, BankTier } from "./bank";
 import {
+  calculateReadAccuracy,
   clamp,
   dailyPercentilesByAccuracy,
   scoreDeltaForPercentile,
@@ -197,6 +198,66 @@ export function roomDailyScoreDeltas(results: RoomMemberDayResult[]): RoomMember
       delta: scoreDeltaForPercentile(percentile, entry.questionsAnswered),
     };
   });
+}
+
+export type WorldPredictorInput = {
+  uid: string;
+  side: "a" | "b";
+  prediction: number;
+  /** Lifetime world questions already scored for this reader (drives K). */
+  worldQuestionsScored: number;
+};
+
+export type WorldQuestionScore = {
+  uid: string;
+  accuracy: number;
+  percentile: number;
+  delta: number;
+};
+
+export type WorldQuestionScoreResult = {
+  /** Share of all responders (with a side) that picked option A, 0-100. */
+  aPct: number;
+  scores: WorldQuestionScore[];
+};
+
+/**
+ * The World scores a single question globally when it crosses its answer
+ * threshold: each reader's accuracy is their prediction vs the actual share of
+ * everyone who agreed with their side (denominator = responders, not room
+ * members [Mike]), then ranked into an Elo-style worldReadScore delta. Readers
+ * who answered without a prediction still count toward the split but are not
+ * scored.
+ */
+export function scoreWorldQuestion(input: {
+  aCount: number;
+  bCount: number;
+  predictors: WorldPredictorInput[];
+}): WorldQuestionScoreResult {
+  const total = input.aCount + input.bCount;
+  const aPct = total > 0 ? Math.round((input.aCount / total) * 100) : 0;
+  const accuracies = input.predictors.map((predictor) => {
+    const sameSide = predictor.side === "a" ? input.aCount : input.bCount;
+    const actualShare = total > 0 ? Math.round((sameSide / total) * 100) : 0;
+    return {
+      uid: predictor.uid,
+      questionsScored: predictor.worldQuestionsScored,
+      accuracy: calculateReadAccuracy(predictor.prediction, actualShare),
+    };
+  });
+  const percentiles = dailyPercentilesByAccuracy(
+    accuracies.map((entry) => entry.accuracy),
+  );
+  const scores = accuracies.map((entry) => {
+    const percentile = percentiles.get(entry.accuracy) ?? 0.5;
+    return {
+      uid: entry.uid,
+      accuracy: entry.accuracy,
+      percentile,
+      delta: scoreDeltaForPercentile(percentile, entry.questionsScored),
+    };
+  });
+  return { aPct, scores };
 }
 
 export function normalizeCustomQuestionText(value: unknown): string {

@@ -11,6 +11,7 @@ import {
   normalizeRoomName,
   normalizeRoomTier,
   roomDailyScoreDeltas,
+  scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
 } from "../src/rooms";
@@ -201,5 +202,51 @@ describe("roomDailyScoreDeltas", () => {
     ]);
     const byUid = Object.fromEntries(deltas.map((delta) => [delta.uid, delta]));
     expect(Math.abs(byUid.newbie.delta)).toBeGreaterThan(Math.abs(byUid.vet.delta));
+  });
+});
+
+describe("scoreWorldQuestion", () => {
+  it("measures accuracy against the responder split (denominator = responders)", () => {
+    // 6 of 8 responders picked A -> actual A share is 75%.
+    const result = scoreWorldQuestion({
+      aCount: 6,
+      bCount: 2,
+      predictors: [
+        { uid: "spot-on", side: "a", prediction: 75, worldQuestionsScored: 0 },
+        { uid: "way-off", side: "a", prediction: 20, worldQuestionsScored: 0 },
+      ],
+    });
+    expect(result.aPct).toBe(75);
+    const byUid = Object.fromEntries(result.scores.map((score) => [score.uid, score]));
+    expect(byUid["spot-on"].accuracy).toBe(100);
+    expect(byUid["way-off"].accuracy).toBe(45); // 100 - |20 - 75|
+    // Reading the crowd better than the field earns a positive delta.
+    expect(byUid["spot-on"].delta).toBeGreaterThan(0);
+    expect(byUid["way-off"].delta).toBeLessThan(0);
+  });
+
+  it("scores B-side predictions against the B share", () => {
+    const result = scoreWorldQuestion({
+      aCount: 3,
+      bCount: 1,
+      predictors: [
+        { uid: "b-reader", side: "b", prediction: 25, worldQuestionsScored: 0 },
+      ],
+    });
+    // B share is 1/4 = 25%; a lone scorer holds steady (percentile 0.5).
+    expect(result.scores[0].accuracy).toBe(100);
+    expect(result.scores[0].delta).toBe(0);
+  });
+
+  it("counts non-predicting responders toward the split but not the scores", () => {
+    const result = scoreWorldQuestion({
+      aCount: 10,
+      bCount: 10,
+      predictors: [
+        { uid: "only-predictor", side: "a", prediction: 50, worldQuestionsScored: 0 },
+      ],
+    });
+    expect(result.aPct).toBe(50);
+    expect(result.scores).toHaveLength(1);
   });
 });

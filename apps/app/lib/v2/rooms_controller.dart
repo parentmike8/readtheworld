@@ -667,19 +667,13 @@ class RoomsController extends ChangeNotifier {
     if (session == null || card == null || card.intro) return;
     unawaited(HapticFeedback.mediumImpact());
     final binding = bindingFor(card.roomId);
-    final worldLocked = card.isWorld && !worldPredictionsUnlocked;
-    if (worldLocked) {
-      session.stage = PlayStage.answerSaved;
-      session.answerSavedReason = 'world';
-      session.side = side;
-      session.dragX = 0;
-      notifyListeners();
-      return;
-    }
+    // Every room now takes a prediction, The World included: the reader guesses
+    // what share of people would agree. World scoring simply waits until the
+    // question crosses its threshold [Mike].
     session.stage = PlayStage.predict;
     session.side = side;
     // Duo rooms start at "the other person matched" (prototype: pred=100);
-    // solo rooms predict a free share of everyone (infinite meter).
+    // solo / world predict a free share of everyone (infinite meter).
     final defaultPred = (binding?.room?.isDuo ?? false) ? 100 : 50;
     session.pred = _snapPredictionForSession(session, defaultPred);
     session.dragX = 0;

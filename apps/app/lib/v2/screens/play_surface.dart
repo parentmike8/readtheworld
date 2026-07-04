@@ -953,6 +953,9 @@ class _PredictStage extends StatelessWidget {
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     final pred = session.pred;
     final others = (card.roomMembers - 1).clamp(0, 1 << 31);
+    // Solo and The World read the prediction as a share of everyone who
+    // answers, not a headcount of a fixed room.
+    final infinite = card.isWorld || others <= 0;
     final saveLabel = _saveLabel(session, card);
 
     return Column(
@@ -1016,14 +1019,14 @@ class _PredictStage extends StatelessWidget {
                 people: others,
                 sideLabel: sideLabel,
                 sideColor: sideColor,
-                infinite: others <= 0,
+                infinite: infinite,
               ),
               const SizedBox(height: 28),
               PredictionAgreementMeter(
                 percent: pred,
                 people: others,
                 onUpdate: rooms.meterUpdate,
-                infinite: others <= 0,
+                infinite: infinite,
               ),
             ],
           ),
@@ -1536,7 +1539,6 @@ class _RoundSummary extends ConsumerWidget {
     final room = binding?.room;
     final roomName = room?.name ?? 'your room';
     final isWorld = room?.isWorld ?? roomId == worldRoomId;
-    final worldLocked = isWorld && !rooms.worldPredictionsUnlocked;
     final day = isWorld ? rooms.worldToday : binding?.today;
     final answer = binding?.myTodayAnswer;
     return Padding(
@@ -1562,10 +1564,10 @@ class _RoundSummary extends ConsumerWidget {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    worldLocked
-                        ? 'Your World answers are saved. Predictions, reveals, and '
-                              'Read Score movement unlock once The World reaches '
-                              '${_formatThousands(room?.worldGoal ?? 5000)} players.'
+                    isWorld
+                        ? 'Your World reads are in. Each question reveals and moves '
+                              'your World Read Score once enough people have '
+                              'answered it.'
                         : 'Nothing is final yet. You can still change your answers '
                               'right up until the reveal.',
                     style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
@@ -1575,7 +1577,7 @@ class _RoundSummary extends ConsumerWidget {
                     _RoundAnswerSummary(day: day, answer: answer),
                     const SizedBox(height: 16),
                   ],
-                  if (worldLocked)
+                  if (isWorld)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
