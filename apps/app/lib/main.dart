@@ -32,6 +32,7 @@ import 'v2/screens/profile_screen.dart';
 import 'v2/screens/room_detail.dart';
 import 'v2/screens/room_reveal.dart';
 import 'v2/screens/rooms_home.dart';
+import 'v2/screens/world_leaderboard.dart';
 import 'theme/rtw_theme.dart';
 
 Future<void> main() async {
@@ -317,7 +318,8 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
           path == '/today' ||
           path == '/today/play' ||
           path == '/rooms' ||
-          path.startsWith('/rooms/');
+          path.startsWith('/rooms/') ||
+          path == '/world/leaderboard';
       if (signedOut && authRequiredPath) {
         return '/auth';
       }
@@ -351,8 +353,10 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       _appRoute('/rooms', (_, _) => const RoomsHomeScreen(), mainFade: true),
       _appRoute(
         '/rooms/:roomId',
-        (_, state) =>
-            RoomDetailScreen(roomId: state.pathParameters['roomId'] ?? ''),
+        (_, state) => RoomDetailScreen(
+          roomId: state.pathParameters['roomId'] ?? '',
+          edit: state.uri.queryParameters['edit'] == '1',
+        ),
         mobileSlide: true,
       ),
       _appRoute(
@@ -364,6 +368,11 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         mainFade: true,
       ),
       _appRoute('/today/play', (_, _) => const RoomPlayScreen()),
+      _appRoute(
+        '/world/leaderboard',
+        (_, _) => const WorldLeaderboardScreen(),
+        mobileSlide: true,
+      ),
       _appRoute('/profile', (_, _) => const ProfileScreenV2(), mobileSlide: true),
       _appRoute(
         '/join/:code',

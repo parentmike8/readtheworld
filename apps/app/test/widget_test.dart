@@ -251,18 +251,20 @@ void main() {
       expect(rooms.play!.pred, 100); // duo starts at "they matched"
     });
 
-    test('solo rooms save answer-only', () {
+    test('solo rooms now take an infinite-room prediction', () {
       final rooms = _roomsWith([
         _binding(id: 'solo', name: 'Just You', members: 1),
       ]);
       rooms.enterToday();
       rooms.continueFromIntro();
       rooms.commitSide('b');
-      expect(rooms.play!.stage, PlayStage.answerSaved);
-      expect(rooms.play!.answerSavedReason, 'solo');
+      // Solo used to be answer-only; it now predicts a share of everyone so it
+      // scores once the room fills [Mike].
+      expect(rooms.play!.stage, PlayStage.predict);
+      expect(rooms.play!.pred, 50);
     });
 
-    test('locked world is answer-only until the flag flips', () {
+    test('the world always takes a prediction', () {
       final world = _binding(
         id: 'world',
         name: 'The World',
@@ -275,11 +277,8 @@ void main() {
       rooms.enterToday();
       rooms.continueFromIntro();
       rooms.commitSide('a');
-      expect(rooms.play!.answerSavedReason, 'world');
-
-      rooms.worldPredictionsUnlocked = true;
-      rooms.changeAnswer();
-      rooms.commitSide('a');
+      // The World now captures a prediction too; scoring waits for the
+      // question to cross its threshold, not the meter to unlock.
       expect(rooms.play!.stage, PlayStage.predict);
     });
 

@@ -118,6 +118,9 @@ RoomDay roomDayFromFirestore(String dailyKey, Map<String, dynamic> data) {
     answerCounts: rawCounts is Map
         ? rawCounts.map((key, value) => MapEntry(key.toString(), _intValue(value)))
         : const {},
+    revealedQids: data['revealedQids'] is List
+        ? (data['revealedQids'] as List).map((value) => value.toString()).toList()
+        : const [],
   );
 }
 

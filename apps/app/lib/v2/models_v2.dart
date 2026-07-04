@@ -154,6 +154,7 @@ class RoomDay {
     this.results = const [],
     this.answerCount = 0,
     this.answerCounts = const {},
+    this.revealedQids = const [],
   });
 
   final String dailyKey;
@@ -163,10 +164,21 @@ class RoomDay {
   final int answerCount;
   final Map<String, int> answerCounts;
 
+  /// World only: questions that have crossed their threshold and revealed.
+  /// They can no longer be answered, only viewed.
+  final List<String> revealedQids;
+
   bool get isLive => status == 'live';
   bool get isClosed => status == 'closed';
   List<RoomDayQuestion> get activeQuestions =>
       questions.where((question) => !question.pulled).toList();
+
+  /// Questions still open for answering (active and not yet revealed).
+  List<RoomDayQuestion> get answerableQuestions => questions
+      .where((question) => !question.pulled && !revealedQids.contains(question.qid))
+      .toList();
+
+  bool isRevealed(String qid) => revealedQids.contains(qid);
 
   RoomDayQuestionResult? resultFor(String qid) {
     for (final result in results) {
@@ -210,6 +222,26 @@ class RoomPick {
   /// 'a' or 'b' — referencing the question's optA / optB.
   final String side;
   final int? prediction;
+}
+
+/// One row in the World leaderboard (how you read all of humanity versus
+/// everyone you share a room with).
+class WorldLeaderRow {
+  const WorldLeaderRow({
+    required this.rank,
+    required this.uid,
+    required this.displayName,
+    required this.avatarColor,
+    required this.readScore,
+    required this.questionsScored,
+  });
+
+  final int rank;
+  final String uid;
+  final String displayName;
+  final String avatarColor;
+  final int readScore;
+  final int questionsScored;
 }
 
 class QueueItem {

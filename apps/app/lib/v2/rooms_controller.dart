@@ -60,12 +60,16 @@ class RoomRevealData {
 
 /// In-flight play state, mirroring the prototype's `play` object.
 class PlaySession {
-  PlaySession({required this.mode, required this.deck, this.roomId});
+  PlaySession({required this.mode, required this.deck, this.roomId, this.dailyKey});
 
   /// 'today' (cross-room deck with intro cards) or 'room' (single block).
   final String mode;
   final List<TodayDeckCard> deck;
   final String? roomId;
+
+  /// World catch-up: the specific past day these picks lock into. Null means
+  /// today (the server default).
+  final String? dailyKey;
 
   int idx = 0;
   PlayStage stage = PlayStage.pick;
@@ -443,7 +447,8 @@ class RoomsController extends ChangeNotifier {
   List<TodayDeckCard> buildTodayDeck() {
     final deck = <TodayDeckCard>[];
     void addRoomBlock(RtwRoom room, RoomDay day) {
-      final questions = day.activeQuestions;
+      // Exclude World questions that already revealed (they can't be answered).
+      final questions = day.answerableQuestions;
       if (questions.isEmpty) return;
       deck.add(
         TodayDeckCard.intro(
@@ -498,7 +503,20 @@ class RoomsController extends ChangeNotifier {
     final room = binding?.room;
     final day = roomId == worldRoomId ? worldToday : binding?.today;
     if (room == null || day == null) return;
-    final questions = day.activeQuestions;
+    _startDayPlay(room, day, binding?.myTodayAnswer);
+  }
+
+  /// The World lets readers answer a past, not-yet-revealed day (instant lock,
+  /// no 24h gap). Locks against that day's key.
+  void startWorldDayPlay(RoomHistoryDay history) {
+    final room = worldRoom;
+    if (room == null) return;
+    _startDayPlay(room, history.day, history.myAnswer);
+  }
+
+  void _startDayPlay(RtwRoom room, RoomDay day, RoomAnswer? answer) {
+    // Revealed World questions are locked out; only offer the still-open ones.
+    final questions = day.answerableQuestions;
     final deck = <TodayDeckCard>[
       for (var i = 0; i < questions.length; i++)
         TodayDeckCard.question(
@@ -513,11 +531,15 @@ class RoomsController extends ChangeNotifier {
         ),
     ];
     if (deck.isEmpty) return;
-    final session = PlaySession(mode: 'room', deck: deck, roomId: roomId);
-    final answer = binding?.myTodayAnswer;
+    final session = PlaySession(
+      mode: 'room',
+      deck: deck,
+      roomId: room.id,
+      dailyKey: day.dailyKey,
+    );
     if (day.isLive && answer != null) {
       final qids = questions.map((question) => question.qid).toSet();
-      session.results[roomId] = [
+      session.results[room.id] = [
         for (final pick in answer.picks)
           if (qids.contains(pick.qid)) pick,
       ];
@@ -810,7 +832,11 @@ class RoomsController extends ChangeNotifier {
     if (blockDone && session.mode == 'intro') {
       introPicks = List.of(picks);
     } else if (blockDone) {
-      final submitted = await _submitRoomPicks(card.roomId, List.of(picks));
+      final submitted = await _submitRoomPicks(
+        card.roomId,
+        List.of(picks),
+        dailyKey: session.dailyKey,
+      );
       if (!submitted) return;
     }
     _advance(session);
@@ -854,11 +880,15 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> _submitRoomPicks(String roomId, List<RoomPick> picks) async {
+  Future<bool> _submitRoomPicks(
+    String roomId,
+    List<RoomPick> picks, {
+    String? dailyKey,
+  }) async {
     submitting = true;
     notifyListeners();
     try {
-      await _callable('lockRoomAnswers').call({
+      final payload = <String, dynamic>{
         'roomId': roomId,
         'picks': [
           for (final pick in picks)
@@ -868,7 +898,9 @@ class RoomsController extends ChangeNotifier {
               if (pick.prediction != null) 'prediction': pick.prediction,
             },
         ],
-      });
+      };
+      if (dailyKey != null) payload['dailyKey'] = dailyKey;
+      await _callable('lockRoomAnswers').call(payload);
       return true;
     } on FirebaseFunctionsException catch (error) {
       if (error.code != 'already-exists') {
@@ -1256,6 +1288,27 @@ class RoomsController extends ChangeNotifier {
 
   void markPartyPlayed(Iterable<String> qids) {
     _partyPlayed.addAll(qids);
+  }
+
+  /// The World leaderboard: everyone you share a (non-World) room with, ranked
+  /// by their World Read Score. Empty until the first World questions reveal.
+  Future<List<WorldLeaderRow>> loadWorldLeaderboard() async {
+    if (!firebaseReady) return const [];
+    final result = await _callable('getWorldLeaderboard').call({});
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return (data['rows'] as List? ?? const [])
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .map((row) => WorldLeaderRow(
+              rank: (row['rank'] as num?)?.toInt() ?? 0,
+              uid: row['uid']?.toString() ?? '',
+              displayName: row['displayName']?.toString() ?? 'Reader',
+              avatarColor: row['avatarColor']?.toString() ?? 'blue',
+              readScore: (row['readScore'] as num?)?.toInt() ?? 1500,
+              questionsScored:
+                  (row['officialQuestionsAnswered'] as num?)?.toInt() ?? 0,
+            ))
+        .toList();
   }
 
   @override

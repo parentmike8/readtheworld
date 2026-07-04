@@ -1931,11 +1931,32 @@ Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) a
         if (days.isEmpty)
           Text('Nothing here yet.', style: v2Sans(14, color: RtwV2Colors.faint))
         else
-          for (final entry in days)
+          for (final entry in days) ...[
+            if (entry.day.answerableQuestions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 11),
+                child: V2Button(
+                  entry.myAnswer == null
+                      ? 'Answer these ${entry.day.answerableQuestions.length} →'
+                      : 'Update your answers →',
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  radius: 13,
+                  onPressed: () {
+                    rooms.startWorldDayPlay(entry);
+                    if (rooms.play != null) {
+                      Navigator.of(context).pop();
+                      context.go('/today/play');
+                    }
+                  },
+                ),
+              ),
             for (final question in entry.day.activeQuestions) ...[
               Builder(builder: (context) {
+                final revealed = entry.day.isRevealed(question.qid);
+                final result = entry.day.resultFor(question.qid);
                 final answers = entry.day.answerCounts[question.qid] ??
-                    entry.day.resultFor(question.qid)?.answers ??
+                    result?.answers ??
                     0;
                 final threshold = question.threshold ?? 1000;
                 final pick = entry.myAnswer?.pickFor(question.qid);
@@ -1968,28 +1989,42 @@ Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) a
                         style: v2Serif(17, color: const Color(0xFF2C2A24), height: 1.28),
                       ),
                       const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: Container(
-                          height: 6,
-                          color: const Color(0xFFE6E0D3),
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: pct,
-                            child: Container(color: RtwV2Colors.blue),
+                      if (revealed && result != null) ...[
+                        Text(
+                          '${result.aPct}% ${question.optA} · '
+                          '${100 - result.aPct}% ${question.optB}',
+                          style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Revealed · ${_thousandsSep(answers)} world answers',
+                          style: v2Sans(11.5, color: RtwV2Colors.muted),
+                        ),
+                      ] else ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: Container(
+                            height: 6,
+                            color: const Color(0xFFE6E0D3),
+                            alignment: Alignment.centerLeft,
+                            child: FractionallySizedBox(
+                              widthFactor: pct,
+                              child: Container(color: RtwV2Colors.blue),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
-                        style: v2Sans(11.5, color: RtwV2Colors.muted),
-                      ),
+                        const SizedBox(height: 7),
+                        Text(
+                          '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
+                          style: v2Sans(11.5, color: RtwV2Colors.muted),
+                        ),
+                      ],
                     ],
                   ),
                 );
               }),
             ],
+          ],
         _ghostDoneButton(context),
       ],
     );

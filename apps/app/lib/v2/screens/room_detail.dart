@@ -12,9 +12,13 @@ import 'play_surface.dart' show revealLabelFor;
 
 /// ROOM DETAIL — v2 prototype lines 153-264.
 class RoomDetailScreen extends ConsumerStatefulWidget {
-  const RoomDetailScreen({super.key, required this.roomId});
+  const RoomDetailScreen({super.key, required this.roomId, this.edit = false});
 
   final String roomId;
+
+  /// Deep-linked from the "someone joined, update your predictions?" push
+  /// (route `/rooms/:id?edit=1`) — drops the reader straight into editing.
+  final bool edit;
 
   @override
   ConsumerState<RoomDetailScreen> createState() => _RoomDetailScreenState();
@@ -24,6 +28,22 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   RoomRevealData? reveal;
   String? _attemptedRevealKey;
   bool _loadingReveal = false;
+  bool _autoEditDone = false;
+
+  /// Once the room and the caller's live answer have streamed in, open the
+  /// play surface pre-loaded with their picks so they can revise.
+  void _maybeAutoEdit(RoomsController rooms, RtwRoom room) {
+    if (!widget.edit || _autoEditDone) return;
+    final day = room.isWorld ? rooms.worldToday : rooms.bindingFor(room.id)?.today;
+    final answer = rooms.bindingFor(room.id)?.myTodayAnswer;
+    if (day == null || !day.isLive || answer == null) return;
+    _autoEditDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      rooms.startRoomPlay(room.id);
+      if (rooms.play != null) context.go('/today/play');
+    });
+  }
 
   Future<void> _loadReveal(String dailyKey) async {
     _loadingReveal = true;
@@ -63,6 +83,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
       );
     }
     _syncReveal(room);
+    _maybeAutoEdit(rooms, room);
     final me = binding!.me;
     final played = binding.played;
     final isSolo = room.isSolo;
@@ -437,8 +458,9 @@ class _WorldProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Predicting turns on once the game hits ${_thousands(room.worldGoal)} '
-            'players and a question crosses 1,000 answers.',
+            'You always make a read here. A question reveals and scores your '
+            'World Read Score once it crosses 1,000 answers and the game passes '
+            '${_thousands(room.worldGoal)} players.',
             style: v2Sans(13, color: RtwV2Colors.subText, height: 1.5),
           ),
           const SizedBox(height: 12),
@@ -446,6 +468,14 @@ class _WorldProgressCard extends StatelessWidget {
             onTap: () => showWorldBrowseSheet(context, rooms),
             child: Text(
               'Browse other world questions →',
+              style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => context.go('/world/leaderboard'),
+            child: Text(
+              'How you stack against your peers →',
               style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
             ),
           ),
