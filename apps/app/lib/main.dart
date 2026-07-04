@@ -308,8 +308,13 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (!appSettings.partyMode && state.uri.path == '/party') {
         return '/rooms';
       }
+      // Anonymous sessions never count as signed in — the app has no anonymous
+      // flow, so an anonymous user is always a stale/leftover session and must
+      // be sent back to auth to sign in with a real account [Mike].
+      final currentUser =
+          firebaseReady ? FirebaseAuth.instance.currentUser : null;
       final signedOut =
-          firebaseReady && FirebaseAuth.instance.currentUser == null;
+          firebaseReady && (currentUser == null || currentUser.isAnonymous);
       final path = state.uri.path;
       final authRequiredPath =
           path == '/onboarding' ||
