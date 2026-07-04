@@ -91,6 +91,7 @@ class _Setup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isWide = MediaQuery.sizeOf(context).width >= 820;
     final rooms = ref.watch(roomsControllerProvider);
     final tierPool = pool
         .where((question) => party.tier.allowsQuestionTier(question.tier))
@@ -106,7 +107,7 @@ class _Setup extends ConsumerWidget {
         '${party.rounds * party.players} questions';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30),
+      padding: EdgeInsets.fromLTRB(24, isWide ? 60 : 78, 24, 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
