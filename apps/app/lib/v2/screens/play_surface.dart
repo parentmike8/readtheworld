@@ -880,7 +880,7 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
     return isLast ? 'Save · all done →' : 'Save · next →';
   }
   if (session.mode == 'intro') {
-    return isLast ? 'Lock it in →' : 'Save · next →';
+    return isLast ? 'Save it →' : 'Save · next →';
   }
   return isLast ? 'Save answers →' : 'Save · next →';
 }
@@ -1378,7 +1378,7 @@ class _RoundSummary extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            "Your reads are locked. You'll see how $roomName answered, and how "
+            "Your reads are in. You'll see how $roomName answered, and how "
             'it moves your Read Score, tomorrow.',
             style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
           ),

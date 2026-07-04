@@ -578,6 +578,35 @@ void main() {
       expect(find.text('Answer world questions →'), findsNothing);
     });
 
+    testWidgets('submitted room card exposes a modify action', (
+      tester,
+    ) async {
+      final room = _binding(id: 'studio', name: 'The Studio')
+        ..myTodayAnswer = const RoomAnswer(
+          picks: [RoomPick(qid: 'q1', side: 'a', prediction: 60)],
+          answerOnly: false,
+        );
+      final rooms = _roomsWith([room]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: RoomsHomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('View or modify answers →'), findsOneWidget);
+      expect(find.textContaining('Locked in'), findsNothing);
+    });
+
     testWidgets('party tab renders setup and starts a local round', (
       tester,
     ) async {

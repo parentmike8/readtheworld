@@ -378,7 +378,7 @@ class _RoomCard extends ConsumerWidget {
         ? 'Just you, for now'
         : '${room.memberCount} members · $streak day streak';
     final statusLabel = played
-        ? '✓ Locked in'
+        ? 'View or modify answers →'
         : isSolo
             ? "Answer today's 3 →"
             : "Play today's 3 →";
@@ -451,7 +451,11 @@ class _RoomCard extends ConsumerWidget {
               children: [
                 GestureDetector(
                   onTap: played
-                      ? null
+                      ? () {
+                          final rooms = ref.read(roomsControllerProvider);
+                          rooms.startRoomPlay(room.id);
+                          if (rooms.play != null) context.go('/today/play');
+                        }
                       : () {
                           final rooms = ref.read(roomsControllerProvider);
                           rooms.startRoomPlay(room.id);
@@ -461,7 +465,7 @@ class _RoomCard extends ConsumerWidget {
                     statusLabel,
                     style: v2Sans(
                       13,
-                      color: played ? RtwV2Colors.green : RtwV2Colors.blue,
+                      color: RtwV2Colors.blue,
                       weight: FontWeight.w600,
                     ),
                   ),
