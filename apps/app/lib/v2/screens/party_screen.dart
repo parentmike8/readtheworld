@@ -1146,9 +1146,9 @@ class _PickPanel extends StatelessWidget {
                           ),
                         ),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Flexible(
+                            Expanded(
                               child: GestureDetector(
                                 onTap: () => party.tapSide('b'),
                                 child: Text(
@@ -1163,12 +1163,15 @@ class _PickPanel extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const Icon(
-                              Icons.sync_alt,
-                              size: 18,
-                              color: Color(0xFFCFC8B7),
+                            const SizedBox(
+                              width: 56,
+                              child: Icon(
+                                Icons.sync_alt,
+                                size: 18,
+                                color: Color(0xFFCFC8B7),
+                              ),
                             ),
-                            Flexible(
+                            Expanded(
                               child: GestureDetector(
                                 onTap: () => party.tapSide('a'),
                                 child: Text(

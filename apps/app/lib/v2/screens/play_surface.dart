@@ -654,10 +654,9 @@ class _PickStage extends StatelessWidget {
                           ),
                         ),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Flexible(
+                            Expanded(
                               child: GestureDetector(
                                 onTap: () => rooms.tapSide('b'),
                                 child: Text(
@@ -673,8 +672,11 @@ class _PickStage extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const Icon(Icons.sync_alt, size: 18, color: Color(0xFFCFC8B7)),
-                            Flexible(
+                            const SizedBox(
+                              width: 56,
+                              child: Icon(Icons.sync_alt, size: 18, color: Color(0xFFCFC8B7)),
+                            ),
+                            Expanded(
                               child: GestureDetector(
                                 onTap: () => rooms.tapSide('a'),
                                 child: Text(
