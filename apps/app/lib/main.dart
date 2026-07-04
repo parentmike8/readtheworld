@@ -11,6 +11,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_performance/firebase_performance.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -231,6 +232,10 @@ Page<void> _rtwPage(
     return NoTransitionPage<void>(key: state.pageKey, child: child);
   }
 
+  if (mobileNative) {
+    return _RtwCupertinoPage(key: state.pageKey, child: child);
+  }
+
   if (nativeMainFade) {
     return CustomTransitionPage<void>(
       key: state.pageKey,
@@ -259,6 +264,20 @@ Page<void> _rtwPage(
       return SlideTransition(position: position, child: child);
     },
   );
+}
+
+class _RtwCupertinoPage extends Page<void> {
+  const _RtwCupertinoPage({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Route<void> createRoute(BuildContext context) {
+    return CupertinoPageRoute<void>(
+      settings: this,
+      builder: (_) => child,
+    );
+  }
 }
 
 final rtwRouterProvider = Provider<GoRouter>((ref) {

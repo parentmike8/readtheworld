@@ -374,10 +374,15 @@ class _RoomCard extends ConsumerWidget {
         : isSolo
             ? "Answer today's 3 →"
             : "Play today's 3 →";
+    void startRoomPlay() {
+      final rooms = ref.read(roomsControllerProvider);
+      rooms.startRoomPlay(room.id);
+      if (rooms.play != null) context.go('/today/play');
+    }
 
     return GestureDetector(
       // Prototype openRoom: an unseen reveal shows once before the detail.
-      onTap: () => context.go(
+      onTap: () => context.push(
         binding.hasUnseenReveal ? '/rooms/${room.id}/reveal' : '/rooms/${room.id}',
       ),
       child: Container(
@@ -439,26 +444,21 @@ class _RoomCard extends ConsumerWidget {
             const V2Hairline(),
             const SizedBox(height: 14),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: played
-                      ? () {
-                          final rooms = ref.read(roomsControllerProvider);
-                          rooms.startRoomPlay(room.id);
-                          if (rooms.play != null) context.go('/today/play');
-                        }
-                      : () {
-                          final rooms = ref.read(roomsControllerProvider);
-                          rooms.startRoomPlay(room.id);
-                          if (rooms.play != null) context.go('/today/play');
-                        },
-                  child: Text(
-                    statusLabel,
-                    style: v2Sans(
-                      13,
-                      color: RtwV2Colors.blue,
-                      weight: FontWeight.w600,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: startRoomPlay,
+                    behavior: HitTestBehavior.opaque,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        statusLabel,
+                        style: v2Sans(
+                          13,
+                          color: RtwV2Colors.blue,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ),
