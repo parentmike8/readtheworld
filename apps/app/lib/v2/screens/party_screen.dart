@@ -1531,48 +1531,11 @@ class _RevealPanel extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    height: 52,
-                    child: Stack(
-                      children: [
-                        Container(color: const Color(0xFFE6E0D3)),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: ((yesPct * t) / 100).clamp(0.0, 1.0),
-                            child: Container(color: RtwV2Colors.blue),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Center(
-                                child: Text(
-                                  '${card.optA.toUpperCase()} ${(yesPct * t).round()}%',
-                                  style: v2Mono(
-                                    11,
-                                    color: RtwV2Colors.card,
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                              ),
-                              Center(
-                                child: Text(
-                                  card.optB.toUpperCase(),
-                                  style: v2Mono(
-                                    11,
-                                    color: const Color(0xFF7A7466),
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: _RevealSplitMeter(
+                    leftLabel: card.optB,
+                    rightLabel: card.optA,
+                    rightPct: yesPct.toDouble(),
+                    t: t,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1673,6 +1636,114 @@ class _RevealPanel extends StatelessWidget {
           fontSize: 16,
         ),
       ],
+    );
+  }
+}
+
+class _RevealSplitMeter extends StatelessWidget {
+  const _RevealSplitMeter({
+    required this.leftLabel,
+    required this.rightLabel,
+    required this.rightPct,
+    required this.t,
+  });
+
+  final String leftLabel;
+  final String rightLabel;
+  final double rightPct;
+  final double t;
+
+  @override
+  Widget build(BuildContext context) {
+    final boundedRight = rightPct.clamp(0.0, 100.0);
+    final leftPct = 100 - boundedRight;
+    final animatedLeft = ((leftPct * t) / 100).clamp(0.0, 1.0);
+    final animatedRight = ((boundedRight * t) / 100).clamp(0.0, 1.0);
+    final split = (leftPct / 100).clamp(0.0, 1.0);
+
+    return SizedBox(
+      height: 68,
+      child: Stack(
+        children: [
+          Container(color: const Color(0xFFE6E0D3)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: animatedLeft,
+              child: Container(
+                height: 68,
+                color: RtwV2Colors.meterClay.withValues(alpha: 0.9),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: animatedRight,
+              child: Container(
+                height: 68,
+                color: RtwV2Colors.meterBlue.withValues(alpha: 0.85),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${leftLabel.toUpperCase()} ${(leftPct * t).round()}%',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: v2Mono(
+                      12,
+                      color: animatedLeft > 0.18
+                          ? Colors.white
+                          : const Color(0xFF7A7466),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Text(
+                    '${rightLabel.toUpperCase()} ${(boundedRight * t).round()}%',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: v2Mono(
+                      12,
+                      color: animatedRight > 0.18
+                          ? Colors.white
+                          : const Color(0xFF7A7466),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (t > 0.92)
+            Align(
+              alignment: Alignment(split * 2 - 1, 0),
+              child: Container(
+                width: 6,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(3),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x40000000),
+                      offset: Offset(0, 1),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
