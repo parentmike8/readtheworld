@@ -46,18 +46,24 @@ class _PartySnapshot {
 }
 
 class PartyController extends ChangeNotifier {
+  static const int maxSwaps = 3;
+
   PartyStage stage = PartyStage.setup;
   int players = 4;
   int rounds = 3;
   Set<String> topics = {'All'};
   RoomTier tier = RoomTier.normal;
 
+  List<String> playerNames = List.generate(4, (index) => 'Player ${index + 1}');
   List<PartyQuestion> deck = [];
+  List<PartyQuestion> _gamePool = [];
   int idx = 0;
   int turn = 0;
   PartySub sub = PartySub.pick;
   String? side;
   int pred = 50;
+  int swapsUsed = 0;
+  int swapPulse = 0;
   double dragX = 0;
   bool dragging = false;
   List<PartyTurnPick> turnPicks = [];
@@ -72,11 +78,47 @@ class PartyController extends ChangeNotifier {
 
   bool get solo => players < 2;
   int get readerIndex => players > 0 ? idx % players : 0;
-  int get currentPlayerIndex => players > 0 ? (readerIndex + turn) % players : 0;
+  int get currentPlayerIndex =>
+      players > 0 ? (readerIndex + turn) % players : 0;
   PartyQuestion? get card => idx >= 0 && idx < deck.length ? deck[idx] : null;
+  int get swapsLeft => math.max(0, maxSwaps - swapsUsed);
+  bool get swapControlVisible =>
+      stage == PartyStage.play &&
+      turn == 0 &&
+      (sub == PartySub.pick || sub == PartySub.predict);
+  bool get canSwapQuestion =>
+      swapControlVisible && swapsLeft > 0 && _swapCandidates().isNotEmpty;
+  String get currentPlayerName => playerName(currentPlayerIndex);
+  String get readerName => playerName(readerIndex);
 
   void setPlayers(int value) {
     players = value.clamp(1, 20);
+    _syncPlayerNames();
+    notifyListeners();
+  }
+
+  void _syncPlayerNames() {
+    if (playerNames.length < players) {
+      playerNames = [
+        ...playerNames,
+        for (var index = playerNames.length; index < players; index++)
+          'Player ${index + 1}',
+      ];
+    } else if (playerNames.length > players) {
+      playerNames = playerNames.take(players).toList();
+    }
+  }
+
+  String playerName(int index) {
+    if (index < 0 || index >= playerNames.length) return 'Player ${index + 1}';
+    final value = playerNames[index].trim();
+    return value.isEmpty ? 'Player ${index + 1}' : value;
+  }
+
+  void setPlayerName(int index, String value) {
+    if (index < 0 || index >= players) return;
+    _syncPlayerNames();
+    playerNames[index] = value;
     notifyListeners();
   }
 
@@ -108,15 +150,38 @@ class PartyController extends ChangeNotifier {
   /// pre-filters too, but cached pools may span tiers), then topics.
   List<PartyQuestion> poolFor(List<PartyQuestion> pool) => pool
       .where((question) => tier.allowsQuestionTier(question.tier))
-      .where((question) => topics.contains('All') || topics.contains(question.tag))
+      .where(
+        (question) => topics.contains('All') || topics.contains(question.tag),
+      )
       .toList();
 
   void start(List<PartyQuestion> pool) {
     final filtered = poolFor(pool);
     if (filtered.isEmpty) return;
-    final shuffled = [...filtered]..shuffle(math.Random());
+    _syncPlayerNames();
+    _gamePool = filtered;
+    deck = _buildDeck(_gamePool);
+    _resetPlayState();
+    notifyListeners();
+  }
+
+  List<PartyQuestion> _buildDeck(
+    List<PartyQuestion> source, {
+    Set<String> avoidQids = const {},
+  }) {
+    final random = math.Random();
+    final fresh =
+        source.where((question) => !avoidQids.contains(question.qid)).toList()
+          ..shuffle(random);
+    final fallback =
+        source.where((question) => avoidQids.contains(question.qid)).toList()
+          ..shuffle(random);
+    final shuffled = [...fresh, ...fallback];
     final total = rounds * players;
-    deck = [for (var i = 0; i < total; i++) shuffled[i % shuffled.length]];
+    return [for (var i = 0; i < total; i++) shuffled[i % shuffled.length]];
+  }
+
+  void _resetPlayState() {
     _undoStack.clear();
     scores = List.filled(players, 0);
     idx = 0;
@@ -124,11 +189,13 @@ class PartyController extends ChangeNotifier {
     sub = PartySub.pick;
     side = null;
     pred = 50;
+    swapsUsed = 0;
+    swapPulse = 0;
     dragX = 0;
+    dragging = false;
     turnPicks = [];
     revealT = 0;
     stage = PartyStage.play;
-    notifyListeners();
   }
 
   void again() {
@@ -136,23 +203,70 @@ class PartyController extends ChangeNotifier {
     deck = [];
     idx = 0;
     turn = 0;
+    swapsUsed = 0;
     turnPicks = [];
     _undoStack.clear();
+    notifyListeners();
+  }
+
+  void restartGame() {
+    if (_gamePool.isEmpty) return;
+    final previousQids = deck.map((question) => question.qid).toSet();
+    deck = _buildDeck(_gamePool, avoidQids: previousQids);
+    _resetPlayState();
+    notifyListeners();
+  }
+
+  List<PartyQuestion> _swapCandidates() {
+    final currentQid = card?.qid;
+    if (currentQid == null || _gamePool.isEmpty) return const [];
+
+    final deckQids = deck.map((question) => question.qid).toSet();
+    final fresh = _gamePool
+        .where(
+          (question) =>
+              question.qid != currentQid && !deckQids.contains(question.qid),
+        )
+        .toList();
+    if (fresh.isNotEmpty) return fresh;
+
+    return _gamePool.where((question) => question.qid != currentQid).toList();
+  }
+
+  void swapQuestion() {
+    if (!canSwapQuestion) return;
+    final candidates = _swapCandidates();
+    final replacement = candidates[math.Random().nextInt(candidates.length)];
+    final nextDeck = List<PartyQuestion>.of(deck);
+    nextDeck[idx] = replacement;
+    deck = nextDeck;
+    swapsUsed += 1;
+    swapPulse += 1;
+    sub = PartySub.pick;
+    side = null;
+    pred = 50;
+    dragX = 0;
+    dragging = false;
+    turnPicks = [];
+    _flingTimer?.cancel();
+    unawaited(HapticFeedback.selectionClick());
     notifyListeners();
   }
 
   // ── undo (misclick recovery) ──────────────────────────────────────────
 
   void _pushUndo() {
-    _undoStack.add(_PartySnapshot(
-      idx: idx,
-      turn: turn,
-      sub: sub,
-      side: side,
-      pred: pred,
-      turnPicks: List.of(turnPicks),
-      scores: List.of(scores),
-    ));
+    _undoStack.add(
+      _PartySnapshot(
+        idx: idx,
+        turn: turn,
+        sub: sub,
+        side: side,
+        pred: pred,
+        turnPicks: List.of(turnPicks),
+        scores: List.of(scores),
+      ),
+    );
     if (_undoStack.length > 12) _undoStack.removeAt(0);
   }
 
@@ -188,7 +302,10 @@ class PartyController extends ChangeNotifier {
 
   void cardDragUpdate(double deltaX) {
     if (!dragging) return;
-    dragX = (dragX + deltaX).clamp(-RtwV2Motion.dragClamp, RtwV2Motion.dragClamp);
+    dragX = (dragX + deltaX).clamp(
+      -RtwV2Motion.dragClamp,
+      RtwV2Motion.dragClamp,
+    );
     final crossed = dragX.abs() > RtwV2Motion.commitThreshold;
     if (crossed && !_crossedCommit) unawaited(HapticFeedback.selectionClick());
     _crossedCommit = crossed;
@@ -199,12 +316,14 @@ class PartyController extends ChangeNotifier {
     if (!dragging) return;
     dragging = false;
     const flingVelocity = 700.0;
-    final fastFling = velocityX.abs() > flingVelocity &&
+    final fastFling =
+        velocityX.abs() > flingVelocity &&
         dragX.sign == velocityX.sign &&
         dragX.abs() > 12;
     if (dragX > RtwV2Motion.commitThreshold || (fastFling && velocityX > 0)) {
       _commit('a');
-    } else if (dragX < -RtwV2Motion.commitThreshold || (fastFling && velocityX < 0)) {
+    } else if (dragX < -RtwV2Motion.commitThreshold ||
+        (fastFling && velocityX < 0)) {
       _commit('b');
     } else {
       dragX = 0;
@@ -215,7 +334,9 @@ class PartyController extends ChangeNotifier {
   void tapSide(String pickedSide) {
     if (sub != PartySub.pick) return;
     dragging = false;
-    dragX = pickedSide == 'a' ? RtwV2Motion.flingDistance : -RtwV2Motion.flingDistance;
+    dragX = pickedSide == 'a'
+        ? RtwV2Motion.flingDistance
+        : -RtwV2Motion.flingDistance;
     notifyListeners();
     _flingTimer?.cancel();
     _flingTimer = Timer(RtwV2Motion.cardFling, () {
@@ -319,8 +440,9 @@ class PartyController extends ChangeNotifier {
     final start = DateTime.now();
     _revealTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       final elapsed = DateTime.now().difference(start);
-      final t = (elapsed.inMilliseconds / RtwV2Motion.partyReveal.inMilliseconds)
-          .clamp(0.0, 1.0);
+      final t =
+          (elapsed.inMilliseconds / RtwV2Motion.partyReveal.inMilliseconds)
+              .clamp(0.0, 1.0);
       revealT = 1 - math.pow(1 - t, 3).toDouble();
       notifyListeners();
       if (t >= 1) timer.cancel();
@@ -339,7 +461,10 @@ class PartyController extends ChangeNotifier {
     final others = turnPicks.skip(1).toList();
     final agree = others.where((pick) => pick.side == reader.side).length;
     final actual = others.isEmpty ? 0 : ((agree / others.length) * 100).round();
-    return math.max(0, 100 - (((reader.prediction ?? 0) - actual).abs() * 1.3).round());
+    return math.max(
+      0,
+      100 - (((reader.prediction ?? 0) - actual).abs() * 1.3).round(),
+    );
   }
 
   void next() {
@@ -367,8 +492,10 @@ class PartyController extends ChangeNotifier {
   }
 
   /// The qids consumed this session (rotated out of future pools).
-  List<String> get playedQids =>
-      deck.take(stage == PartyStage.done ? deck.length : idx).map((question) => question.qid).toList();
+  List<String> get playedQids => deck
+      .take(stage == PartyStage.done ? deck.length : idx)
+      .map((question) => question.qid)
+      .toList();
 
   @override
   void dispose() {

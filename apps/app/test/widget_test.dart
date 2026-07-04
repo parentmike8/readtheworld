@@ -8,16 +8,18 @@ import 'package:read_the_world/scoring.dart';
 import 'package:read_the_world/v2/models_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
+import 'package:read_the_world/v2/screens/party_screen.dart';
 
-RoomDayQuestion _question(String qid, {String tag = 'Social'}) => RoomDayQuestion(
-  qid: qid,
-  prompt: 'Prompt $qid?',
-  optA: 'Yes',
-  optB: 'No',
-  tag: tag,
-  shape: 'TASTE',
-  custom: false,
-);
+RoomDayQuestion _question(String qid, {String tag = 'Social'}) =>
+    RoomDayQuestion(
+      qid: qid,
+      prompt: 'Prompt $qid?',
+      optA: 'Yes',
+      optB: 'No',
+      tag: tag,
+      shape: 'TASTE',
+      custom: false,
+    );
 
 RoomBinding _binding({
   required String id,
@@ -54,16 +56,19 @@ RoomsController _roomsWith(List<RoomBinding> bindings) {
   return controller;
 }
 
-PartyQuestion _partyQuestion(String qid, {String tag = 'Social', String tier = 'work-safe'}) =>
-    PartyQuestion(
-      qid: qid,
-      prompt: 'Party $qid?',
-      optA: 'Yes',
-      optB: 'No',
-      tag: tag,
-      shape: 'TASTE',
-      tier: tier,
-    );
+PartyQuestion _partyQuestion(
+  String qid, {
+  String tag = 'Social',
+  String tier = 'work-safe',
+}) => PartyQuestion(
+  qid: qid,
+  prompt: 'Party $qid?',
+  optA: 'Yes',
+  optB: 'No',
+  tag: tag,
+  shape: 'TASTE',
+  tier: tier,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -146,7 +151,9 @@ void main() {
 
   group('play state machine', () {
     test('swipe commit routes to predict with duo snap', () {
-      final rooms = _roomsWith([_binding(id: 'duo', name: 'You & Sam', members: 2)]);
+      final rooms = _roomsWith([
+        _binding(id: 'duo', name: 'You & Sam', members: 2),
+      ]);
       rooms.enterToday();
       rooms.continueFromIntro();
       rooms.commitSide('a');
@@ -155,7 +162,9 @@ void main() {
     });
 
     test('solo rooms save answer-only', () {
-      final rooms = _roomsWith([_binding(id: 'solo', name: 'Just You', members: 1)]);
+      final rooms = _roomsWith([
+        _binding(id: 'solo', name: 'Just You', members: 1),
+      ]);
       rooms.enterToday();
       rooms.continueFromIntro();
       rooms.commitSide('b');
@@ -164,7 +173,12 @@ void main() {
     });
 
     test('locked world is answer-only until the flag flips', () {
-      final world = _binding(id: 'world', name: 'The World', members: 900, isWorld: true);
+      final world = _binding(
+        id: 'world',
+        name: 'The World',
+        members: 900,
+        isWorld: true,
+      );
       final rooms = _roomsWith([world]);
       rooms.worldRoom = world.room;
       rooms.worldToday = world.today;
@@ -194,48 +208,58 @@ void main() {
       expect(rooms.play!.pred, 50);
     });
 
-    test('intro session runs the real loop and captures picks one-shot', () async {
-      final rooms = RoomsController(firebaseReady: false);
-      rooms.startIntroSession([_question('w1'), _question('w2'), _question('w3')]);
-      expect(rooms.play!.mode, 'intro');
+    test(
+      'intro session runs the real loop and captures picks one-shot',
+      () async {
+        final rooms = RoomsController(firebaseReady: false);
+        rooms.startIntroSession([
+          _question('w1'),
+          _question('w2'),
+          _question('w3'),
+        ]);
+        expect(rooms.play!.mode, 'intro');
 
-      rooms.commitSide('a');
-      rooms.play!.pred = 70;
-      await rooms.lockCurrent();
-      rooms.commitSide('b');
-      await rooms.lockCurrent();
-      rooms.commitSide('a');
-      await rooms.lockCurrent();
+        rooms.commitSide('a');
+        rooms.play!.pred = 70;
+        await rooms.lockCurrent();
+        rooms.commitSide('b');
+        await rooms.lockCurrent();
+        rooms.commitSide('a');
+        await rooms.lockCurrent();
 
-      expect(rooms.play, isNull);
-      final picks = rooms.takeIntroPicks()!;
-      expect(picks.length, 3);
-      expect(picks[0].side, 'a');
-      expect(picks[0].prediction, 70);
-      expect(rooms.takeIntroPicks(), isNull); // one-shot
-    });
+        expect(rooms.play, isNull);
+        final picks = rooms.takeIntroPicks()!;
+        expect(picks.length, 3);
+        expect(picks[0].side, 'a');
+        expect(picks[0].prediction, 70);
+        expect(rooms.takeIntroPicks(), isNull); // one-shot
+      },
+    );
 
-    test('intro finish is safe without a server and hands off home actions', () async {
-      final rooms = RoomsController(firebaseReady: false);
+    test(
+      'intro finish is safe without a server and hands off home actions',
+      () async {
+        final rooms = RoomsController(firebaseReady: false);
 
-      // No Firebase → locking is a silent no-op, never a throw.
-      await rooms.lockIntroWorldAnswers(const [
-        RoomPick(qid: 'q1', side: 'a'),
-        RoomPick(qid: 'q2', side: 'b'),
-        RoomPick(qid: 'q3', side: 'a'),
-      ]);
-      expect(rooms.lastError, isNull);
+        // No Firebase → locking is a silent no-op, never a throw.
+        await rooms.lockIntroWorldAnswers(const [
+          RoomPick(qid: 'q1', side: 'a'),
+          RoomPick(qid: 'q2', side: 'b'),
+          RoomPick(qid: 'q3', side: 'a'),
+        ]);
+        expect(rooms.lastError, isNull);
 
-      // markOnboarded flips the local gate immediately.
-      expect(rooms.hasOnboarded, isFalse);
-      rooms.markOnboarded();
-      expect(rooms.hasOnboarded, isTrue);
-      expect(rooms.needsOnboarding, isFalse);
+        // markOnboarded flips the local gate immediately.
+        expect(rooms.hasOnboarded, isFalse);
+        rooms.markOnboarded();
+        expect(rooms.hasOnboarded, isTrue);
+        expect(rooms.needsOnboarding, isFalse);
 
-      // The closer's CTA is a one-shot flag for rooms home.
-      rooms.pendingHomeAction = 'create';
-      expect(rooms.pendingHomeAction, 'create');
-    });
+        // The closer's CTA is a one-shot flag for rooms home.
+        rooms.pendingHomeAction = 'create';
+        expect(rooms.pendingHomeAction, 'create');
+      },
+    );
   });
 
   group('party controller', () {
@@ -248,38 +272,45 @@ void main() {
       expect(party.stage, PartyStage.play);
     });
 
-    test('topics multi-select with All fallback; spice level gates the pool', () {
-      final party = PartyController();
-      final pool = [
-        _partyQuestion('safe1', tag: 'Work'),
-        _partyQuestion('safe2', tag: 'Social'),
-        _partyQuestion('edgy1', tag: 'Social', tier: 'mature'),
-      ];
+    test(
+      'topics multi-select with All fallback; spice level gates the pool',
+      () {
+        final party = PartyController();
+        final pool = [
+          _partyQuestion('safe1', tag: 'Work'),
+          _partyQuestion('safe2', tag: 'Social'),
+          _partyQuestion('edgy1', tag: 'Social', tier: 'mature'),
+        ];
 
-      // Everyday default: mature stays out, all topics in.
-      expect(party.poolFor(pool).map((q) => q.qid), ['safe1', 'safe2']);
+        // Everyday default: mature stays out, all topics in.
+        expect(party.poolFor(pool).map((q) => q.qid), ['safe1', 'safe2']);
 
-      // Multi-select: two tags on, then dropping both falls back to All.
-      party.toggleTopic('Work');
-      party.toggleTopic('Social');
-      expect(party.topics, {'Work', 'Social'});
-      party.toggleTopic('Work');
-      expect(party.poolFor(pool).map((q) => q.qid), ['safe2']);
-      party.toggleTopic('Social');
-      expect(party.topics, {'All'});
+        // Multi-select: two tags on, then dropping both falls back to All.
+        party.toggleTopic('Work');
+        party.toggleTopic('Social');
+        expect(party.topics, {'Work', 'Social'});
+        party.toggleTopic('Work');
+        expect(party.poolFor(pool).map((q) => q.qid), ['safe2']);
+        party.toggleTopic('Social');
+        expect(party.topics, {'All'});
 
-      // After Dark drops work-safe entirely and resets topics.
-      party.toggleTopic('Work');
-      party.setTier(RoomTier.mature);
-      expect(party.topics, {'All'});
-      expect(party.poolFor(pool).map((q) => q.qid), ['edgy1']);
-    });
+        // After Dark drops work-safe entirely and resets topics.
+        party.toggleTopic('Work');
+        party.setTier(RoomTier.mature);
+        expect(party.topics, {'All'});
+        expect(party.poolFor(pool).map((q) => q.qid), ['edgy1']);
+      },
+    );
 
     test('reader predicts, voters commit by swipe, scoring matches x1.3', () {
       final party = PartyController()
         ..setPlayers(3)
         ..setRounds(1);
-      party.start([_partyQuestion('p1'), _partyQuestion('p2'), _partyQuestion('p3')]);
+      party.start([
+        _partyQuestion('p1'),
+        _partyQuestion('p2'),
+        _partyQuestion('p3'),
+      ]);
 
       // Reader (player 1) picks Yes, predicts 50% of the other two.
       party.cardDragStart();
@@ -308,24 +339,27 @@ void main() {
       expect(party.tableYesPct, 67); // 2 of 3 said Yes
     });
 
-    test('reader rotates per question and solo advances without predicting', () {
-      final party = PartyController()
-        ..setPlayers(2)
-        ..setRounds(1);
-      party.start([_partyQuestion('p1'), _partyQuestion('p2')]);
-      expect(party.readerIndex, 0);
-      party.next();
-      expect(party.readerIndex, 1);
+    test(
+      'reader rotates per question and solo advances without predicting',
+      () {
+        final party = PartyController()
+          ..setPlayers(2)
+          ..setRounds(1);
+        party.start([_partyQuestion('p1'), _partyQuestion('p2')]);
+        expect(party.readerIndex, 0);
+        party.next();
+        expect(party.readerIndex, 1);
 
-      final solo = PartyController()
-        ..setPlayers(1)
-        ..setRounds(1);
-      solo.start([_partyQuestion('s1')]);
-      solo.cardDragStart();
-      solo.cardDragUpdate(80);
-      solo.cardDragEnd(0);
-      expect(solo.stage, PartyStage.done);
-    });
+        final solo = PartyController()
+          ..setPlayers(1)
+          ..setRounds(1);
+        solo.start([_partyQuestion('s1')]);
+        solo.cardDragStart();
+        solo.cardDragUpdate(80);
+        solo.cardDragEnd(0);
+        expect(solo.stage, PartyStage.done);
+      },
+    );
 
     test('advancing to a new question hands off via the pass screen', () {
       final multi = PartyController()
@@ -349,7 +383,11 @@ void main() {
       final party = PartyController()
         ..setPlayers(3)
         ..setRounds(1);
-      party.start([_partyQuestion('p1'), _partyQuestion('p2'), _partyQuestion('p3')]);
+      party.start([
+        _partyQuestion('p1'),
+        _partyQuestion('p2'),
+        _partyQuestion('p3'),
+      ]);
       expect(party.canUndo, isFalse);
 
       // Reader (player 1) picks and locks a prediction.
@@ -367,6 +405,56 @@ void main() {
       expect(party.turn, 0);
       expect(party.turnPicks, isEmpty);
     });
+
+    test('reader can swap questions with a per-game cap', () {
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(1);
+      final pool = [for (var i = 1; i <= 8; i++) _partyQuestion('p$i')];
+      party.start(pool);
+      final originalQid = party.card!.qid;
+
+      expect(party.canSwapQuestion, isTrue);
+
+      // The reader can still swap after choosing a side but before locking
+      // their prediction. Swapping resets them to the pick step.
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      expect(party.sub, PartySub.predict);
+
+      party.swapQuestion();
+      expect(party.sub, PartySub.pick);
+      expect(party.card!.qid, isNot(originalQid));
+      expect(party.swapsUsed, 1);
+
+      party.swapQuestion();
+      party.swapQuestion();
+      expect(party.swapsUsed, PartyController.maxSwaps);
+      expect(party.canSwapQuestion, isFalse);
+    });
+
+    test('restart keeps player names and draws a fresh deck when possible', () {
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(1);
+      final pool = [for (var i = 1; i <= 6; i++) _partyQuestion('p$i')];
+      party.start(pool);
+      party.setPlayerName(1, 'Sam');
+      party.scores[1] = 42;
+      final previousQids = party.deck.map((question) => question.qid).toSet();
+
+      party.restartGame();
+
+      expect(party.stage, PartyStage.play);
+      expect(party.playerName(1), 'Sam');
+      expect(party.scores, [0.0, 0.0, 0.0]);
+      expect(party.swapsUsed, 0);
+      expect(
+        party.deck.where((question) => previousQids.contains(question.qid)),
+        isEmpty,
+      );
+    });
   });
 
   group('v2 screens', () {
@@ -378,7 +466,9 @@ void main() {
       child: const ReadTheWorldApp(),
     );
 
-    testWidgets('today shows the caught-up state with no rooms', (tester) async {
+    testWidgets('today shows the caught-up state with no rooms', (
+      tester,
+    ) async {
       await tester.pumpWidget(app());
       await tester.pumpAndSettle();
       expect(find.text("You're all caught up."), findsOneWidget);
@@ -387,7 +477,9 @@ void main() {
       expect(find.text('Party'), findsOneWidget);
     });
 
-    testWidgets('rooms tab renders the world hero and empty state', (tester) async {
+    testWidgets('rooms tab renders the world hero and empty state', (
+      tester,
+    ) async {
       await tester.pumpWidget(app());
       await tester.pumpAndSettle();
       await tester.tap(find.text('Rooms'));
@@ -397,13 +489,57 @@ void main() {
       expect(find.text('Have a code? Join a room'), findsOneWidget);
     });
 
-    testWidgets('party tab renders setup and starts a local round', (tester) async {
+    testWidgets('party tab renders setup and starts a local round', (
+      tester,
+    ) async {
       await tester.pumpWidget(app());
       await tester.pumpAndSettle();
       await tester.tap(find.text('Party'));
       await tester.pumpAndSettle();
       expect(find.text('Pass the phone.'), findsOneWidget);
       expect(find.text('Loading questions…'), findsOneWidget);
+    });
+
+    testWidgets('party play surface exposes swaps and the game menu', (
+      tester,
+    ) async {
+      final party = PartyController()
+        ..setPlayers(4)
+        ..setRounds(1);
+      party.start([for (var i = 1; i <= 8; i++) _partyQuestion('p$i')]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            partyControllerProvider.overrideWith(
+              (_) => party,
+              disposeNotifier: false,
+            ),
+            roomsControllerProvider.overrideWith(
+              (_) => RoomsController(firebaseReady: false),
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text("Player 1's turn"), findsOneWidget);
+      expect(find.textContaining('Swap question'), findsOneWidget);
+      expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.menu_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Game menu'), findsOneWidget);
+      expect(find.text('LEADERBOARD'), findsOneWidget);
+      expect(find.text('Restart game'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Player 2'), 'Sam');
+      await tester.pump();
+      expect(party.playerName(1), 'Sam');
     });
   });
 }

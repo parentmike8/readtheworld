@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,7 +73,11 @@ class _Setup extends ConsumerWidget {
 
   /// After Dark needs one-time consent; the pool re-fetches per tier so the
   /// deck is drawn from the full bank at that spice level.
-  Future<void> _selectTier(BuildContext context, WidgetRef ref, RoomTier next) async {
+  Future<void> _selectTier(
+    BuildContext context,
+    WidgetRef ref,
+    RoomTier next,
+  ) async {
     if (party.tier == next) return;
     final rooms = ref.read(roomsControllerProvider);
     if (next == RoomTier.mature && !rooms.hasMatureConsent) {
@@ -87,9 +92,13 @@ class _Setup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = ref.watch(roomsControllerProvider);
-    final tierPool =
-        pool.where((question) => party.tier.allowsQuestionTier(question.tier)).toList();
-    final topics = ['All', ...{for (final question in tierPool) question.tag}];
+    final tierPool = pool
+        .where((question) => party.tier.allowsQuestionTier(question.tier))
+        .toList();
+    final topics = [
+      'All',
+      ...{for (final question in tierPool) question.tag},
+    ];
     final filtered = party.poolFor(pool);
     final summary =
         '${party.players} ${party.players == 1 ? 'player' : 'players'} · '
@@ -101,9 +110,17 @@ class _Setup extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const V2Eyebrow('Party mode', size: 11, color: RtwV2Colors.clay, letterSpacing: 1.6),
+          const V2Eyebrow(
+            'Party mode',
+            size: 11,
+            color: RtwV2Colors.clay,
+            letterSpacing: 1.6,
+          ),
           const SizedBox(height: 10),
-          Text('Pass the phone.', style: v2Serif(36, height: 1.06, letterSpacing: -0.6)),
+          Text(
+            'Pass the phone.',
+            style: v2Serif(36, height: 1.06, letterSpacing: -0.6),
+          ),
           const SizedBox(height: 12),
           Text(
             'One device, no downloads. Take turns guessing how your group '
@@ -181,14 +198,18 @@ class _Setup extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: party.rounds == n ? RtwV2Colors.inkSoft : Colors.transparent,
+                          color: party.rounds == n
+                              ? RtwV2Colors.inkSoft
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(11),
                         ),
                         child: Text(
                           '$n',
                           style: v2Sans(
                             14,
-                            color: party.rounds == n ? Colors.white : RtwV2Colors.subText,
+                            color: party.rounds == n
+                                ? Colors.white
+                                : RtwV2Colors.subText,
                             weight: FontWeight.w600,
                           ),
                         ),
@@ -212,10 +233,20 @@ class _Setup extends ConsumerWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(color: RtwV2Colors.blue, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: RtwV2Colors.blue,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 8),
-              Text(summary, style: v2Mono(11, color: RtwV2Colors.subText, letterSpacing: 0.6)),
+              Text(
+                summary,
+                style: v2Mono(
+                  11,
+                  color: RtwV2Colors.subText,
+                  letterSpacing: 0.6,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -231,7 +262,11 @@ class _Setup extends ConsumerWidget {
                 rooms.partyPoolLoading || pool.isEmpty
                     ? 'Loading questions…'
                     : 'Nothing to play with this mix, try other topics',
-                style: v2Sans(15, color: RtwV2Colors.faint, weight: FontWeight.w600),
+                style: v2Sans(
+                  15,
+                  color: RtwV2Colors.faint,
+                  weight: FontWeight.w600,
+                ),
               ),
             )
           else
@@ -282,10 +317,15 @@ class _SpiceSegment extends StatelessWidget {
               child: GestureDetector(
                 onTap: () => onChanged(tier),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 11,
+                    horizontal: 6,
+                  ),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: value == tier ? RtwV2Colors.inkSoft : Colors.transparent,
+                    color: value == tier
+                        ? RtwV2Colors.inkSoft
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
@@ -316,7 +356,9 @@ class _TopicChipsState extends State<_TopicChips> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
-          color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
+          color: on
+              ? RtwV2Colors.blue.withValues(alpha: 0.10)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
@@ -371,7 +413,11 @@ class _TopicChipsState extends State<_TopicChips> {
 }
 
 class _StepButton extends StatelessWidget {
-  const _StepButton({required this.label, required this.disabled, required this.onTap});
+  const _StepButton({
+    required this.label,
+    required this.disabled,
+    required this.onTap,
+  });
 
   final String label;
   final bool disabled;
@@ -392,7 +438,11 @@ class _StepButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: v2Sans(24, color: disabled ? const Color(0xFFCFC8B7) : RtwV2Colors.inkSoft, height: 1),
+          style: v2Sans(
+            24,
+            color: disabled ? const Color(0xFFCFC8B7) : RtwV2Colors.inkSoft,
+            height: 1,
+          ),
         ),
       ),
     );
@@ -421,7 +471,10 @@ class _Play extends StatelessWidget {
               GestureDetector(
                 onTap: party.again,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 9,
+                  ),
                   decoration: BoxDecoration(
                     color: RtwV2Colors.card,
                     border: Border.all(color: const Color(0xFFDCD6C9)),
@@ -429,7 +482,11 @@ class _Play extends StatelessWidget {
                   ),
                   child: Text(
                     '× Exit',
-                    style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                    style: v2Sans(
+                      14,
+                      color: const Color(0xFF5C584F),
+                      weight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -456,7 +513,11 @@ class _Play extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               'Undo',
-                              style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                              style: v2Sans(
+                                14,
+                                color: const Color(0xFF5C584F),
+                                weight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -477,7 +538,9 @@ class _Play extends StatelessWidget {
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 240),
               child: KeyedSubtree(
-                key: ValueKey('${party.idx}-${party.sub}-${party.turn}'),
+                key: ValueKey(
+                  '${party.idx}-${party.sub}-${party.turn}-${card.qid}-${party.swapPulse}',
+                ),
                 child: switch (party.sub) {
                   PartySub.pass => _PassScreen(party: party),
                   PartySub.pick => _PickPanel(party: party, card: card),
@@ -493,53 +556,439 @@ class _Play extends StatelessWidget {
   }
 }
 
+void _showPartyMenuSheet(BuildContext context, PartyController party) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _PartyMenuSheet(party: party),
+  );
+}
+
+class _PartyMenuSheet extends StatefulWidget {
+  const _PartyMenuSheet({required this.party});
+
+  final PartyController party;
+
+  @override
+  State<_PartyMenuSheet> createState() => _PartyMenuSheetState();
+}
+
+class _PartyMenuSheetState extends State<_PartyMenuSheet> {
+  late final List<TextEditingController> _nameControllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameControllers = [
+      for (var index = 0; index < widget.party.players; index++)
+        TextEditingController(text: widget.party.playerName(index)),
+    ];
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _nameControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _ensureControllerCount(PartyController party) {
+    while (_nameControllers.length < party.players) {
+      final index = _nameControllers.length;
+      _nameControllers.add(
+        TextEditingController(text: party.playerName(index)),
+      );
+    }
+    while (_nameControllers.length > party.players) {
+      _nameControllers.removeLast().dispose();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.84;
+
+    return AnimatedBuilder(
+      animation: widget.party,
+      builder: (context, _) {
+        final party = widget.party;
+        _ensureControllerCount(party);
+        final ranked = [
+          for (var playerIndex = 0; playerIndex < party.players; playerIndex++)
+            (playerIndex, party.scores[playerIndex]),
+        ]..sort((a, b) => b.$2.compareTo(a.$2));
+
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: viewInsets),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: maxHeight,
+                  maxWidth: 660,
+                ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: RtwV2Colors.card,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 26),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 42,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: RtwV2Colors.borderStrong,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.menu_rounded,
+                              size: 21,
+                              color: RtwV2Colors.inkSoft,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Game menu',
+                              style: v2Sans(
+                                20,
+                                color: RtwV2Colors.inkSoft,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${party.idx + 1}/${party.deck.length}',
+                              style: v2Mono(
+                                11,
+                                color: RtwV2Colors.muted,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        const _SheetSectionTitle(
+                          icon: Icons.leaderboard_rounded,
+                          label: 'Leaderboard',
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: RtwV2Colors.paper,
+                            border: Border.all(color: RtwV2Colors.border),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            children: [
+                              for (final (rank, entry) in ranked.indexed) ...[
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 30,
+                                        child: Text(
+                                          '#${rank + 1}',
+                                          style: v2Mono(
+                                            12,
+                                            color: RtwV2Colors.muted,
+                                            letterSpacing: 0,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 9,
+                                        height: 9,
+                                        decoration: BoxDecoration(
+                                          color: _playerColor(entry.$1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          party.playerName(entry.$1),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: v2Sans(
+                                            14.5,
+                                            color: RtwV2Colors.inkSoft,
+                                            weight: rank == 0
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${entry.$2.round()}',
+                                        style: v2Serif(19),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (rank < ranked.length - 1)
+                                  const V2Hairline(),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const _SheetSectionTitle(
+                          icon: Icons.badge_outlined,
+                          label: 'Players',
+                        ),
+                        const SizedBox(height: 10),
+                        for (var index = 0; index < party.players; index++) ...[
+                          TextField(
+                            controller: _nameControllers[index],
+                            onChanged: (value) =>
+                                party.setPlayerName(index, value),
+                            textCapitalization: TextCapitalization.words,
+                            textInputAction: index == party.players - 1
+                                ? TextInputAction.done
+                                : TextInputAction.next,
+                            cursorColor: _playerColor(index),
+                            style: v2Sans(
+                              15,
+                              color: RtwV2Colors.inkSoft,
+                              weight: FontWeight.w600,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Player ${index + 1}',
+                              labelStyle: v2Sans(12, color: RtwV2Colors.muted),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 14,
+                                  right: 10,
+                                ),
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: _playerColor(index),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 34,
+                                minHeight: 20,
+                              ),
+                              filled: true,
+                              fillColor: RtwV2Colors.paper,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 13,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: RtwV2Colors.border,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: _playerColor(index),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (index < party.players - 1)
+                            const SizedBox(height: 10),
+                        ],
+                        const SizedBox(height: 24),
+                        V2Button(
+                          'Restart game',
+                          background: RtwV2Colors.inkSoft,
+                          onPressed: () {
+                            party.restartGame();
+                            Navigator.of(context).pop();
+                          },
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          radius: 14,
+                          fontSize: 15,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Keeps player names, resets scores, and draws a fresh question set.',
+                          textAlign: TextAlign.center,
+                          style: v2Sans(
+                            12,
+                            color: RtwV2Colors.muted,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SheetSectionTitle extends StatelessWidget {
+  const _SheetSectionTitle({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: RtwV2Colors.clay),
+        const SizedBox(width: 8),
+        V2Eyebrow(label, letterSpacing: 1.2),
+      ],
+    );
+  }
+}
+
 Color _playerColor(int index) =>
     RtwV2Colors.playerColors[index % RtwV2Colors.playerColors.length];
 
 class _PlayerBanner extends StatelessWidget {
-  const _PlayerBanner({required this.party});
+  const _PlayerBanner({required this.party, this.onTap});
+
+  final PartyController party;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final playerNumber = party.currentPlayerIndex + 1;
+    final playerName = party.currentPlayerName;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: RtwV2Colors.card,
+          border: Border.all(
+            color: _playerColor(party.currentPlayerIndex),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _playerColor(party.currentPlayerIndex),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '$playerNumber',
+                style: v2Sans(15, color: Colors.white, weight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "$playerName's turn",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: v2Sans(
+                      16,
+                      color: RtwV2Colors.inkSoft,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'of ${party.players} · your call',
+                    style: v2Mono(10, letterSpacing: 1),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Tooltip(
+              message: 'Game menu',
+              child: Icon(
+                Icons.menu_rounded,
+                size: 20,
+                color: Color(0xFF7A7466),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SwapQuestionButton extends StatelessWidget {
+  const _SwapQuestionButton({required this.party});
 
   final PartyController party;
 
   @override
   Widget build(BuildContext context) {
-    final playerNumber = party.currentPlayerIndex + 1;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: RtwV2Colors.card,
-        border: Border.all(color: _playerColor(party.currentPlayerIndex), width: 1.5),
-        borderRadius: BorderRadius.circular(14),
+    if (!party.swapControlVisible) return const SizedBox.shrink();
+    final enabled = party.canSwapQuestion;
+    final label = enabled
+        ? 'Swap question · ${party.swapsUsed}/${PartyController.maxSwaps} swaps used'
+        : party.swapsLeft == 0
+        ? '${party.swapsUsed}/${PartyController.maxSwaps} swaps used'
+        : 'No alternate questions';
+
+    return TextButton.icon(
+      onPressed: enabled ? party.swapQuestion : null,
+      icon: Icon(
+        Icons.shuffle_rounded,
+        size: 16,
+        color: enabled ? RtwV2Colors.blueTextDeep : RtwV2Colors.faint,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _playerColor(party.currentPlayerIndex),
-              shape: BoxShape.circle,
-            ),
-            child: Text('$playerNumber', style: v2Sans(15, color: Colors.white, weight: FontWeight.w700)),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Player $playerNumber's turn",
-                style: v2Sans(16, color: RtwV2Colors.inkSoft, weight: FontWeight.w700),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                'of ${party.players} · your call',
-                style: v2Mono(10, letterSpacing: 1),
-              ),
-            ],
-          ),
-        ],
+      label: Text(
+        label,
+        style: v2Sans(
+          13,
+          color: enabled ? RtwV2Colors.blueTextDeep : RtwV2Colors.faint,
+          weight: FontWeight.w600,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: const Size(0, 36),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: RtwV2Colors.blueTextDeep,
       ),
     );
   }
@@ -559,12 +1008,16 @@ class _PickPanel extends StatelessWidget {
     final borderColor = dx > RtwV2Motion.borderTintThreshold
         ? RtwV2Colors.blue
         : dx < -RtwV2Motion.borderTintThreshold
-            ? RtwV2Colors.clay
-            : RtwV2Colors.border;
+        ? RtwV2Colors.clay
+        : RtwV2Colors.border;
 
     return Column(
       children: [
-        if (!party.solo) _PlayerBanner(party: party),
+        if (!party.solo)
+          _PlayerBanner(
+            party: party,
+            onTap: () => _showPartyMenuSheet(context, party),
+          ),
         Expanded(
           child: Stack(
             alignment: Alignment.center,
@@ -583,7 +1036,9 @@ class _PickPanel extends StatelessWidget {
                       maxLines: 1,
                       style: v2Serif(
                         30,
-                        color: RtwV2Colors.clay.withValues(alpha: 0.16 + noOn * 0.72),
+                        color: RtwV2Colors.clay.withValues(
+                          alpha: 0.16 + noOn * 0.72,
+                        ),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -603,7 +1058,9 @@ class _PickPanel extends StatelessWidget {
                       maxLines: 1,
                       style: v2Serif(
                         30,
-                        color: RtwV2Colors.blue.withValues(alpha: 0.16 + yesOn * 0.72),
+                        color: RtwV2Colors.blue.withValues(
+                          alpha: 0.16 + yesOn * 0.72,
+                        ),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -612,83 +1069,125 @@ class _PickPanel extends StatelessWidget {
               ),
               GestureDetector(
                 onHorizontalDragStart: (_) => party.cardDragStart(),
-                onHorizontalDragUpdate: (details) => party.cardDragUpdate(details.delta.dx),
+                onHorizontalDragUpdate: (details) =>
+                    party.cardDragUpdate(details.delta.dx),
                 onHorizontalDragEnd: (details) =>
                     party.cardDragEnd(details.velocity.pixelsPerSecond.dx),
-                child: AnimatedContainer(
-                  duration: party.dragging ? Duration.zero : RtwV2Motion.cardSettle,
-                  curve: _settleCurve,
-                  transform: Matrix4.identity()
-                    ..translateByDouble(dx, 0, 0, 1)
-                    ..rotateZ(dx * RtwV2Motion.tiltFactor * 3.14159 / 180),
-                  transformAlignment: Alignment.center,
-                  constraints: const BoxConstraints(maxWidth: 320, minHeight: 300),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: RtwV2Colors.card,
-                    border: Border.all(color: borderColor, width: 1.5),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color.fromRGBO(40, 40, 40, 0.08 + dx.abs() / 800),
-                        offset: const Offset(0, 12),
-                        blurRadius: 38,
-                      ),
-                    ],
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey('question-swap-${party.swapPulse}'),
+                  tween: Tween<double>(
+                    begin: party.swapPulse == 0 ? 0 : 1,
+                    end: 0,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        card.tag.toUpperCase(),
-                        style: v2Mono(10, color: RtwV2Colors.clay, letterSpacing: 1.8),
+                  duration: const Duration(milliseconds: 360),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, pulse, child) {
+                    final shake = math.sin(pulse * math.pi * 4) * 7 * pulse;
+                    return Opacity(
+                      opacity: 1 - pulse * 0.14,
+                      child: Transform.translate(
+                        offset: Offset(shake, 0),
+                        child: child,
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        child: Text(
-                          card.prompt,
-                          style: v2Serif(25, height: 1.2, letterSpacing: -0.3),
+                    );
+                  },
+                  child: AnimatedContainer(
+                    duration: party.dragging
+                        ? Duration.zero
+                        : RtwV2Motion.cardSettle,
+                    curve: _settleCurve,
+                    transform: Matrix4.identity()
+                      ..translateByDouble(dx, 0, 0, 1)
+                      ..rotateZ(dx * RtwV2Motion.tiltFactor * 3.14159 / 180),
+                    transformAlignment: Alignment.center,
+                    constraints: const BoxConstraints(
+                      maxWidth: 320,
+                      minHeight: 300,
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: RtwV2Colors.card,
+                      border: Border.all(color: borderColor, width: 1.5),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color.fromRGBO(
+                            40,
+                            40,
+                            40,
+                            0.08 + dx.abs() / 800,
+                          ),
+                          offset: const Offset(0, 12),
+                          blurRadius: 38,
                         ),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: GestureDetector(
-                              onTap: () => party.tapSide('b'),
-                              child: Text(
-                                '← ${card.optB}',
-                                style: v2Sans(
-                                  16,
-                                  color: dx < -RtwV2Motion.borderTintThreshold
-                                      ? RtwV2Colors.clay
-                                      : const Color(0xFF4A463E),
-                                  weight: FontWeight.w700,
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          card.tag.toUpperCase(),
+                          style: v2Mono(
+                            10,
+                            color: RtwV2Colors.clay,
+                            letterSpacing: 1.8,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          child: Text(
+                            card.prompt,
+                            style: v2Serif(
+                              25,
+                              height: 1.2,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () => party.tapSide('b'),
+                                child: Text(
+                                  '← ${card.optB}',
+                                  style: v2Sans(
+                                    16,
+                                    color: dx < -RtwV2Motion.borderTintThreshold
+                                        ? RtwV2Colors.clay
+                                        : const Color(0xFF4A463E),
+                                    weight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const Icon(Icons.sync_alt, size: 18, color: Color(0xFFCFC8B7)),
-                          Flexible(
-                            child: GestureDetector(
-                              onTap: () => party.tapSide('a'),
-                              child: Text(
-                                '${card.optA} →',
-                                textAlign: TextAlign.right,
-                                style: v2Sans(
-                                  16,
-                                  color: dx > RtwV2Motion.borderTintThreshold
-                                      ? RtwV2Colors.blue
-                                      : const Color(0xFF4A463E),
-                                  weight: FontWeight.w700,
+                            const Icon(
+                              Icons.sync_alt,
+                              size: 18,
+                              color: Color(0xFFCFC8B7),
+                            ),
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () => party.tapSide('a'),
+                                child: Text(
+                                  '${card.optA} →',
+                                  textAlign: TextAlign.right,
+                                  style: v2Sans(
+                                    16,
+                                    color: dx > RtwV2Motion.borderTintThreshold
+                                        ? RtwV2Colors.blue
+                                        : const Color(0xFF4A463E),
+                                    weight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -704,18 +1203,30 @@ class _PickPanel extends StatelessWidget {
               children: [
                 TextSpan(
                   text: card.optB,
-                  style: v2Sans(13, color: RtwV2Colors.subText, weight: FontWeight.w700),
+                  style: v2Sans(
+                    13,
+                    color: RtwV2Colors.subText,
+                    weight: FontWeight.w700,
+                  ),
                 ),
                 const TextSpan(text: ', right for '),
                 TextSpan(
                   text: card.optA,
-                  style: v2Sans(13, color: RtwV2Colors.subText, weight: FontWeight.w700),
+                  style: v2Sans(
+                    13,
+                    color: RtwV2Colors.subText,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
             textAlign: TextAlign.center,
           ),
         ),
+        if (party.swapControlVisible) ...[
+          const SizedBox(height: 6),
+          _SwapQuestionButton(party: party),
+        ],
       ],
     );
   }
@@ -737,13 +1248,19 @@ class _PredictPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PlayerBanner(party: party),
+        _PlayerBanner(
+          party: party,
+          onTap: () => _showPartyMenuSheet(context, party),
+        ),
         Text(
           card.tag.toUpperCase(),
           style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 1.6),
         ),
         const SizedBox(height: 12),
-        Text(card.prompt, style: v2Serif(29, height: 1.18, letterSpacing: -0.5)),
+        Text(
+          card.prompt,
+          style: v2Serif(29, height: 1.18, letterSpacing: -0.5),
+        ),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -759,84 +1276,116 @@ class _PredictPanel extends StatelessWidget {
                 TextSpan(
                   text: '${party.pred}',
                   style: v2Serif(72, color: sideColor, height: 1),
-                  children: [TextSpan(text: '%', style: v2Serif(30, color: sideColor))],
+                  children: [
+                    TextSpan(
+                      text: '%',
+                      style: v2Serif(30, color: sideColor),
+                    ),
+                  ],
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              LayoutBuilder(builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final handleFraction = (sideA ? (100 - party.pred) : party.pred) / 100;
-                return GestureDetector(
-                  onHorizontalDragDown: (details) =>
-                      party.meterUpdate(details.localPosition.dx / width),
-                  onHorizontalDragUpdate: (details) =>
-                      party.meterUpdate(details.localPosition.dx / width),
-                  onTapUp: (details) => party.meterUpdate(details.localPosition.dx / width),
-                  child: Container(
-                    height: 68,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE6E0D3),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Stack(
-                      children: [
-                        Align(
-                          alignment: sideA ? Alignment.centerRight : Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: party.pred / 100,
-                            child: Container(
-                              height: 68,
-                              color: (sideA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
-                                  .withValues(alpha: sideA ? 0.85 : 0.9),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final handleFraction =
+                      (sideA ? (100 - party.pred) : party.pred) / 100;
+                  return GestureDetector(
+                    onHorizontalDragDown: (details) =>
+                        party.meterUpdate(details.localPosition.dx / width),
+                    onHorizontalDragUpdate: (details) =>
+                        party.meterUpdate(details.localPosition.dx / width),
+                    onTapUp: (details) =>
+                        party.meterUpdate(details.localPosition.dx / width),
+                    child: Container(
+                      height: 68,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE6E0D3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Stack(
+                        children: [
+                          Align(
+                            alignment: sideA
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: FractionallySizedBox(
+                              widthFactor: party.pred / 100,
+                              child: Container(
+                                height: 68,
+                                color:
+                                    (sideA
+                                            ? RtwV2Colors.meterBlue
+                                            : RtwV2Colors.meterClay)
+                                        .withValues(alpha: sideA ? 0.85 : 0.9),
+                              ),
                             ),
                           ),
-                        ),
-                        Align(
-                          alignment: sideA ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text(
-                              sideLabel.toUpperCase(),
-                              style: v2Mono(12, color: Colors.white, letterSpacing: 1.4),
-                            ),
-                          ),
-                        ),
-                        Align(
-                          alignment: Alignment(handleFraction * 2 - 1, 0),
-                          child: Container(
-                            width: 6,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(3),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x40000000),
-                                  offset: Offset(0, 1),
-                                  blurRadius: 4,
+                          Align(
+                            alignment: sideA
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                sideLabel.toUpperCase(),
+                                style: v2Mono(
+                                  12,
+                                  color: Colors.white,
+                                  letterSpacing: 1.4,
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          Align(
+                            alignment: Alignment(handleFraction * 2 - 1, 0),
+                            child: Container(
+                              width: 6,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(3),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x40000000),
+                                    offset: Offset(0, 1),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                },
+              ),
               const SizedBox(height: 9),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(sideA ? 'ALL' : 'NONE', style: v2Mono(10, letterSpacing: 0.5)),
-                  Text(sideA ? 'NONE' : 'ALL', style: v2Mono(10, letterSpacing: 0.5)),
+                  Text(
+                    sideA ? 'ALL' : 'NONE',
+                    style: v2Mono(10, letterSpacing: 0.5),
+                  ),
+                  Text(
+                    sideA ? 'NONE' : 'ALL',
+                    style: v2Mono(10, letterSpacing: 0.5),
+                  ),
                 ],
               ),
             ],
           ),
         ),
+        if (party.swapControlVisible) ...[
+          _SwapQuestionButton(party: party),
+          const SizedBox(height: 8),
+        ],
         V2Button(
           isLastTurn ? 'Lock in · reveal the room ↓' : 'Lock in · pass along →',
           onPressed: party.lockTurn,
@@ -869,6 +1418,7 @@ class _PassScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playerNumber = party.currentPlayerIndex + 1;
+    final playerName = party.currentPlayerName;
     // turn 0 means this hand-off opens a fresh question with a new reader,
     // rather than passing between voters mid-question.
     final newQuestion = party.turn == 0;
@@ -895,7 +1445,10 @@ class _PassScreen extends StatelessWidget {
                   color: _playerColor(party.currentPlayerIndex),
                   shape: BoxShape.circle,
                 ),
-                child: Text('$playerNumber', style: v2Serif(32, color: Colors.white)),
+                child: Text(
+                  '$playerNumber',
+                  style: v2Serif(32, color: Colors.white),
+                ),
               ),
               const SizedBox(height: 20),
               Text(
@@ -912,15 +1465,19 @@ class _PassScreen extends StatelessWidget {
                     style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
                     children: [
                       TextSpan(
-                        text: 'Player $playerNumber',
-                        style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w700),
+                        text: playerName,
+                        style: v2Sans(
+                          15,
+                          color: RtwV2Colors.inkSoft,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                       TextSpan(
                         text: newQuestion
                             ? '. They answer first this round, then predict '
-                                'the table.'
+                                  'the table.'
                             : ", or set it down for them. Peeking's fine now, only "
-                                "the first player's prediction was hidden.",
+                                  "the first player's prediction was hidden.",
                       ),
                     ],
                   ),
@@ -931,7 +1488,7 @@ class _PassScreen extends StatelessWidget {
           ),
         ),
         V2Button(
-          "I'm Player $playerNumber →",
+          "I'm $playerName →",
           onPressed: party.passContinue,
           padding: const EdgeInsets.symmetric(vertical: 18),
           radius: 16,
@@ -964,7 +1521,10 @@ class _RevealPanel extends StatelessWidget {
           style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 1.6),
         ),
         const SizedBox(height: 12),
-        Text(card.prompt, style: v2Serif(29, height: 1.18, letterSpacing: -0.5)),
+        Text(
+          card.prompt,
+          style: v2Serif(29, height: 1.18, letterSpacing: -0.5),
+        ),
         const SizedBox(height: 22),
         Expanded(
           child: SingleChildScrollView(
@@ -993,13 +1553,21 @@ class _RevealPanel extends StatelessWidget {
                               Center(
                                 child: Text(
                                   '${card.optA.toUpperCase()} ${(yesPct * t).round()}%',
-                                  style: v2Mono(11, color: RtwV2Colors.card, letterSpacing: 1),
+                                  style: v2Mono(
+                                    11,
+                                    color: RtwV2Colors.card,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
                               Center(
                                 child: Text(
                                   card.optB.toUpperCase(),
-                                  style: v2Mono(11, color: const Color(0xFF7A7466), letterSpacing: 1),
+                                  style: v2Mono(
+                                    11,
+                                    color: const Color(0xFF7A7466),
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1016,7 +1584,10 @@ class _RevealPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: RtwV2Colors.card,
                     border: Border.all(color: RtwV2Colors.border),
@@ -1030,7 +1601,7 @@ class _RevealPanel extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           V2Eyebrow(
-                            "Player ${party.readerIndex + 1}'s read",
+                            "${party.readerName}'s read",
                             letterSpacing: 1.2,
                           ),
                           const SizedBox(height: 5),
@@ -1039,7 +1610,10 @@ class _RevealPanel extends StatelessWidget {
                               text: '${(party.readerRevealScore * t).round()}',
                               style: v2Serif(32, height: 1),
                               children: [
-                                TextSpan(text: ' / 100', style: v2Serif(15, color: RtwV2Colors.muted)),
+                                TextSpan(
+                                  text: ' / 100',
+                                  style: v2Serif(15, color: RtwV2Colors.muted),
+                                ),
                               ],
                             ),
                           ),
@@ -1048,13 +1622,20 @@ class _RevealPanel extends StatelessWidget {
                       Text(
                         'guessed\n${reader?.prediction ?? 0}%',
                         textAlign: TextAlign.right,
-                        style: v2Sans(12, color: RtwV2Colors.muted, height: 1.4),
+                        style: v2Sans(
+                          12,
+                          color: RtwV2Colors.muted,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                const V2Eyebrow('Scores · Reading the room', letterSpacing: 1.2),
+                const V2Eyebrow(
+                  'Scores · Reading the room',
+                  letterSpacing: 1.2,
+                ),
                 const SizedBox(height: 10),
                 Container(
                   clipBehavior: Clip.antiAlias,
@@ -1065,8 +1646,16 @@ class _RevealPanel extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      for (var playerIndex = 0; playerIndex < party.players; playerIndex++) ...[
-                        _VoteRow(party: party, playerIndex: playerIndex, card: card),
+                      for (
+                        var playerIndex = 0;
+                        playerIndex < party.players;
+                        playerIndex++
+                      ) ...[
+                        _VoteRow(
+                          party: party,
+                          playerIndex: playerIndex,
+                          card: card,
+                        ),
                         if (playerIndex < party.players - 1) const V2Hairline(),
                       ],
                     ],
@@ -1091,7 +1680,11 @@ class _RevealPanel extends StatelessWidget {
 }
 
 class _VoteRow extends StatelessWidget {
-  const _VoteRow({required this.party, required this.playerIndex, required this.card});
+  const _VoteRow({
+    required this.party,
+    required this.playerIndex,
+    required this.card,
+  });
 
   final PartyController party;
   final int playerIndex;
@@ -1116,13 +1709,22 @@ class _VoteRow extends StatelessWidget {
           Container(
             width: 9,
             height: 9,
-            decoration: BoxDecoration(color: _playerColor(playerIndex), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: _playerColor(playerIndex),
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Player ${playerIndex + 1}',
-              style: v2Sans(14, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
+              party.playerName(playerIndex),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: v2Sans(
+                14,
+                color: RtwV2Colors.inkSoft,
+                weight: FontWeight.w600,
+              ),
             ),
           ),
           if (vote != null)
@@ -1137,7 +1739,9 @@ class _VoteRow extends StatelessWidget {
                 vote,
                 style: v2Sans(
                   12,
-                  color: isA ? RtwV2Colors.blueTextDeep : RtwV2Colors.clayTextDeep,
+                  color: isA
+                      ? RtwV2Colors.blueTextDeep
+                      : RtwV2Colors.clayTextDeep,
                   weight: FontWeight.w600,
                 ),
               ),
@@ -1193,11 +1797,19 @@ class _DoneState extends State<_Done> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Center(
-            child: V2Eyebrow('Round complete', size: 11, color: RtwV2Colors.clay, letterSpacing: 1.6),
+            child: V2Eyebrow(
+              'Round complete',
+              size: 11,
+              color: RtwV2Colors.clay,
+              letterSpacing: 1.6,
+            ),
           ),
           const SizedBox(height: 14),
           Center(
-            child: Text("That's the room read.", style: v2Serif(34, height: 1.1, letterSpacing: -0.5)),
+            child: Text(
+              "That's the room read.",
+              style: v2Serif(34, height: 1.1, letterSpacing: -0.5),
+            ),
           ),
           const SizedBox(height: 12),
           Center(
@@ -1223,11 +1835,22 @@ class _DoneState extends State<_Done> {
                 children: [
                   for (final (rank, entry) in ranked.indexed) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                      color: rank == 0 ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 13,
+                      ),
+                      color: rank == 0
+                          ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+                          : null,
                       child: Row(
                         children: [
-                          SizedBox(width: 26, child: Text('#${rank + 1}', style: v2Mono(13, letterSpacing: 0))),
+                          SizedBox(
+                            width: 26,
+                            child: Text(
+                              '#${rank + 1}',
+                              style: v2Mono(13, letterSpacing: 0),
+                            ),
+                          ),
                           Container(
                             width: 9,
                             height: 9,
@@ -1239,11 +1862,15 @@ class _DoneState extends State<_Done> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Player ${entry.$1 + 1}',
+                              party.playerName(entry.$1),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: v2Sans(
                                 15,
                                 color: RtwV2Colors.inkSoft,
-                                weight: rank == 0 ? FontWeight.w700 : FontWeight.w500,
+                                weight: rank == 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
                             ),
                           ),
@@ -1259,11 +1886,27 @@ class _DoneState extends State<_Done> {
           ],
           const SizedBox(height: 30),
           V2Button(
-            'New round',
-            onPressed: party.again,
+            'Restart game',
+            onPressed: party.restartGame,
             padding: const EdgeInsets.symmetric(vertical: 17),
             radius: 16,
             fontSize: 16,
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: party.again,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Change setup',
+                textAlign: TextAlign.center,
+                style: v2Sans(
+                  13,
+                  color: RtwV2Colors.subText,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
         ],
       ),
