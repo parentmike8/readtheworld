@@ -57,7 +57,7 @@ class RoomsHomeScreen extends ConsumerWidget {
                         ? '?'
                         : profile.displayName.substring(0, 1).toUpperCase(),
                     avatarIndex: profile.avatarIndex,
-                    onTap: () => context.go('/profile'),
+                    onTap: () => context.push('/profile'),
                   ),
                 ],
               ),
@@ -154,7 +154,9 @@ class _AvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      key: const ValueKey('rooms-profile-avatar'),
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: 38,
         height: 38,

@@ -505,7 +505,7 @@ class V2TopNav extends ConsumerWidget {
                 tab('Party', partyActive, '/party'),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => context.go('/profile'),
+                  onTap: () => context.push('/profile'),
                   behavior: HitTestBehavior.opaque,
                   child: Container(
                     width: 36,

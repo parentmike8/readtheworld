@@ -50,9 +50,15 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 GestureDetector(
-                  onTap: () => context.go('/rooms'),
+                  onTap: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/rooms');
+                    }
+                  },
                   child: Text(
-                    '← Rooms',
+                    '← Back',
                     style: v2Sans(15, color: RtwV2Colors.subText, weight: FontWeight.w600),
                   ),
                 ),
