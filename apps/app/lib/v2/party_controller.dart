@@ -385,11 +385,13 @@ class PartyController extends ChangeNotifier {
 
   void meterUpdate(double fraction) {
     if (sub != PartySub.predict) return;
+    final previousPred = pred;
     final raw = (fraction.clamp(0.0, 1.0) * 100).round();
     final next = side == 'a' ? 100 - raw : raw;
     // Prototype: snap to steps of 100/(players−1) — whole other-players.
     final step = 100 / math.max(1, players - 1);
     pred = ((next / step).round() * step).round().clamp(0, 100);
+    if (pred != previousPred) unawaited(HapticFeedback.selectionClick());
     notifyListeners();
   }
 

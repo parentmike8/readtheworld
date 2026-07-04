@@ -678,12 +678,15 @@ class RoomsController extends ChangeNotifier {
   void meterUpdate(double fraction) {
     final session = play;
     if (session == null || session.stage != PlayStage.predict) return;
+    final previousPred = session.pred;
     final raw = (fraction.clamp(0.0, 1.0) * 100).round();
     // Meter docks to the picked side: side A docks right (prototype).
     final pred = session.side == 'a' ? 100 - raw : raw;
     session.pred = _snapPredictionForSession(session, pred);
     final arm = session.pred <= 2;
-    if (arm && !session.armSwitch) unawaited(HapticFeedback.selectionClick());
+    if (session.pred != previousPred || (arm && !session.armSwitch)) {
+      unawaited(HapticFeedback.selectionClick());
+    }
     session.armSwitch = arm;
     notifyListeners();
   }
