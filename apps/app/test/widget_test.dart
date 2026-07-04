@@ -9,6 +9,7 @@ import 'package:read_the_world/v2/models_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
+import 'package:read_the_world/v2/screens/rooms_home.dart';
 
 RoomDayQuestion _question(String qid, {String tag = 'Social'}) =>
     RoomDayQuestion(
@@ -147,6 +148,23 @@ void main() {
       expect(deck.where((card) => card.roomId == 'studio'), isEmpty);
       expect(deck.where((card) => !card.intro).length, 1);
     });
+
+    test('skips world questions once the live world answer exists', () {
+      final world = _binding(
+        id: worldRoomId,
+        name: 'The World',
+        isWorld: true,
+      )..myTodayAnswer = const RoomAnswer(
+          picks: [RoomPick(qid: 'q1', side: 'a')],
+          answerOnly: true,
+        );
+      final rooms = _roomsWith([])
+        ..worldRoom = world.room
+        ..worldToday = world.today
+        ..bindings[worldRoomId] = world;
+
+      expect(rooms.buildTodayDeck(), isEmpty);
+    });
   });
 
   group('play state machine', () {
@@ -191,6 +209,42 @@ void main() {
       rooms.changeAnswer();
       rooms.commitSide('a');
       expect(rooms.play!.stage, PlayStage.predict);
+    });
+
+    test('answered world room reopens with saved picks for modification', () async {
+      final world = _binding(
+        id: worldRoomId,
+        name: 'The World',
+        members: 900,
+        isWorld: true,
+      )..myTodayAnswer = const RoomAnswer(
+          picks: [
+            RoomPick(qid: 'q1', side: 'b'),
+            RoomPick(qid: 'q2', side: 'a'),
+            RoomPick(qid: 'q3', side: 'b'),
+          ],
+          answerOnly: true,
+        );
+      final rooms = _roomsWith([])
+        ..worldRoom = world.room
+        ..worldToday = world.today
+        ..bindings[worldRoomId] = world;
+
+      rooms.startRoomPlay(worldRoomId);
+      expect(rooms.play!.stage, PlayStage.answerSaved);
+      expect(rooms.play!.answerSavedReason, 'world');
+      expect(rooms.play!.side, 'b');
+
+      rooms.changeAnswer();
+      rooms.commitSide('a');
+      await rooms.lockCurrent(answerOnly: true);
+
+      final picks = rooms.play!.results[worldRoomId]!;
+      expect(picks, hasLength(3));
+      expect(picks.firstWhere((pick) => pick.qid == 'q1').side, 'a');
+      expect(rooms.play!.idx, 1);
+      expect(rooms.play!.stage, PlayStage.answerSaved);
+      expect(rooms.play!.side, 'a');
     });
 
     test('meter docks to the picked side and arms the flip at <=2', () {
@@ -487,6 +541,41 @@ void main() {
       expect(find.text('Read all of humanity.'), findsOneWidget);
       expect(find.text('No rooms yet'), findsOneWidget);
       expect(find.text('Have a code? Join a room'), findsOneWidget);
+    });
+
+    testWidgets('world hero CTA changes after answers are submitted', (
+      tester,
+    ) async {
+      final world = _binding(
+        id: worldRoomId,
+        name: 'The World',
+        isWorld: true,
+      )..myTodayAnswer = const RoomAnswer(
+          picks: [RoomPick(qid: 'q1', side: 'a')],
+          answerOnly: true,
+        );
+      final rooms = _roomsWith([])
+        ..worldRoom = world.room
+        ..worldToday = world.today
+        ..bindings[worldRoomId] = world;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: RoomsHomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('View or modify your answers →'), findsOneWidget);
+      expect(find.text('Answer world questions →'), findsNothing);
     });
 
     testWidgets('party tab renders setup and starts a local round', (

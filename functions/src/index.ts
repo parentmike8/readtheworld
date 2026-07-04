@@ -3306,42 +3306,85 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
     Number(member.streak ?? 0),
   );
 
-  try {
-    const batch = db.batch();
-    batch.create(dayRef.collection("answers").doc(uid), {
-      picks,
-      answerOnly,
-      lockedAt: FieldValue.serverTimestamp(),
-      scored: false,
-    });
-    const counterUpdates: Record<string, unknown> = {
-      answerCount: FieldValue.increment(1),
-    };
+  const answerDocRef = dayRef.collection("answers").doc(uid);
+  let createdAnswer = false;
+  await db.runTransaction(async (tx) => {
+    const answerSnap = await tx.get(answerDocRef);
+    const existing = answerSnap.exists ? answerSnap.data() ?? {} : null;
+    createdAnswer = existing == null;
+    const existingPicks = Array.isArray(existing?.picks)
+      ? (existing.picks as Array<Record<string, unknown>>)
+        .map((raw) => ({
+          qid: typeof raw.qid === "string" ? raw.qid : "",
+          prediction: typeof raw.prediction === "number" ? raw.prediction : null,
+        }))
+        .filter((pick) => pick.qid.length > 0)
+      : [];
+    const existingQids = new Set(existingPicks.map((pick) => pick.qid));
+    const nextQids = new Set(picks.map((pick) => pick.qid));
+    const existingPredictedCount = existingPicks
+      .filter((pick) => pick.prediction != null).length;
+    const predictedDelta = predictedCount - existingPredictedCount;
+
+    const counterUpdates: Record<string, unknown> = {};
+    if (createdAnswer) {
+      counterUpdates.answerCount = FieldValue.increment(1);
+    }
     picks.forEach((pick) => {
-      counterUpdates[`answerCounts.${pick.qid}`] = FieldValue.increment(1);
+      if (!existingQids.has(pick.qid)) {
+        counterUpdates[`answerCounts.${pick.qid}`] = FieldValue.increment(1);
+      }
     });
-    batch.update(dayRef, counterUpdates);
-    batch.set(memberDocRef, {
+    existingQids.forEach((qid) => {
+      if (!nextQids.has(qid)) {
+        counterUpdates[`answerCounts.${qid}`] = FieldValue.increment(-1);
+      }
+    });
+    if (Object.keys(counterUpdates).length > 0) {
+      tx.update(dayRef, counterUpdates);
+    }
+
+    if (createdAnswer) {
+      tx.set(answerDocRef, {
+        picks,
+        answerOnly,
+        lockedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        scored: false,
+      });
+    } else {
+      tx.set(answerDocRef, {
+        picks,
+        answerOnly,
+        updatedAt: FieldValue.serverTimestamp(),
+        scored: false,
+      }, { merge: true });
+    }
+
+    const memberUpdates: Record<string, unknown> = {
       streak,
       lastPlayedDailyKey: todayKey,
-      questionsAnswered: FieldValue.increment(predictedCount),
       updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    if (predictedCount > 0) {
-      batch.set(db.collection("users").doc(uid), {
-        officialQuestionsAnswered: FieldValue.increment(predictedCount),
+    };
+    if (predictedDelta !== 0) {
+      memberUpdates.questionsAnswered = FieldValue.increment(predictedDelta);
+    }
+    tx.set(memberDocRef, memberUpdates, { merge: true });
+    if (predictedDelta !== 0) {
+      tx.set(db.collection("users").doc(uid), {
+        officialQuestionsAnswered: FieldValue.increment(predictedDelta),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
-    await batch.commit();
-  } catch (error) {
-    if ((error as { code?: number | string }).code === 6 ||
-        String(error).includes("ALREADY_EXISTS")) {
-      throw new HttpsError("already-exists", "You already locked this room today.");
-    }
-    throw error;
-  }
-  return { locked: true, roomId, dailyKey: todayKey, answerOnly, streak };
+  });
+  return {
+    locked: createdAnswer,
+    updated: !createdAnswer,
+    roomId,
+    dailyKey: todayKey,
+    answerOnly,
+    streak,
+  };
 });
 
 export const queueCustomQuestion = onCall(callableOptions, async (request) => {

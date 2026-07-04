@@ -303,18 +303,38 @@ class RoomsController extends ChangeNotifier {
       if (data == null) return;
       final previousKey = worldRoom?.currentDailyKey;
       worldRoom = roomFromFirestore(snapshot.id, data);
+      final binding = bindings.putIfAbsent(worldRoomId, () => RoomBinding());
+      binding.room = worldRoom;
       final nextKey = worldRoom!.currentDailyKey;
       if (nextKey != null && nextKey != previousKey) {
         while (_worldSubs.length > 1) {
           _worldSubs.removeLast().cancel();
         }
+        worldToday = null;
+        binding.today = null;
+        binding.myTodayAnswer = null;
         _worldSubs.add(
           worldDoc.collection('days').doc(nextKey).snapshots().listen((daySnap) {
             final dayData = daySnap.data();
             worldToday =
                 dayData == null ? null : roomDayFromFirestore(daySnap.id, dayData);
+            binding.today = worldToday;
             notifyListeners();
           }, onError: _handleError),
+        );
+        _worldSubs.add(
+          worldDoc
+              .collection('days')
+              .doc(nextKey)
+              .collection('answers')
+              .doc(uid)
+              .snapshots()
+              .listen((answerSnap) {
+                final answerData = answerSnap.data();
+                binding.myTodayAnswer =
+                    answerData == null ? null : roomAnswerFromFirestore(answerData);
+                notifyListeners();
+              }, onError: _handleError),
         );
       }
       notifyListeners();
@@ -372,9 +392,9 @@ class RoomsController extends ChangeNotifier {
 
   RoomBinding? get _worldBinding {
     if (worldRoom == null) return null;
-    final binding = bindings[worldRoomId] ?? RoomBinding();
+    final binding = bindings.putIfAbsent(worldRoomId, () => RoomBinding());
     binding.room = worldRoom;
-    binding.today ??= worldToday;
+    if (worldToday != null) binding.today = worldToday;
     return binding;
   }
 
@@ -449,7 +469,17 @@ class RoomsController extends ChangeNotifier {
         ),
     ];
     if (deck.isEmpty) return;
-    play = PlaySession(mode: 'room', deck: deck, roomId: roomId);
+    final session = PlaySession(mode: 'room', deck: deck, roomId: roomId);
+    final answer = binding?.myTodayAnswer;
+    if (day.isLive && answer != null) {
+      final qids = questions.map((question) => question.qid).toSet();
+      session.results[roomId] = [
+        for (final pick in answer.picks)
+          if (qids.contains(pick.qid)) pick,
+      ];
+      _restoreCurrentSavedPick(session);
+    }
+    play = session;
     notifyListeners();
   }
 
@@ -635,6 +665,38 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  RoomPick? _savedPickForCurrent(PlaySession session) {
+    if (session.mode != 'room') return null;
+    final card = session.card;
+    final qid = card?.question?.qid;
+    if (card == null || qid == null) return null;
+    for (final pick in session.results[card.roomId] ?? const <RoomPick>[]) {
+      if (pick.qid == qid) return pick;
+    }
+    return null;
+  }
+
+  void _restoreCurrentSavedPick(PlaySession session) {
+    final card = session.card;
+    final pick = _savedPickForCurrent(session);
+    if (card == null || pick == null) return;
+    final binding = bindingFor(card.roomId);
+    final worldSaved = card.isWorld;
+    final soloSaved = !card.isWorld && (binding?.room?.isSolo ?? false);
+    session.side = pick.side;
+    session.pred = pick.prediction ?? 50;
+    session.dragX = 0;
+    session.dragging = false;
+    session.armSwitch = false;
+    if (pick.prediction == null) {
+      session.stage = PlayStage.answerSaved;
+      session.answerSavedReason = worldSaved ? 'world' : (soloSaved ? 'solo' : null);
+    } else {
+      session.stage = PlayStage.predict;
+      session.answerSavedReason = null;
+    }
+  }
+
   void setDuoPrediction(bool matched) {
     final session = play;
     if (session == null) return;
@@ -654,11 +716,17 @@ class RoomsController extends ChangeNotifier {
     unawaited(HapticFeedback.mediumImpact());
 
     final picks = session.results.putIfAbsent(card.roomId, () => []);
-    picks.add(RoomPick(
+    final pick = RoomPick(
       qid: question.qid,
       side: side,
       prediction: answerOnly ? null : session.pred,
-    ));
+    );
+    final existing = picks.indexWhere((item) => item.qid == question.qid);
+    if (existing >= 0) {
+      picks[existing] = pick;
+    } else {
+      picks.add(pick);
+    }
 
     final blockDone = card.indexInRoom + 1 >= card.roomTotal;
     if (blockDone && session.mode == 'intro') {
@@ -679,6 +747,8 @@ class RoomsController extends ChangeNotifier {
     session.pred = 50;
     session.dragX = 0;
     session.armSwitch = false;
+    session.answerSavedReason = null;
+    _restoreCurrentSavedPick(session);
     notifyListeners();
   }
 
@@ -701,6 +771,8 @@ class RoomsController extends ChangeNotifier {
         summaryRoomId = session.roomId;
       }
       play = null;
+    } else {
+      _restoreCurrentSavedPick(session);
     }
     notifyListeners();
   }

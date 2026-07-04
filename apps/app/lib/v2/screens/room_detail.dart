@@ -146,7 +146,11 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
             if (!played)
               _PlayCard(room: room, rooms: rooms)
             else
-              _PlayedCard(room: room, rooms: rooms),
+              _PlayedCard(
+                room: room,
+                rooms: rooms,
+                canModify: binding.today?.isLive ?? false,
+              ),
             const SizedBox(height: 26),
             if (isSolo)
               _SoloNudge(onInvite: () => showInviteSheet(context, rooms, room.id))
@@ -276,10 +280,15 @@ class _PlayCard extends StatelessWidget {
 }
 
 class _PlayedCard extends StatelessWidget {
-  const _PlayedCard({required this.room, required this.rooms});
+  const _PlayedCard({
+    required this.room,
+    required this.rooms,
+    required this.canModify,
+  });
 
   final RtwRoom room;
   final RoomsController rooms;
+  final bool canModify;
 
   @override
   Widget build(BuildContext context) {
@@ -311,6 +320,19 @@ class _PlayedCard extends StatelessWidget {
             'next set of questions.',
             style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
           ),
+          if (canModify) ...[
+            const SizedBox(height: 18),
+            V2Button(
+              'View or modify your answers →',
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              onPressed: () {
+                rooms.startRoomPlay(room.id);
+                if (rooms.play != null) context.go('/today/play');
+              },
+            ),
+          ],
         ],
       ),
     );

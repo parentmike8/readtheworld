@@ -186,6 +186,10 @@ class _WorldHero extends StatelessWidget {
     final pct = goal > 0 ? ((players / goal) * 100).round() : 0;
     final remaining = (goal - players).clamp(0, goal);
     final unlocked = rooms.worldPredictionsUnlocked;
+    final answered = rooms.bindingFor(worldRoomId)?.played ?? false;
+    final cta = answered
+        ? 'View or modify your answers →'
+        : 'Answer world questions →';
 
     return GestureDetector(
       onTap: () => context.go('/rooms/$worldRoomId'),
@@ -307,7 +311,7 @@ class _WorldHero extends StatelessWidget {
                   ],
                   const SizedBox(height: 14),
                   V2Button(
-                    'Answer world questions →',
+                    cta,
                     background: Colors.white,
                     foreground: RtwV2Colors.ink,
                     fontWeight: FontWeight.w700,

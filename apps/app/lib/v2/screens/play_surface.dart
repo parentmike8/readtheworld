@@ -996,7 +996,12 @@ class _AnswerSavedStage extends ConsumerWidget {
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     final isWorld = session.answerSavedReason == 'world';
     final threshold = question.threshold ?? 1000;
-    final answers = (rooms.worldToday?.answerCounts[question.qid] ?? 0) + 1;
+    final existingPick = rooms.bindingFor(card.roomId)?.myTodayAnswer?.pickFor(
+      question.qid,
+    );
+    final answers =
+        (rooms.worldToday?.answerCounts[question.qid] ?? 0) +
+        (existingPick == null ? 1 : 0);
     final pct = (answers / threshold).clamp(0.0, 1.0);
 
     return Column(
@@ -1110,6 +1115,18 @@ class _AnswerSavedStage extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 18),
           radius: 16,
           fontSize: 16,
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: rooms.changeAnswer,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '← Change my answer',
+              textAlign: TextAlign.center,
+              style: v2Sans(13, color: RtwV2Colors.subText),
+            ),
+          ),
         ),
       ],
     );
