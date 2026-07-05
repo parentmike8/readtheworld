@@ -36,14 +36,16 @@ class _WorldLeaderboardScreenState
       location: '/world/leaderboard',
       wideWidth: 760,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 54, 20, 40),
+        padding: EdgeInsets.fromLTRB(20, v2ScreenTopInset(context), 20, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
                 GestureDetector(
-                  onTap: () => context.go('/rooms/$worldRoomId'),
+                  onTap: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/rooms/$worldRoomId'),
                   child: Text(
                     '← The World',
                     style: v2Sans(14, color: RtwV2Colors.subText),

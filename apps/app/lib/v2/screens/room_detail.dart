@@ -470,7 +470,7 @@ class _WorldProgressCard extends StatelessWidget {
           ),
           _WorldLink(
             label: 'How you stack against your peers →',
-            onTap: () => context.go('/world/leaderboard'),
+            onTap: () => context.push('/world/leaderboard'),
           ),
         ],
       ),

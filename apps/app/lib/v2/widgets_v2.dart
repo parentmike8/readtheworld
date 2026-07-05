@@ -396,6 +396,13 @@ class _TrianglePainter extends CustomPainter {
 
 /// v2 page scaffold: phone-column surface centered on wide screens
 /// (spec §8), optional bottom nav, prototype fade-up entrance.
+/// Top inset for full-screen v2 surfaces, matching the main tabs' margin so
+/// content clears the status bar / dynamic island consistently.
+double v2ScreenTopInset(BuildContext context) {
+  final safeTop = MediaQuery.paddingOf(context).top;
+  return safeTop > 40 ? safeTop + 16 : 60;
+}
+
 class V2Scaffold extends StatelessWidget {
   const V2Scaffold({
     super.key,
