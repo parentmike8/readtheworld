@@ -21,17 +21,17 @@ class WorldLeaderboardScreen extends ConsumerStatefulWidget {
 
 class _WorldLeaderboardScreenState
     extends ConsumerState<WorldLeaderboardScreen> {
-  late Future<List<WorldLeaderRow>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = ref.read(roomsControllerProvider).loadWorldLeaderboard();
-  }
+  Future<List<WorldLeaderRow>>? _future;
 
   @override
   Widget build(BuildContext context) {
-    final myUid = ref.read(roomsControllerProvider).uid;
+    final rooms = ref.watch(roomsControllerProvider);
+    final myUid = rooms.uid;
+    // Scoring is dormant until The World unlocks (5K players / admin flag), so
+    // the board is meaningless until then — show the pre-unlock explainer and
+    // skip the fetch [Mike].
+    final unlocked = rooms.worldPredictionsUnlocked;
+    _future ??= unlocked ? rooms.loadWorldLeaderboard() : null;
     return V2Scaffold(
       location: '/world/leaderboard',
       wideWidth: 760,
@@ -65,24 +65,75 @@ class _WorldLeaderboardScreenState
               style: v2Sans(15, color: RtwV2Colors.subText, height: 1.5),
             ),
             const SizedBox(height: 22),
-            FutureBuilder<List<WorldLeaderRow>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                final rows = snapshot.data ?? const <WorldLeaderRow>[];
-                if (rows.isEmpty) {
-                  return _EmptyBoard();
-                }
-                return _Board(rows: rows, myUid: myUid);
-              },
-            ),
+            if (!unlocked)
+              _PreUnlockCard()
+            else
+              FutureBuilder<List<WorldLeaderRow>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final rows = snapshot.data ?? const <WorldLeaderRow>[];
+                  if (rows.isEmpty) {
+                    return _EmptyBoard();
+                  }
+                  return _Board(rows: rows, myUid: myUid);
+                },
+              ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PreUnlockCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.meterBlue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_outline, size: 20, color: RtwV2Colors.blue),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'The board unlocks with scoring',
+                  style: v2Sans(15, color: const Color(0xFF2C2A24), weight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'World scoring turns on once the game reaches its player goal. As '
+            'soon as it does, this is where you\'ll see how you compare against '
+            'your peers from every room, on the world stage. Keep making your '
+            'reads and inviting friends to get there.',
+            style: v2Sans(14, color: const Color(0xFF5C584F), height: 1.55),
+          ),
+        ],
       ),
     );
   }

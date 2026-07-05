@@ -136,23 +136,12 @@ class _ReviewCard extends StatelessWidget {
   final RoomPick pick;
   final RtwRoom? room;
 
-  String? _predictionLine() {
-    final prediction = pick.prediction;
-    if (prediction == null) return null;
-    if (room?.isDuo == true) {
-      return prediction >= 50
-          ? 'You guessed they agreed'
-          : 'You guessed they disagreed';
-    }
-    return 'You predicted $prediction% would agree';
-  }
-
   @override
   Widget build(BuildContext context) {
     final sideA = pick.side == 'a';
     final sideLabel = sideA ? question.optA : question.optB;
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
-    final predictionLine = _predictionLine();
+    final prediction = pick.prediction;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -179,27 +168,27 @@ class _ReviewCard extends StatelessWidget {
                 decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
-              Text.rich(
-                TextSpan(
-                  text: 'You said ',
-                  style: v2Sans(13.5, color: RtwV2Colors.subText),
-                  children: [
-                    TextSpan(
-                      text: sideLabel,
-                      style: v2Sans(13.5, color: sideColor, weight: FontWeight.w700),
-                    ),
-                  ],
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    text: 'You said ',
+                    style: v2Sans(13.5, color: RtwV2Colors.subText),
+                    children: [
+                      TextSpan(
+                        text: sideLabel,
+                        style: v2Sans(13.5, color: sideColor, weight: FontWeight.w700),
+                      ),
+                      if (prediction != null)
+                        TextSpan(
+                          text: '  @ $prediction% agree',
+                          style: v2Sans(13.5, color: RtwV2Colors.muted),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          if (predictionLine != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              predictionLine,
-              style: v2Sans(13, color: RtwV2Colors.muted),
-            ),
-          ],
         ],
       ),
     );

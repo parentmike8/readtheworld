@@ -463,23 +463,40 @@ class _WorldProgressCard extends StatelessWidget {
             '${_thousands(room.worldGoal)} players.',
             style: v2Sans(13, color: RtwV2Colors.subText, height: 1.5),
           ),
-          const SizedBox(height: 12),
-          GestureDetector(
+          const SizedBox(height: 6),
+          _WorldLink(
+            label: 'Browse other world questions →',
             onTap: () => showWorldBrowseSheet(context, rooms),
-            child: Text(
-              'Browse other world questions →',
-              style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
-            ),
           ),
-          const SizedBox(height: 10),
-          GestureDetector(
+          _WorldLink(
+            label: 'How you stack against your peers →',
             onTap: () => context.go('/world/leaderboard'),
-            child: Text(
-              'How you stack against your peers →',
-              style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
-            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Full-width tappable text link — the bare text alone was too small a target.
+class _WorldLink extends StatelessWidget {
+  const _WorldLink({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Text(
+          label,
+          style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+        ),
       ),
     );
   }

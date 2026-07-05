@@ -575,6 +575,14 @@ class RoomsController extends ChangeNotifier {
     pendingPlayExitRoute = null;
   }
 
+  /// Clear a room's "NEW" badge once the reader has opened it (detail or play).
+  void markTodaySeen(String roomId) {
+    final binding = bindingFor(roomId);
+    if (binding == null || binding.todaySeen) return;
+    binding.todaySeen = true;
+    notifyListeners();
+  }
+
   /// Intro answers lock straight to The World (auto-enrolls on first
   /// answer server-side; double-locks are a no-op).
   Future<void> lockIntroWorldAnswers(List<RoomPick> picks) async {

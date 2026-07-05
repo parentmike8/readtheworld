@@ -382,17 +382,28 @@ class _RoomCard extends ConsumerWidget {
         : isSolo
             ? "Answer today's 3 →"
             : "Play today's 3 →";
-    void startRoomPlay() {
+    void onStatusTap() {
       final rooms = ref.read(roomsControllerProvider);
+      rooms.markTodaySeen(room.id);
+      // Already answered -> read-only review; otherwise into the play flow.
+      if (played) {
+        context.go('/rooms/${room.id}/review');
+        return;
+      }
       rooms.startRoomPlay(room.id);
       if (rooms.play != null) context.go('/today/play');
     }
 
     return GestureDetector(
       // Prototype openRoom: an unseen reveal shows once before the detail.
-      onTap: () => context.push(
-        binding.hasUnseenReveal ? '/rooms/${room.id}/reveal' : '/rooms/${room.id}',
-      ),
+      onTap: () {
+        ref.read(roomsControllerProvider).markTodaySeen(room.id);
+        context.push(
+          binding.hasUnseenReveal
+              ? '/rooms/${room.id}/reveal'
+              : '/rooms/${room.id}',
+        );
+      },
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
         decoration: BoxDecoration(
@@ -455,7 +466,7 @@ class _RoomCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: startRoomPlay,
+                    onTap: onStatusTap,
                     behavior: HitTestBehavior.opaque,
                     child: Align(
                       alignment: Alignment.centerLeft,
