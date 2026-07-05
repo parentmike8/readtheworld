@@ -1569,21 +1569,30 @@ Future<void> showRoomHistorySheet(
 ) {
   return showV2Sheet(
     context,
-    (context) => _RoomHistorySheet(rooms: rooms, room: room),
+    (context) => RoomHistoryView(rooms: rooms, room: room),
   );
 }
 
-class _RoomHistorySheet extends StatefulWidget {
-  const _RoomHistorySheet({required this.rooms, required this.room});
+/// The calendar + category history view. Renders as a bottom-sheet body by
+/// default, or (asScreen) as a full-screen route body so the World's answer
+/// flow can push over it and Exit can pop back here.
+class RoomHistoryView extends StatefulWidget {
+  const RoomHistoryView({
+    super.key,
+    required this.rooms,
+    required this.room,
+    this.asScreen = false,
+  });
 
   final RoomsController rooms;
   final RtwRoom room;
+  final bool asScreen;
 
   @override
-  State<_RoomHistorySheet> createState() => _RoomHistorySheetState();
+  State<RoomHistoryView> createState() => _RoomHistoryViewState();
 }
 
-class _RoomHistorySheetState extends State<_RoomHistorySheet> {
+class _RoomHistoryViewState extends State<RoomHistoryView> {
   List<RoomHistoryDay>? history;
   String catFilter = 'All';
   DateTime? viewMonth;
@@ -1803,17 +1812,17 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
               onAnswer: () {
                 widget.rooms.startWorldDayPlay(
                   card.entry,
-                  entryRoute: '/rooms/$worldRoomId',
+                  entryRoute: '/rooms/${widget.room.id}/history',
                 );
                 if (widget.rooms.play != null) {
-                  Navigator.of(context).pop();
+                  if (!widget.asScreen) Navigator.of(context).pop();
                   context.go('/today/play');
                 }
               },
             ),
             const SizedBox(height: 11),
           ],
-        _ghostDoneButton(context),
+        if (!widget.asScreen) _ghostDoneButton(context),
       ],
     );
   }

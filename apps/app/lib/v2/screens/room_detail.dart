@@ -239,7 +239,13 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   }
 
   void _showHistorySheet(BuildContext context, RoomsController rooms, RtwRoom room) {
-    showRoomHistorySheet(context, rooms, room);
+    // The World answers from history, so it needs a route (push/pop) rather
+    // than a sheet; regular rooms are review-only and keep the sheet.
+    if (room.isWorld) {
+      context.push('/rooms/${room.id}/history');
+    } else {
+      showRoomHistorySheet(context, rooms, room);
+    }
   }
 
 }
@@ -464,7 +470,7 @@ class _WorldProgressCard extends StatelessWidget {
           const SizedBox(height: 6),
           _WorldLink(
             label: 'Browse & answer past questions →',
-            onTap: () => showRoomHistorySheet(context, rooms, room),
+            onTap: () => context.push('/rooms/${room.id}/history'),
           ),
           _WorldLink(
             label: 'How you stack against your peers →',

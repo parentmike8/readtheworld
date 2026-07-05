@@ -31,6 +31,7 @@ import 'v2/screens/play_surface.dart';
 import 'v2/screens/profile_screen.dart';
 import 'v2/screens/room_detail.dart';
 import 'v2/screens/notifications_primer.dart';
+import 'v2/screens/room_history_screen.dart';
 import 'v2/screens/room_review.dart';
 import 'v2/screens/room_reveal.dart';
 import 'v2/screens/rooms_home.dart';
@@ -382,6 +383,12 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         '/rooms/:roomId/review',
         (_, state) =>
             RoomReviewScreen(roomId: state.pathParameters['roomId'] ?? ''),
+        mobileSlide: true,
+      ),
+      _appRoute(
+        '/rooms/:roomId/history',
+        (_, state) =>
+            RoomHistoryScreen(roomId: state.pathParameters['roomId'] ?? ''),
         mobileSlide: true,
       ),
       _appRoute(
