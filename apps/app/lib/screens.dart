@@ -12,6 +12,8 @@ import 'theme/tokens.dart';
 import 'widgets.dart';
 
 final Uri _marketingSiteUri = Uri.parse('https://readtheworld.today');
+final Uri _termsUri = Uri.parse('https://readtheworld.today/terms');
+final Uri _privacyUri = Uri.parse('https://readtheworld.today/privacy');
 
 double _screenTopPadding(BuildContext context, double designTop) {
   if (kIsWeb) return designTop;
@@ -24,6 +26,14 @@ Future<void> _openMarketingSite() async {
     _marketingSiteUri,
     mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
     webOnlyWindowName: '_self',
+  );
+}
+
+Future<void> _openExternalUri(Uri uri) async {
+  await launchUrl(
+    uri,
+    mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
   );
 }
 
@@ -622,16 +632,7 @@ class _AuthForm extends StatelessWidget {
         ],
         if (creating && !phoneMode) ...[
           const SizedBox(height: 12),
-          Center(
-            child: Text(
-              'By continuing you agree to our Terms & Privacy Policy.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                fontSize: 12,
-                color: RtwColors.faint,
-              ),
-            ),
-          ),
+          const _AuthLegalNotice(),
         ],
         const SizedBox(height: 22),
         Row(
@@ -732,6 +733,41 @@ class _AuthForm extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AuthLegalNotice extends StatelessWidget {
+  const _AuthLegalNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium!.copyWith(fontSize: 12, color: RtwColors.faint);
+    final linkStyle = baseStyle.copyWith(
+      color: RtwColors.blue,
+      fontWeight: FontWeight.w800,
+    );
+
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('By creating an account, you agree to our ', style: baseStyle),
+          InkWell(
+            onTap: () => _openExternalUri(_termsUri),
+            child: Text('Terms', style: linkStyle),
+          ),
+          Text(' and ', style: baseStyle),
+          InkWell(
+            onTap: () => _openExternalUri(_privacyUri),
+            child: Text('Privacy Policy', style: linkStyle),
+          ),
+          Text('.', style: baseStyle),
+        ],
+      ),
     );
   }
 }

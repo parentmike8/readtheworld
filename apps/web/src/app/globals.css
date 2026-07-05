@@ -1141,7 +1141,8 @@ button.darkButton,
   text-transform: uppercase;
 }
 
-.supportPage {
+.supportPage,
+.legalPage {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1286,6 +1287,85 @@ button.darkButton,
   padding-top: 24px;
   padding-bottom: 34px;
   border-top: 1px solid #dcd6c9;
+}
+
+.supportFooterLinks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.supportFooterLinks a {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.legalWrap {
+  width: min(840px, 100%);
+  margin: 0 auto;
+  padding: 72px 32px 96px;
+}
+
+.legalIntro {
+  max-width: 720px;
+  margin-bottom: 38px;
+}
+
+.legalIntro h1 {
+  margin-top: 14px;
+  font-size: clamp(48px, 8vw, 78px);
+  line-height: 0.98;
+  letter-spacing: -1px;
+}
+
+.legalIntro p {
+  margin-top: 16px;
+  color: var(--subtext);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.legalIntro span {
+  display: block;
+  margin-top: 16px;
+  color: var(--faint);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.legalSections {
+  display: grid;
+  gap: 26px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 32px;
+  background: var(--card);
+  box-shadow: 0 14px 44px rgba(40, 36, 28, 0.05);
+}
+
+.legalSections section {
+  display: grid;
+  gap: 10px;
+}
+
+.legalSections section + section {
+  padding-top: 26px;
+  border-top: 1px solid var(--border);
+}
+
+.legalSections h2 {
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.legalSections p {
+  color: var(--subtext);
+  font-size: 16px;
+  line-height: 1.65;
 }
 
 .notFoundPage {

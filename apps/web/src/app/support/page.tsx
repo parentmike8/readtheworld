@@ -35,7 +35,11 @@ export default function SupportPage() {
         <Link className="wordmark" href="/">
           read the world<span>.</span>
         </Link>
-        <Link href="/support">Support</Link>
+        <div className="supportFooterLinks">
+          <Link href="/support">Support</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </div>
       </footer>
     </main>
   );

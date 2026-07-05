@@ -810,6 +810,8 @@ export default function Home() {
           </a>
           <div className="footerLinks">
             <a href="/support">Support</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
             <span>&copy; 2026 &middot; A daily game of public opinion</span>
           </div>
         </div>
