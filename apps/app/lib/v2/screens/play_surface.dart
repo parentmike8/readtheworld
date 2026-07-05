@@ -164,7 +164,7 @@ class PlaySurface extends ConsumerWidget {
       autofocus: true,
       onKeyEvent: (node, event) => _onKey(rooms, event),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 54, 22, 26),
+        padding: EdgeInsets.fromLTRB(22, v2ScreenTopInset(context), 22, 26),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
