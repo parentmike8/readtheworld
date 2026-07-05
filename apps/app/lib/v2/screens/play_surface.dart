@@ -1022,8 +1022,7 @@ class _PredictStage extends StatelessWidget {
               if (session.mode == 'intro') ...[
                 Text(
                   'Practice round. Picture 7 people you know answering this too, '
-                  'and predict how many land on your side. That read is the whole '
-                  'game.',
+                  'and predict how many agree with you.',
                   textAlign: TextAlign.center,
                   style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.4),
                 ),
@@ -1585,8 +1584,9 @@ class _RoundSummary extends ConsumerWidget {
                   Text(
                     isWorld
                         ? 'Your World reads are in. Each question reveals and moves '
-                              'your World Read Score once enough people have '
-                              'answered it.'
+                              'your World Read Score once it crosses its answer '
+                              'threshold and The World reaches '
+                              '${_formatThousands(room?.worldGoal ?? 5000)} players.'
                         : 'Nothing is final yet. You can still change your answers '
                               'right up until the reveal.',
                     style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
