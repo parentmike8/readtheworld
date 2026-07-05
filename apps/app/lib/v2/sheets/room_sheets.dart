@@ -1929,13 +1929,10 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                   entryRoute: '/rooms/${widget.room.id}/history',
                 );
                 if (widget.rooms.play != null) {
-                  if (widget.asScreen) {
-                    // Push play over the history route so Exit pops back to it.
-                    context.push('/today/play');
-                  } else {
-                    Navigator.of(context).pop();
-                    context.go('/today/play');
-                  }
+                  // Sheet mode: close the sheet first. Exit returns to the
+                  // recorded entry route (the history screen) either way.
+                  if (!widget.asScreen) Navigator.of(context).pop();
+                  context.go('/today/play');
                 }
               },
             ),

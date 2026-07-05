@@ -77,19 +77,11 @@ class RoomPlayScreen extends ConsumerWidget {
       );
     }
     final exitRoute = rooms.pendingPlayExitRoute;
-    // Deep link with no active session: send home.
+    // Return to wherever play was entered from (recorded entry route).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
       rooms.clearPendingPlayExit();
-      // If play was pushed over its entry (e.g. World history), pop straight
-      // back to it; otherwise navigate to the recorded exit route.
-      if (context.canPop()) {
-        context.pop();
-      } else if (exitRoute != null && exitRoute.isNotEmpty) {
-        context.go(exitRoute);
-      } else {
-        context.go('/rooms');
-      }
+      context.go(exitRoute != null && exitRoute.isNotEmpty ? exitRoute : '/rooms');
     });
     return const V2Scaffold(
       wideWidth: 600,
@@ -1678,7 +1670,10 @@ class _RoundSummary extends ConsumerWidget {
           V2Button(
             'Back to $roomName',
             onPressed: () {
-              context.go('/rooms/$roomId');
+              final entry = rooms.playEntryRoute;
+              context.go(
+                entry != null && entry.isNotEmpty ? entry : '/rooms/$roomId',
+              );
               rooms.dismissSummary(notify: false);
             },
             padding: const EdgeInsets.symmetric(vertical: 17),

@@ -111,8 +111,10 @@ class RoomsController extends ChangeNotifier {
   /// finishing (the screen they entered play from).
   String? pendingPlayExitRoute;
 
-  /// The route play was entered from, used to route [exitPlay] back there.
+  /// The route play was entered from, used to route [exitPlay] and the round
+  /// summary's "Back" back there.
   String? _playEntryRoute;
+  String? get playEntryRoute => _playEntryRoute;
 
   /// One-shot action for rooms home after the intro ('create' | 'join').
   String? pendingHomeAction;
