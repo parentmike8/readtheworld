@@ -1007,8 +1007,9 @@ class _PredictStage extends StatelessWidget {
             children: [
               if (session.mode == 'intro') ...[
                 Text(
-                  'Practice round: imagine seven people in your life are '
-                  'answering too.',
+                  'Practice round. Picture 7 people you know answering this too, '
+                  'and predict how many land on your side. That read is the whole '
+                  'game.',
                   textAlign: TextAlign.center,
                   style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.4),
                 ),
@@ -1042,14 +1043,16 @@ class _PredictStage extends StatelessWidget {
         ),
         _PlaySubmitError(error: rooms.lastError),
         const SizedBox(height: 8),
-        GestureDetector(
-          onTap: rooms.changeAnswer,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '← Change my answer',
-              textAlign: TextAlign.center,
-              style: v2Sans(13, color: RtwV2Colors.subText),
+        Center(
+          child: GestureDetector(
+            onTap: rooms.changeAnswer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '← Change my answer',
+                textAlign: TextAlign.center,
+                style: v2Sans(13, color: RtwV2Colors.subText),
+              ),
             ),
           ),
         ),
@@ -1263,14 +1266,16 @@ class _AnswerSavedStage extends ConsumerWidget {
         ),
         _PlaySubmitError(error: rooms.lastError),
         const SizedBox(height: 8),
-        GestureDetector(
-          onTap: rooms.changeAnswer,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '← Change my answer',
-              textAlign: TextAlign.center,
-              style: v2Sans(13, color: RtwV2Colors.subText),
+        Center(
+          child: GestureDetector(
+            onTap: rooms.changeAnswer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '← Change my answer',
+                textAlign: TextAlign.center,
+                style: v2Sans(13, color: RtwV2Colors.subText),
+              ),
             ),
           ),
         ),

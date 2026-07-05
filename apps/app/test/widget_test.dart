@@ -306,19 +306,21 @@ void main() {
           ..bindings[worldRoomId] = world;
 
         rooms.startRoomPlay(worldRoomId);
-        expect(rooms.play!.stage, PlayStage.answerSaved);
-        expect(rooms.play!.answerSavedReason, 'world');
+        // World always predicts now, so a saved answer reopens on the editable
+        // predict step at question 1 (not the old answer-only "saved" screen).
+        expect(rooms.play!.stage, PlayStage.predict);
+        expect(rooms.play!.answerSavedReason, isNull);
         expect(rooms.play!.side, 'b');
 
         rooms.changeAnswer();
         rooms.commitSide('a');
-        await rooms.lockCurrent(answerOnly: true);
+        await rooms.lockCurrent();
 
         final picks = rooms.play!.results[worldRoomId]!;
         expect(picks, hasLength(3));
         expect(picks.firstWhere((pick) => pick.qid == 'q1').side, 'a');
         expect(rooms.play!.idx, 1);
-        expect(rooms.play!.stage, PlayStage.answerSaved);
+        expect(rooms.play!.stage, PlayStage.predict);
         expect(rooms.play!.side, 'a');
       },
     );
@@ -669,12 +671,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Read all of humanity.'), findsOneWidget);
       expect(
-        find.textContaining('Predictions and scoring unlock'),
+        find.textContaining('scores your World Read Score once it crosses'),
         findsOneWidget,
       );
       expect(find.textContaining('more players to unlock'), findsNothing);
       expect(
-        find.text('Invite friends to help unlock predictions and scoring'),
+        find.text('Invite friends to help unlock world scoring'),
         findsOneWidget,
       );
       expect(find.text('No rooms yet'), findsOneWidget);

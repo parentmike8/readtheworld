@@ -71,7 +71,10 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     final binding = rooms.bindingFor(widget.roomId);
     final room = binding?.room;
     if (room == null) {
-      if (!rooms.loadingRooms) {
+      // The World always exists; never bounce it to /rooms while its doc is
+      // still binding (that was why "Back to The World" landed on Rooms).
+      final isWorldRoom = widget.roomId == worldRoomId;
+      if (!rooms.loadingRooms && !isWorldRoom) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) context.go('/rooms');
         });

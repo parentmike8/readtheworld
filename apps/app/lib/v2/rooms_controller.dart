@@ -785,14 +785,11 @@ class RoomsController extends ChangeNotifier {
     session.pred = _snapPredictionForSession(session, pick.prediction ?? 50);
     session.dragX = 0;
     session.dragging = false;
-    if (pick.prediction == null) {
-      // Only World stays answer-only now (solo always carries a prediction).
-      session.stage = PlayStage.answerSaved;
-      session.answerSavedReason = 'world';
-    } else {
-      session.stage = PlayStage.predict;
-      session.answerSavedReason = null;
-    }
+    // Every room predicts now, so reopening a saved answer lands on the
+    // editable prediction step — even a legacy answer-only pick gets a default
+    // to adjust, rather than the old "saved" dead-end screen.
+    session.stage = PlayStage.predict;
+    session.answerSavedReason = null;
   }
 
   void setDuoPrediction(bool matched) {
