@@ -356,10 +356,7 @@ class _PlayedCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
               fontSize: 15,
               padding: const EdgeInsets.symmetric(vertical: 15),
-              onPressed: () {
-                rooms.startRoomPlay(room.id);
-                if (rooms.play != null) context.go('/today/play');
-              },
+              onPressed: () => context.go('/rooms/${room.id}/review'),
             ),
           ],
         ],

@@ -311,6 +311,12 @@ class _WorldHero extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     onPressed: () {
+                      // Already answered -> read-only review first; otherwise
+                      // straight into the play flow.
+                      if (answered) {
+                        context.go('/rooms/$worldRoomId/review');
+                        return;
+                      }
                       rooms.startRoomPlay(worldRoomId);
                       if (rooms.play != null) context.go('/today/play');
                     },
