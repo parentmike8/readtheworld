@@ -5,6 +5,9 @@ const adminHosts = new Set([
   "admin.localhost",
 ]);
 
+const apexHost = "readtheworld.today";
+const wwwHost = `www.${apexHost}`;
+
 function hostnameFromRequest(request: NextRequest) {
   const forwardedHost =
     request.headers.get("x-forwarded-host") ??
@@ -16,6 +19,15 @@ function hostnameFromRequest(request: NextRequest) {
 
 export function proxy(request: NextRequest) {
   const hostname = hostnameFromRequest(request);
+
+  if (hostname === wwwHost) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.hostname = apexHost;
+    url.port = "";
+    return NextResponse.redirect(url, 301);
+  }
+
   if (!adminHosts.has(hostname)) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
