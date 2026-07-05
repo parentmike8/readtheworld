@@ -49,7 +49,7 @@ class RoomReviewScreen extends ConsumerWidget {
       showNav: false,
       wideWidth: 560,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 26),
+        padding: const EdgeInsets.fromLTRB(22, 54, 22, 26),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -98,7 +98,7 @@ class RoomReviewScreen extends ConsumerWidget {
             V2Button(
               'Edit answers →',
               onPressed: () {
-                rooms.startRoomPlay(roomId);
+                rooms.startRoomPlay(roomId, entryRoute: '/rooms/$roomId/review');
                 if (rooms.play != null) context.go('/today/play');
               },
               padding: const EdgeInsets.symmetric(vertical: 17),

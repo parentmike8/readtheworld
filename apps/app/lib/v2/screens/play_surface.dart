@@ -76,13 +76,13 @@ class RoomPlayScreen extends ConsumerWidget {
         child: _RoundSummary(roomId: rooms.summaryRoomId!),
       );
     }
-    final exitRoomId = rooms.pendingPlayExitRoomId;
+    final exitRoute = rooms.pendingPlayExitRoute;
     // Deep link with no active session: send home.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
-      if (exitRoomId != null) {
-        rooms.clearPendingPlayExitRoom();
-        context.go('/rooms/$exitRoomId');
+      if (exitRoute != null && exitRoute.isNotEmpty) {
+        rooms.clearPendingPlayExit();
+        context.go(exitRoute);
       } else {
         context.go('/rooms');
       }
@@ -334,13 +334,7 @@ class _RoomModeHeader extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         GestureDetector(
-          onTap: () {
-            rooms.exitPlay(
-              returnRoomId: session.mode == 'intro'
-                  ? null
-                  : session.roomId ?? card.roomId,
-            );
-          },
+          onTap: () => rooms.exitPlay(),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(

@@ -107,8 +107,12 @@ class RoomsController extends ChangeNotifier {
   /// Set when a room-mode round just finished — drives the summary screen.
   String? summaryRoomId;
 
-  /// One-shot destination when a user exits room-mode play before finishing.
-  String? pendingPlayExitRoomId;
+  /// One-shot route to return to when a user exits room-mode play before
+  /// finishing (the screen they entered play from).
+  String? pendingPlayExitRoute;
+
+  /// The route play was entered from, used to route [exitPlay] back there.
+  String? _playEntryRoute;
 
   /// One-shot action for rooms home after the intro ('create' | 'join').
   String? pendingHomeAction;
@@ -498,19 +502,21 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void startRoomPlay(String roomId) {
+  void startRoomPlay(String roomId, {String? entryRoute}) {
     final binding = bindingFor(roomId);
     final room = binding?.room;
     final day = roomId == worldRoomId ? worldToday : binding?.today;
     if (room == null || day == null) return;
+    _playEntryRoute = entryRoute;
     _startDayPlay(room, day, binding?.myTodayAnswer);
   }
 
   /// The World lets readers answer a past, not-yet-revealed day (instant lock,
   /// no 24h gap). Locks against that day's key.
-  void startWorldDayPlay(RoomHistoryDay history) {
+  void startWorldDayPlay(RoomHistoryDay history, {String? entryRoute}) {
     final room = worldRoom;
     if (room == null) return;
+    _playEntryRoute = entryRoute;
     _startDayPlay(room, history.day, history.myAnswer);
   }
 
@@ -549,14 +555,24 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void exitPlay({String? returnRoomId}) {
-    pendingPlayExitRoomId = returnRoomId;
+  /// Exit mid-round: return to wherever this play session was entered from
+  /// (e.g. the review page), falling back to the room detail.
+  void exitPlay() {
+    final session = play;
+    if (session != null && session.mode != 'intro') {
+      final roomId = session.roomId;
+      pendingPlayExitRoute = _playEntryRoute ??
+          (roomId != null && roomId.isNotEmpty ? '/rooms/$roomId' : '/rooms');
+    } else {
+      pendingPlayExitRoute = null;
+    }
+    _playEntryRoute = null;
     play = null;
     notifyListeners();
   }
 
-  void clearPendingPlayExitRoom() {
-    pendingPlayExitRoomId = null;
+  void clearPendingPlayExit() {
+    pendingPlayExitRoute = null;
   }
 
   /// Intro answers lock straight to The World (auto-enrolls on first
