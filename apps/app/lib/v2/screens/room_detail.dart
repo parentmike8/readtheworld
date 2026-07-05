@@ -71,10 +71,15 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     final binding = rooms.bindingFor(widget.roomId);
     final room = binding?.room;
     if (room == null) {
-      // The World always exists; never bounce it to /rooms while its doc is
-      // still binding (that was why "Back to The World" landed on Rooms).
+      // Only bounce to /rooms for a genuinely unknown room. A room you're in
+      // (binding present) or The World may have room==null for a frame right
+      // after navigation while its doc streams — show a spinner, don't bounce.
+      // (That brief bounce was why exits/backs kept landing on Rooms.)
       final isWorldRoom = widget.roomId == worldRoomId;
-      if (!rooms.loadingRooms && !isWorldRoom) {
+      final known = isWorldRoom ||
+          binding != null ||
+          rooms.roomOrder.contains(widget.roomId);
+      if (!rooms.loadingRooms && !known) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) context.go('/rooms');
         });

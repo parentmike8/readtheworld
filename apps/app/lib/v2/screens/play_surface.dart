@@ -1670,10 +1670,7 @@ class _RoundSummary extends ConsumerWidget {
           V2Button(
             'Back to $roomName',
             onPressed: () {
-              final entry = rooms.playEntryRoute;
-              context.go(
-                entry != null && entry.isNotEmpty ? entry : '/rooms/$roomId',
-              );
+              context.go('/rooms/$roomId');
               rooms.dismissSummary(notify: false);
             },
             padding: const EdgeInsets.symmetric(vertical: 17),
