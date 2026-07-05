@@ -42,14 +42,11 @@ class _WorldLeaderboardScreenState
           children: [
             Row(
               children: [
-                GestureDetector(
+                V2BackButton(
+                  label: 'The World',
                   onTap: () => context.canPop()
                       ? context.pop()
                       : context.go('/rooms/$worldRoomId'),
-                  child: Text(
-                    '← The World',
-                    style: v2Sans(14, color: RtwV2Colors.subText),
-                  ),
                 ),
               ],
             ),

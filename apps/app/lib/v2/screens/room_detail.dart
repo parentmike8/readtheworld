@@ -104,12 +104,10 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: () => context.go('/rooms'),
-                  child: Text(
-                    '← Rooms',
-                    style: v2Sans(15, color: RtwV2Colors.subText, weight: FontWeight.w600),
-                  ),
+                V2BackButton(
+                  label: 'Rooms',
+                  onTap: () =>
+                      context.canPop() ? context.pop() : context.go('/rooms'),
                 ),
                 GestureDetector(
                   onTap: () => showRoomMenuSheet(

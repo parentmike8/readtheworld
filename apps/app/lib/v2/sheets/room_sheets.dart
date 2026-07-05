@@ -1000,13 +1000,17 @@ Future<void> showRoomMenuSheet(
           _sheetEyebrow('Room'),
           _sheetTitle(room?.name ?? 'Room'),
           const SizedBox(height: 18),
-          _SettingToggleRow(
-            title: 'Show my answers',
-            subtitle: 'Let the room see your picks on the reveal',
-            value: revealMine,
-            onChanged: (next) => rooms.setAnswerVisibility(roomId, next),
-          ),
-          const SizedBox(height: 14),
+          // "Show my answers" governs whether the room sees your picks on the
+          // reveal — meaningless for The World (its reveal is the global split).
+          if (room?.isWorld != true) ...[
+            _SettingToggleRow(
+              title: 'Show my answers',
+              subtitle: 'Let the room see your picks on the reveal',
+              value: revealMine,
+              onChanged: (next) => rooms.setAnswerVisibility(roomId, next),
+            ),
+            const SizedBox(height: 14),
+          ],
           Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(

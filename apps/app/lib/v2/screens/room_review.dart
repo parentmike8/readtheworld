@@ -55,12 +55,11 @@ class RoomReviewScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                GestureDetector(
-                  onTap: () => context.go('/rooms/$roomId'),
-                  child: Text(
-                    '← $roomName',
-                    style: v2Sans(14, color: RtwV2Colors.subText),
-                  ),
+                V2BackButton(
+                  label: roomName,
+                  onTap: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/rooms/$roomId'),
                 ),
               ],
             ),

@@ -396,6 +396,41 @@ class _TrianglePainter extends CustomPainter {
 
 /// v2 page scaffold: phone-column surface centered on wide screens
 /// (spec §8), optional bottom nav, prototype fade-up entrance.
+/// Sleek nav back control — a thin iOS-style chevron plus a short label,
+/// replacing the long "←" arrow.
+class V2BackButton extends StatelessWidget {
+  const V2BackButton({super.key, required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 8, right: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.arrow_back_ios_new,
+              size: 14,
+              color: RtwV2Colors.subText,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: v2Sans(14.5, color: RtwV2Colors.subText, weight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Top inset for full-screen v2 surfaces, matching the main tabs' margin so
 /// content clears the status bar / dynamic island consistently.
 double v2ScreenTopInset(BuildContext context) {
