@@ -1474,81 +1474,7 @@ Future<void> showQuestionDetailSheet(
           ),
         ],
         const SizedBox(height: 16),
-        _sheetEyebrow('Who read it best · ${sorted.length} played'),
-        const SizedBox(height: 10),
-        Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RtwV2Colors.card,
-            border: Border.all(color: RtwV2Colors.border),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              for (final (index, row) in sorted.indexed) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-                  color: row.isMe ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 26,
-                        child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
-                      ),
-                      Expanded(
-                        child: Text(
-                          row.isMe ? 'You' : row.displayName,
-                          style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
-                        ),
-                      ),
-                      if (row.reveals &&
-                          row.picks.any((pick) => pick.qid == question.qid)) ...[
-                        Builder(builder: (context) {
-                          final pick =
-                              row.picks.firstWhere((pick) => pick.qid == question.qid);
-                          final isA = pick.side == 'a';
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
-                                  .withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(
-                              isA ? question.optA : question.optB,
-                              style: v2Sans(
-                                12,
-                                color: isA
-                                    ? RtwV2Colors.blueTextDeep
-                                    : RtwV2Colors.clayTextDeep,
-                                weight: FontWeight.w600,
-                              ),
-                            ),
-                          );
-                        }),
-                        const SizedBox(width: 10),
-                      ],
-                      SizedBox(
-                        width: 34,
-                        child: Text(
-                          '${row.accuracies[question.qid] ?? '—'}',
-                          textAlign: TextAlign.right,
-                          style: v2Serif(18),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (index < sorted.length - 1) const V2Hairline(),
-              ],
-              if (sorted.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('No answers to show.', style: v2Sans(13, color: RtwV2Colors.muted)),
-                ),
-            ],
-          ),
-        ),
+        _ReadItBestList(rows: sorted, question: question),
         const SizedBox(height: 10),
         Text(
           'Answers show only for members who share them.',
@@ -1558,6 +1484,194 @@ Future<void> showQuestionDetailSheet(
       ],
     );
   });
+}
+
+/// "Who read it best" list, built to scale to large rooms: a search field
+/// appears past a threshold, and rows paginate with a "show more" so a 50+ (or
+/// far larger) room never renders hundreds of rows at once [Mike].
+class _ReadItBestList extends StatefulWidget {
+  const _ReadItBestList({required this.rows, required this.question});
+
+  final List<RoomDayDetailRow> rows;
+  final RoomDayQuestion question;
+
+  @override
+  State<_ReadItBestList> createState() => _ReadItBestListState();
+}
+
+class _ReadItBestListState extends State<_ReadItBestList> {
+  static const _pageSize = 25;
+  static const _searchThreshold = 12;
+  int _limit = _pageSize;
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final all = widget.rows;
+    // Full-list rank (#1..#N) preserved even when searching/paginating.
+    final rankOf = <String, int>{
+      for (final (index, row) in all.indexed) row.uid: index + 1,
+    };
+    final query = _query.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? all
+        : all.where((row) {
+            final name = row.isMe ? 'you' : row.displayName.toLowerCase();
+            return name.contains(query);
+          }).toList();
+    final visible = filtered.take(_limit).toList();
+    final hasMore = filtered.length > _limit;
+    final showSearch = all.length > _searchThreshold;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sheetEyebrow('Who read it best · ${all.length} played'),
+        const SizedBox(height: 10),
+        if (showSearch) ...[
+          TextField(
+            onChanged: (value) => setState(() {
+              _query = value;
+              _limit = _pageSize;
+            }),
+            style: v2Sans(14, color: RtwV2Colors.inkSoft),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search players',
+              hintStyle: v2Sans(14, color: RtwV2Colors.faint),
+              prefixIcon: const Icon(Icons.search, size: 18, color: RtwV2Colors.muted),
+              filled: true,
+              fillColor: RtwV2Colors.card,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: RtwV2Colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: RtwV2Colors.blue),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: RtwV2Colors.card,
+            border: Border.all(color: RtwV2Colors.border),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              for (final (index, row) in visible.indexed) ...[
+                _ReadItBestRow(
+                  row: row,
+                  rank: rankOf[row.uid] ?? index + 1,
+                  question: widget.question,
+                ),
+                if (index < visible.length - 1) const V2Hairline(),
+              ],
+              if (visible.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    query.isEmpty ? 'No answers to show.' : 'No players match.',
+                    style: v2Sans(13, color: RtwV2Colors.muted),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (hasMore) ...[
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => setState(() => _limit += _pageSize),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              alignment: Alignment.center,
+              child: Text(
+                'Show ${(filtered.length - _limit).clamp(0, _pageSize)} more',
+                style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ReadItBestRow extends StatelessWidget {
+  const _ReadItBestRow({
+    required this.row,
+    required this.rank,
+    required this.question,
+  });
+
+  final RoomDayDetailRow row;
+  final int rank;
+  final RoomDayQuestion question;
+
+  @override
+  Widget build(BuildContext context) {
+    final showsPick =
+        row.reveals && row.picks.any((pick) => pick.qid == question.qid);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      color: row.isMe ? RtwV2Colors.meterBlue.withValues(alpha: 0.08) : null,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Text('#$rank', style: v2Mono(13, letterSpacing: 0)),
+          ),
+          Expanded(
+            child: Text(
+              row.isMe ? 'You' : row.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
+            ),
+          ),
+          if (showsPick) ...[
+            Builder(builder: (context) {
+              final pick =
+                  row.picks.firstWhere((pick) => pick.qid == question.qid);
+              final isA = pick.side == 'a';
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
+                      .withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Text(
+                  isA ? question.optA : question.optB,
+                  style: v2Sans(
+                    12,
+                    color: isA ? RtwV2Colors.blueTextDeep : RtwV2Colors.clayTextDeep,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(width: 10),
+          ],
+          SizedBox(
+            width: 34,
+            child: Text(
+              '${row.accuracies[question.qid] ?? '—'}',
+              textAlign: TextAlign.right,
+              style: v2Serif(18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── ROOM HISTORY (calendar + per-question cards) ────────────────────────

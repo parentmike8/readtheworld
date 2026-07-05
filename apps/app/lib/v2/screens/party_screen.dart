@@ -561,6 +561,8 @@ void _showPartyMenuSheet(BuildContext context, PartyController party) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (context) => _PartyMenuSheet(party: party),
   );

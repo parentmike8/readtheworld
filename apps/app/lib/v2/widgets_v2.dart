@@ -672,6 +672,8 @@ Future<T?> showV2Sheet<T>(BuildContext context, WidgetBuilder builder) {
     context: context,
     backgroundColor: RtwV2Colors.paper,
     barrierColor: const Color(0x6B1C1A16),
+    isDismissible: true,
+    enableDrag: true,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
