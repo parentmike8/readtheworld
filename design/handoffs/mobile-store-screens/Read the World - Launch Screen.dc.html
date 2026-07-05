@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>*{ box-sizing:border-box; } body{ margin:0; background:#CDC7BA; }</style>
+</helmet>
+
+<div style="padding:60px 70px 90px; display:flex; flex-direction:column; gap:64px; font-family:'IBM Plex Mono',monospace; width:max-content;">
+
+  <div style="max-width:1000px;">
+    <div style="font-size:13px; letter-spacing:2px; color:#7C7768;">iOS LAUNCH SCREEN &middot; v1</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:38px; letter-spacing:-0.8px; color:#211F1A; margin-top:10px;">The first thing they see</div>
+    <div style="font-family:'Newsreader',serif; font-style:normal; font-size:16px; color:#5F5B52; margin-top:10px; line-height:1.55; max-width:860px; font-family:'IBM Plex Mono',monospace; letter-spacing:0;">Flat paper, centered loading lockup, the dot resting on its line. Calm, certain, on-brand. Each frame below is at exact device pixel size. Screenshot a single frame to export it. Full-bleed, RGB, no transparency (safe for storyboard scaleAspectFill or asset-catalog LaunchImage).</div>
+  </div>
+
+  <!-- ROW: full-bleed device launch images -->
+  <div style="display:flex; gap:80px; align-items:flex-start;">
+
+    <!-- iPhone 6.9" Pro Max 1290x2796 -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:13px; letter-spacing:1.4px; color:#5F5B52;">iPHONE 6.9&Prime; &middot; 1290 &times; 2796</div>
+      <div data-screen-label="Launch iPhone 6.9" style="width:1290px; height:2796px; background:#F3F0E9; position:relative; display:flex; align-items:center; justify-content:center;">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <div style="position:relative; display:inline-block;">
+            <div style="font-family:'Newsreader',serif; font-weight:500; font-size:150px; letter-spacing:-4px; color:#211F1A; line-height:1;">read the world<span style="color:#B06A47;">.</span></div>
+            <div style="position:absolute; left:4px; right:4px; bottom:-40px; height:3px; background:#E0DACE;"></div>
+            <div style="position:absolute; left:64%; bottom:-52px; width:27px; height:27px; border-radius:50%; background:#B06A47;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- iPhone 6.1" Pro 1179x2556 -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:13px; letter-spacing:1.4px; color:#5F5B52;">iPHONE 6.1&Prime; &middot; 1179 &times; 2556</div>
+      <div data-screen-label="Launch iPhone 6.1" style="width:1179px; height:2556px; background:#F3F0E9; position:relative; display:flex; align-items:center; justify-content:center;">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <div style="position:relative; display:inline-block;">
+            <div style="font-family:'Newsreader',serif; font-weight:500; font-size:138px; letter-spacing:-3.6px; color:#211F1A; line-height:1;">read the world<span style="color:#B06A47;">.</span></div>
+            <div style="position:absolute; left:4px; right:4px; bottom:-38px; height:3px; background:#E0DACE;"></div>
+            <div style="position:absolute; left:64%; bottom:-49px; width:25px; height:25px; border-radius:50%; background:#B06A47;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- iPad 12.9" 2048x2732 -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:13px; letter-spacing:1.4px; color:#5F5B52;">iPAD 12.9&Prime; &middot; 2048 &times; 2732</div>
+      <div data-screen-label="Launch iPad 12.9" style="width:2048px; height:2732px; background:#F3F0E9; position:relative; display:flex; align-items:center; justify-content:center;">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <div style="position:relative; display:inline-block;">
+            <div style="font-family:'Newsreader',serif; font-weight:500; font-size:180px; letter-spacing:-5px; color:#211F1A; line-height:1;">read the world<span style="color:#B06A47;">.</span></div>
+            <div style="position:absolute; left:6px; right:6px; bottom:-48px; height:4px; background:#E0DACE;"></div>
+            <div style="position:absolute; left:64%; bottom:-63px; width:32px; height:32px; border-radius:50%; background:#B06A47;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ROW: transparent centered logo (for storyboard imageView) -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <div style="font-size:13px; letter-spacing:1.4px; color:#5F5B52;">CENTERED LOGO &middot; TRANSPARENT &middot; @3x 1044 &times; 300 (crop this)</div>
+    <div data-screen-label="Launch Logo Transparent" style="width:1044px; height:300px; background:transparent; position:relative; display:flex; align-items:center; justify-content:center; outline:1px dashed #B3AC9E;">
+      <div style="position:relative; display:inline-block;">
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:132px; letter-spacing:-3.5px; color:#211F1A; line-height:1;">read the world<span style="color:#B06A47;">.</span></div>
+        <div style="position:absolute; left:4px; right:4px; bottom:-30px; height:3px; background:#E0DACE;"></div>
+        <div style="position:absolute; left:64%; bottom:-40px; width:24px; height:24px; border-radius:50%; background:#B06A47;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,98 @@
+[
+  {
+    "file": "iphone-6.5-1284x2778/01-answer.png",
+    "label": "AS 1 Answer",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "iphone-6.5-1284x2778/02-predict.png",
+    "label": "AS 2 Predict",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "iphone-6.5-1284x2778/03-reveal.png",
+    "label": "AS 3 Reveal",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "iphone-6.5-1284x2778/04-read-score.png",
+    "label": "AS 4 Score",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "iphone-6.5-1284x2778/05-ways-to-play.png",
+    "label": "AS 5 Ways",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "iphone-6.5-1284x2778/06-party-mode.png",
+    "label": "AS 6 Party",
+    "width": 1284,
+    "height": 2778,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/01-answer.png",
+    "label": "iPad 1 Answer",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/02-predict.png",
+    "label": "iPad 2 Predict",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/03-reveal.png",
+    "label": "iPad 3 Reveal",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/04-read-score.png",
+    "label": "iPad 4 Score",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/05-ways-to-play.png",
+    "label": "iPad 5 Ways",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  },
+  {
+    "file": "ipad-13-2064x2752/06-party-mode.png",
+    "label": "iPad 6 Party",
+    "width": 2064,
+    "height": 2752,
+    "format": "png",
+    "hasAlpha": false
+  }
+]

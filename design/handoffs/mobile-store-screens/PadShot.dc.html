@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>*{ box-sizing:border-box; }</style>
+</helmet>
+
+<div style="{{ canvasStyle }}">
+  <div style="{{ captionWrapStyle }}">
+    <div style="{{ kickerStyle }}">{{ kicker }}</div>
+    <div style="{{ captionStyle }}">{{ caption }}</div>
+  </div>
+
+  <div style="{{ bezelBoxStyle }}">
+    <div style="{{ bezelStyle }}">
+      <div style="position:absolute; inset:0; border-radius:52px; background:#16150F; padding:20px; box-shadow:0 2px 0 rgba(255,255,255,0.10) inset, 0 40px 90px rgba(20,18,12,0.28);">
+        <div style="position:relative; width:1024px; height:1326px; border-radius:30px; overflow:hidden; background:#F3F0E9; display:flex;">
+
+          <!-- LEFT RAIL -->
+          <div style="width:352px; flex-shrink:0; border-right:1px solid #E4DFD4; background:#EFEADF; display:flex; flex-direction:column; padding:46px 34px 40px;">
+            <div style="font-family:'Newsreader',serif; font-size:27px; font-weight:500; letter-spacing:-0.5px; color:#211F1A;">read the world<span style="color:oklch(0.55 0.105 47);">.</span></div>
+            <div style="margin-top:52px; display:flex; flex-direction:column; gap:8px;">
+              <div style="{{ navRoomsStyle }}"><svg width="22" height="22" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/></svg><span>Rooms</span></div>
+              <div style="{{ navPartyStyle }}"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 001.52.85l10.5-6.5a1 1 0 000-1.7l-10.5-6.5A1 1 0 008 5.5z" fill="currentColor"/></svg><span>Party</span></div>
+              <div style="{{ navYouStyle }}"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke="currentColor" fill="none" stroke-width="1.7"/><path d="M12 3.5a13 13 0 000 17 13 13 0 000-17" stroke="currentColor" fill="none" stroke-width="1.7"/><line x1="3.5" y1="12" x2="20.5" y2="12" stroke="currentColor" stroke-width="1.7"/></svg><span>You</span></div>
+            </div>
+            <div style="margin-top:38px; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:18px; padding:20px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.4px; color:#8A8475;">TODAY</div>
+              <div style="font-family:'Newsreader',serif; font-size:20px; font-weight:500; color:#211F1A; margin-top:8px; line-height:1.2;">3 questions in The Studio</div>
+              <div style="display:flex; gap:5px; margin-top:14px;"><div style="flex:1; height:4px; border-radius:2px; background:oklch(0.50 0.10 256);"></div><div style="flex:1; height:4px; border-radius:2px; background:#E1DBCE;"></div><div style="flex:1; height:4px; border-radius:2px; background:#E1DBCE;"></div></div>
+            </div>
+            <div style="margin-top:auto; display:flex; align-items:center; gap:12px; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:16px; padding:14px 16px;">
+              <div><div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1.2px; color:#8A8475;">READ SCORE</div><div style="font-family:'Newsreader',serif; font-size:26px; font-weight:500; color:#211F1A; line-height:1; margin-top:3px;">1,840</div></div>
+              <span style="margin-left:auto; font-family:'Hanken Grotesk',sans-serif; font-size:12px; font-weight:700; color:oklch(0.46 0.10 256); background:oklch(0.55 0.10 256 / 0.12); padding:5px 10px; border-radius:999px;">Top 6%</span>
+            </div>
+          </div>
+
+          <!-- RIGHT PANE -->
+          <div style="flex:1; position:relative;">
+
+            <!-- ANSWER -->
+            <sc-if value="{{ isAnswer }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:56px 70px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.8px; color:oklch(0.55 0.105 47); align-self:flex-start;">FOOD &middot; THE STUDIO</div>
+                <div style="width:100%; max-width:540px; margin-top:auto; margin-bottom:auto; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:32px; box-shadow:0 24px 60px rgba(40,36,28,0.10); padding:44px 42px; display:flex; flex-direction:column;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:2px; color:oklch(0.55 0.105 47);">FOOD</div>
+                  <div style="font-family:'Newsreader',serif; font-weight:500; font-size:44px; line-height:1.15; letter-spacing:-0.6px; color:#211F1A; margin:28px 0 40px;">Is a hot dog a sandwich?</div>
+                  <div style="display:flex; gap:16px;">
+                    <div style="flex:1; text-align:center; padding:22px; border:2px solid #E4DFD4; border-radius:20px; font-family:'Newsreader',serif; font-size:30px; color:#211F1A;">No</div>
+                    <div style="flex:1; text-align:center; padding:22px; border:2px solid oklch(0.50 0.10 256); background:oklch(0.55 0.10 256 / 0.08); border-radius:20px; font-family:'Newsreader',serif; font-size:30px; color:oklch(0.42 0.09 256);">Yes</div>
+                  </div>
+                </div>
+                <div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; color:#A89F8C; align-self:center;">Tap or swipe &mdash; then predict how the room answers.</div>
+              </div>
+            </sc-if>
+
+            <!-- PREDICT -->
+            <sc-if value="{{ isPredict }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:56px 74px; text-align:center;">
+                <div style="align-self:center; display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6;"><span style="width:11px; height:11px; border-radius:50%; background:oklch(0.50 0.10 256);"></span><span style="font-family:'Hanken Grotesk',sans-serif; font-size:16px; color:#4A463E;">You said <b style="color:oklch(0.46 0.10 256);">Yes</b></span></div>
+                <div style="font-family:'Newsreader',serif; font-weight:500; font-size:34px; line-height:1.25; color:#2C2A24; margin-top:34px;">How many will agree with you?</div>
+                <div style="font-family:'Hanken Grotesk',sans-serif; font-size:22px; font-weight:700; color:oklch(0.46 0.10 256); margin-top:12px;">Will pick &ldquo;Yes&rdquo;</div>
+                <div style="line-height:1; margin-top:22px;"><span style="font-family:'Newsreader',serif; font-size:110px; font-weight:500; color:oklch(0.46 0.10 256);">2</span><span style="font-family:'Newsreader',serif; font-size:44px; color:#8A8475;">&nbsp;of 3</span></div>
+                <div style="position:relative; height:84px; border-radius:22px; background:#E6E0D3; margin-top:34px; overflow:hidden;">
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:66.6%; background:oklch(0.55 0.10 256 / 0.85);"></div>
+                  <span style="position:absolute; left:0%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:33.3%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:66.6%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:100%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <div style="position:absolute; top:0; bottom:0; left:66.6%; transform:translateX(-50%); display:flex; align-items:center;"><div style="width:8px; height:40px; border-radius:4px; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,0.28);"></div></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.5px; color:#8A8475; margin-top:12px;"><span>NO ONE</span><span>ALL 3</span></div>
+                <button style="margin-top:40px; width:100%; padding:22px; border:none; border-radius:20px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:19px; font-weight:600;">Submit</button>
+              </div>
+            </sc-if>
+
+            <!-- REVEAL -->
+            <sc-if value="{{ isReveal }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:56px 74px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.8px; color:oklch(0.55 0.105 47);">YESTERDAY &middot; THE STUDIO</div>
+                <div style="font-family:'Newsreader',serif; font-weight:500; font-size:38px; line-height:1.15; letter-spacing:-0.5px; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+                <div style="position:relative; height:88px; border-radius:20px; background:#E6E0D3; overflow:hidden; margin-top:44px;">
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:84%; background:oklch(0.55 0.105 47);"></div>
+                  <div style="position:absolute; left:26px; top:50%; transform:translateY(-50%); font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:1.8px; color:#FBFAF6;">THE ROOM</div>
+                  <div style="position:absolute; top:-6px; bottom:-6px; left:71%; width:5px; margin-left:-2.5px; background:oklch(0.50 0.10 256);"></div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:10px;"><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; color:oklch(0.42 0.09 256); background:oklch(0.55 0.10 256 / 0.13); padding:6px 14px; border-radius:11px;">YOU &middot; 71%</span></div>
+                <div style="font-family:'Newsreader',serif; font-size:34px; line-height:1.35; margin-top:26px; color:#211F1A;"><span style="color:oklch(0.55 0.105 47); font-weight:600;">84% of the room said Yes.</span> You read <span style="color:oklch(0.50 0.10 256); font-weight:600;">71%.</span></div>
+                <div style="margin-top:32px; background:#FBFAF6; border:1px solid #E4DFD4; border-radius:22px; padding:28px 30px; display:flex; align-items:center; justify-content:space-between;">
+                  <div><div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.6px; color:#8A8475;">READ SCORE</div><div style="font-family:'Newsreader',serif; font-size:64px; font-weight:500; line-height:1; margin-top:8px; color:#211F1A;">87<span style="font-size:26px; color:#8A8475;"> / 100</span></div></div>
+                  <div style="font-family:'Newsreader',serif; font-style:italic; font-size:30px; color:oklch(0.55 0.105 47);">A good read.</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- SCORE -->
+            <sc-if value="{{ isScore }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:56px 74px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.8px; color:#8A8475;">YOUR READ SCORE</div>
+                <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:16px;">
+                  <div style="font-family:'Newsreader',serif; font-size:132px; font-weight:500; line-height:0.85; color:#211F1A;">1,840</div>
+                  <div style="font-family:'Hanken Grotesk',sans-serif; font-size:17px; color:oklch(0.46 0.10 256); font-weight:700; background:oklch(0.55 0.10 256 / 0.12); padding:8px 16px; border-radius:999px;">Top 6%</div>
+                </div>
+                <div style="font-family:'Hanken Grotesk',sans-serif; font-size:17px; color:#6E6A60; margin-top:16px;">Across 142 questions answered.</div>
+                <div style="margin-top:40px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.6px; color:#8A8475;">ACCURACY BY TOPIC</div>
+                <div style="margin-top:24px; display:flex; flex-direction:column; gap:26px;">
+                  <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:20px; margin-bottom:10px; color:#23211C;"><span>Technology</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">91</span></div><div style="height:12px; border-radius:6px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:91%; background:oklch(0.50 0.10 256); border-radius:6px;"></div></div></div>
+                  <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:20px; margin-bottom:10px; color:#23211C;"><span>Science</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">88</span></div><div style="height:12px; border-radius:6px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:88%; background:oklch(0.50 0.10 256); border-radius:6px;"></div></div></div>
+                  <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:20px; margin-bottom:10px; color:#23211C;"><span>Money</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">84</span></div><div style="height:12px; border-radius:6px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:84%; background:oklch(0.50 0.10 256); border-radius:6px;"></div></div></div>
+                  <div><div style="display:flex; justify-content:space-between; font-family:'Hanken Grotesk',sans-serif; font-size:20px; margin-bottom:10px; color:#23211C;"><span>Culture</span><span style="font-family:'IBM Plex Mono',monospace; color:#8A8475;">79</span></div><div style="height:12px; border-radius:6px; background:#E6E0D3; overflow:hidden;"><div style="height:100%; width:79%; background:oklch(0.50 0.10 256); border-radius:6px;"></div></div></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- WAYS -->
+            <sc-if value="{{ isWays }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:56px 74px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1.8px; color:#8A8475;">HOW IT WORKS</div>
+                <div style="font-family:'Newsreader',serif; font-weight:500; font-size:56px; line-height:1.02; letter-spacing:-1px; color:#211F1A; margin-top:18px;">3 ways to play</div>
+                <div style="font-family:'Hanken Grotesk',sans-serif; font-size:19px; color:#6E6A60; margin-top:14px;">How well do you know your people?</div>
+                <div style="margin-top:52px; display:flex; flex-direction:column; gap:40px;">
+                  <div style="display:flex; align-items:center; gap:26px;"><div style="width:46px; flex-shrink:0; display:flex; justify-content:center; color:oklch(0.50 0.105 47);"><svg width="38" height="38" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 001.52.85l10.5-6.5a1 1 0 000-1.7l-10.5-6.5A1 1 0 008 5.5z" fill="currentColor"/></svg></div><div><div style="font-family:'Newsreader',serif; font-weight:500; font-size:40px; line-height:1; color:#211F1A;">Party</div><div style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:0.5px; color:#8A8475; margin-top:9px;">In the room with you</div></div></div>
+                  <div style="display:flex; align-items:center; gap:26px;"><div style="width:46px; flex-shrink:0; display:flex; justify-content:center; color:oklch(0.46 0.10 256);"><svg width="36" height="36" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" fill="none" stroke-width="1.7"/></svg></div><div><div style="font-family:'Newsreader',serif; font-weight:500; font-size:40px; line-height:1; color:#211F1A;">Rooms</div><div style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:0.5px; color:#8A8475; margin-top:9px;">Friends, family or coworkers</div><div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.5px; color:#B4AC99; margin-top:5px;">3 questions every day</div></div></div>
+                  <div style="display:flex; align-items:center; gap:26px;"><div style="width:46px; flex-shrink:0; display:flex; justify-content:center; color:oklch(0.44 0.07 155);"><svg width="38" height="38" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" fill="none" stroke-width="1.6"/><path d="M12 3a14 14 0 000 18 14 14 0 000-18" stroke="currentColor" fill="none" stroke-width="1.6"/><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.6"/></svg></div><div><div style="display:flex; align-items:center; gap:12px;"><div style="font-family:'Newsreader',serif; font-weight:500; font-size:40px; line-height:1; color:#211F1A;">The World</div><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:1px; color:oklch(0.42 0.07 155); background:oklch(0.50 0.07 155 / 0.12); padding:4px 10px; border-radius:7px;">SOON</span></div><div style="font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:0.5px; color:#8A8475; margin-top:9px;">Everyone, everywhere</div><div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.5px; color:#B4AC99; margin-top:5px;">3 questions every day</div></div></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- PARTY -->
+            <sc-if value="{{ isParty }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:56px 74px; text-align:center;">
+                <div style="display:flex; align-items:center; justify-content:space-between; text-align:left;">
+                  <div style="display:flex; align-items:center; gap:12px;"><div style="width:38px; height:38px; border-radius:11px; background:oklch(0.55 0.105 47); display:flex; align-items:center; justify-content:center; font-family:'Newsreader',serif; font-size:19px; color:#fff;">S</div><span style="font-family:'Hanken Grotesk',sans-serif; font-size:20px; font-weight:700; color:#23211C;">Sam&rsquo;s turn</span></div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1px; color:#8A8475;">ROUND 2 OF 3</div>
+                </div>
+                <div style="font-family:'Newsreader',serif; font-weight:500; font-size:40px; line-height:1.15; letter-spacing:-0.5px; color:#211F1A; margin-top:34px;">Is it rude to keep your phone on the table at dinner?</div>
+                <div style="font-family:'Newsreader',serif; font-weight:500; font-size:26px; color:#2C2A24; margin-top:36px;">How many of the 4 will say Yes?</div>
+                <div style="line-height:1; margin-top:16px;"><span style="font-family:'Newsreader',serif; font-size:100px; font-weight:500; color:oklch(0.46 0.10 256);">3</span><span style="font-family:'Newsreader',serif; font-size:40px; color:#8A8475;">&nbsp;of 4</span></div>
+                <div style="position:relative; height:80px; border-radius:22px; background:#E6E0D3; margin-top:26px; overflow:hidden;">
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:75%; background:oklch(0.55 0.10 256 / 0.85);"></div>
+                  <span style="position:absolute; left:0%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:25%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:50%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:75%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <span style="position:absolute; left:100%; top:16px; bottom:16px; width:2px; margin-left:-1px; background:rgba(74,70,62,0.18);"></span>
+                  <div style="position:absolute; top:0; bottom:0; left:75%; transform:translateX(-50%); display:flex; align-items:center;"><div style="width:8px; height:38px; border-radius:4px; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,0.28);"></div></div>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:center; gap:18px; margin-top:38px; font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:0.5px; color:#8A8475;"><span>SAM 4</span><span style="color:#D8D2C5;">&middot;</span><span>JO 3</span><span style="color:#D8D2C5;">&middot;</span><span>MAYA 2</span></div>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:2064,&quot;height&quot;:2752},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;answer&quot;,&quot;predict&quot;,&quot;reveal&quot;,&quot;score&quot;,&quot;ways&quot;,&quot;party&quot;],&quot;default&quot;:&quot;answer&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;caption&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Every day, three questions.&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;kicker&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;ONE SHARED FEED&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;bg&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#E9E4D8&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;capColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#211F1A&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;kickerColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;oklch(0.55 0.105 47)&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;w&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2064,&quot;tsType&quot;:&quot;number&quot;},&quot;h&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2752,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props || {};
+    const w = +p.w || 2064, h = +p.h || 2752;
+    const screen = p.screen || 'answer';
+    const bg = p.bg || '#E9E4D8';
+    const capColor = p.capColor || '#211F1A';
+    const kickerColor = p.kickerColor || 'oklch(0.55 0.105 47)';
+    const BEZ_W = 1068, BEZ_H = 1370;
+    const scale = Math.min(w * 0.78 / BEZ_W, h * 0.66 / BEZ_H);
+    const bw = BEZ_W * scale, bh = BEZ_H * scale;
+    const headSize = Math.max(72, Math.round(w * 0.068));
+    const kickSize = Math.max(24, Math.round(w * 0.017));
+    const navBase = { display: 'flex', alignItems: 'center', gap: '14px', padding: '13px 16px', borderRadius: '13px', fontFamily: "'Hanken Grotesk',sans-serif", fontSize: '18px', fontWeight: 600 };
+    const navOn = { ...navBase, background: '#FBFAF6', border: '1px solid #E4DFD4', color: oklchBlue() };
+    const navOff = { ...navBase, background: 'transparent', color: '#8A8475' };
+    function oklchBlue() { return 'oklch(0.46 0.10 256)'; }
+    const roomsActive = ['answer', 'predict', 'reveal', 'ways'].includes(screen);
+    const partyActive = screen === 'party';
+    const youActive = screen === 'score';
+    return {
+      isAnswer: screen === 'answer', isPredict: screen === 'predict', isReveal: screen === 'reveal',
+      isScore: screen === 'score', isWays: screen === 'ways', isParty: screen === 'party',
+      kicker: p.kicker || '', caption: p.caption || '',
+      navRoomsStyle: roomsActive ? navOn : navOff,
+      navPartyStyle: partyActive ? navOn : navOff,
+      navYouStyle: youActive ? navOn : navOff,
+      canvasStyle: { width: w + 'px', height: h + 'px', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden', position: 'relative' },
+      captionWrapStyle: { flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: Math.round(h * 0.055) + 'px ' + Math.round(w * 0.08) + 'px 0' },
+      kickerStyle: { fontFamily: "'IBM Plex Mono',monospace", fontSize: kickSize + 'px', letterSpacing: '3px', color: kickerColor, marginBottom: Math.round(headSize * 0.34) + 'px' },
+      captionStyle: { fontFamily: "'Newsreader',serif", fontWeight: 500, fontSize: headSize + 'px', lineHeight: 1.03, letterSpacing: '-2px', color: capColor, maxWidth: (w * 0.8) + 'px' },
+      bezelBoxStyle: { width: bw + 'px', height: bh + 'px', position: 'relative', flexShrink: 0, marginBottom: Math.round(h * 0.02) + 'px' },
+      bezelStyle: { position: 'absolute', top: 0, left: 0, width: BEZ_W + 'px', height: BEZ_H + 'px', transformOrigin: 'top left', transform: 'scale(' + scale + ')' },
+    };
+  }
+}
+</script>
+</body>
+</html>

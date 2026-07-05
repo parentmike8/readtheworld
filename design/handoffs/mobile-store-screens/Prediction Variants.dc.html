@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+*{ box-sizing:border-box; }
+body{ margin:0; background:#ECE7DB; }
+button{ -webkit-tap-highlight-color:transparent; }
+</style>
+</helmet>
+
+<section style="padding:44px 48px 30px; display:flex; flex-direction:column; gap:22px;">
+  <div style="max-width:820px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.8px; color:#8A8475;">TURN 2 &middot; THE NOTCHED METER, SCALED</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:30px; color:#211F1A; margin-top:8px;">One meter, 2 to a million</div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:14px; line-height:1.55; color:#6E6A60; margin-top:8px;">The fixed meter you liked, made to scale. It <b>always fills left&rarr;right</b> (no more flipping direction), and it <b>always snaps to a real group value</b> &mdash; every position you can land on is an actual possible outcome, so the number can never be a fraction the room can&rsquo;t produce. The per-person notches only draw while they&rsquo;re legible (&le;&nbsp;15 others); above that they dissolve into quarter gridlines and the readout switches from &ldquo;N&nbsp;of&nbsp;M&rdquo; to a percentage. Drag it, and toggle the room size &mdash; watch it cross the threshold at 25.</div>
+  </div>
+
+  <div style="display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap;">
+    <div id="2a" data-screen-label="2a Scaling notched meter" style="width:440px; display:flex; flex-direction:column; gap:9px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#2a" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#2C2A24; color:#F6F2E9; padding:3px 8px; border-radius:6px;">2a</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#2C2A24;">Scaling notched meter</div>
+      </div>
+      <div style="background:#F4F0E5; border:1px solid #E4DFD4; border-radius:28px; padding:24px 22px; min-height:520px; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(40,40,40,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ t2.sizeBtns }}" as="b" hint-placeholder-count="6"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:21px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ t2.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ t2.dotStyle }}"></span><span>You said&nbsp;<b style="{{ t2.sideTextStyle }}">{{ t2.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.3; color:#2C2A24; padding:0 4px;">{{ t2.prompt }}</div>
+          <div style="margin-top:14px; line-height:1;"><span style="{{ t2.numStyle }}">{{ t2.big }}</span><span style="{{ t2.unitStyle }}">{{ t2.unit }}</span></div>
+          <div style="{{ t2.eyebrowStyle }}">{{ t2.eyebrow }}</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#A89F8C; margin-top:9px;">{{ t2.sub }}</div>
+          <div ref="{{ t2.setRow }}" onPointerDown="{{ t2.rowDown }}" onPointerMove="{{ t2.rowMove }}" onPointerUp="{{ t2.rowUp }}" style="position:relative; height:66px; border-radius:16px; background:#E6E0D3; margin-top:26px; overflow:hidden; cursor:ew-resize; touch-action:none; user-select:none;">
+            <div style="{{ t2.fillStyle }}"></div>
+            <sc-for list="{{ t2.ticks }}" as="t" hint-placeholder-count="4"><span style="{{ t.style }}"></span></sc-for>
+            <div style="{{ t2.handleStyle }}"><div style="width:6px; height:30px; border-radius:3px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.28);"></div></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.5px; color:#8A8475; margin-top:9px;"><span>NO ONE</span><span>{{ t2.allLabel }}</span></div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Submit</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:14px 48px 64px; display:flex; flex-direction:column; gap:22px;">
+  <div style="max-width:760px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.8px; color:#8A8475;">TURN 1 &middot; PREDICTION STEP</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:30px; color:#211F1A; margin-top:8px;">Four ways to fix the predict step</div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:14px; line-height:1.55; color:#6E6A60; margin-top:8px;">Every variant fixes the two observed problems: <b>direction never flips</b> (your answer always anchors left, more agreement is always rightward), and <b>snapping is embraced as discrete choices</b> instead of a slider fighting you. All are live &mdash; tap the &ldquo;You said&rdquo; chip to flip sides, and use the 3 / 7 / 23 toggle to change room size. The current design is on the far right for comparison.</div>
+  </div>
+
+  <div style="display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap;">
+
+    <!-- ══════════ 1a — COUNT THE PEOPLE ══════════ -->
+    <div id="1a" data-screen-label="1a Count the people" style="width:372px; display:flex; flex-direction:column; gap:9px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#1a" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#2C2A24; color:#F6F2E9; padding:3px 8px; border-radius:6px;">1a</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#2C2A24;">Count the people</div>
+      </div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; line-height:1.5; color:#8A8475;">No percent, no slider. Tap or drag across the heads, or use &minus;/+ for one-at-a-time precision. Discrete by design &mdash; the snap IS the interaction.</div>
+      <div style="background:#F4F0E5; border:1px solid #E4DFD4; border-radius:28px; padding:22px 20px; min-height:560px; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(40,40,40,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ va.sizeBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ va.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ va.dotStyle }}"></span><span>You said&nbsp;<b style="{{ va.sideTextStyle }}">{{ va.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:19px; line-height:1.3; color:#2C2A24;">{{ va.prompt }}</div>
+          <div style="margin-top:12px; line-height:1;"><span style="{{ va.numStyle }}">{{ va.valBig }}</span><span style="font-family:'Newsreader',serif; font-size:24px; color:#8A8475;">&nbsp;{{ va.ofLabel }}</span></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#A89F8C; margin-top:8px;">{{ va.pctLabel }}</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:24px;">
+            <button onClick="{{ va.minus }}" style="{{ va.minusStyle }}">&minus;</button>
+            <div ref="{{ va.setRow }}" onPointerDown="{{ va.rowDown }}" onPointerMove="{{ va.rowMove }}" onPointerUp="{{ va.rowUp }}" style="flex:1; display:flex; align-items:center; padding:13px 8px; background:#EDE8DB; border-radius:16px; cursor:pointer; touch-action:none; user-select:none;">
+              <sc-for list="{{ va.dots }}" as="d" hint-placeholder-count="3"><span style="{{ d.wrapStyle }}"><span style="{{ d.style }}"></span></span></sc-for>
+            </div>
+            <button onClick="{{ va.plus }}" style="{{ va.plusStyle }}">+</button>
+          </div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Lock it in &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════ 1b — FIXED METER WITH NOTCHES ══════════ -->
+    <div id="1b" data-screen-label="1b Fixed meter with notches" style="width:372px; display:flex; flex-direction:column; gap:9px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#1b" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#2C2A24; color:#F6F2E9; padding:3px 8px; border-radius:6px;">1b</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#2C2A24;">Fixed meter, visible notches</div>
+      </div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; line-height:1.5; color:#8A8475;">Closest to today&rsquo;s design, two fixes: it always fills left&rarr;right regardless of your answer, and it&rsquo;s absolute &mdash; the value lives under your finger, with a notch per person so the snap targets are visible.</div>
+      <div style="background:#F4F0E5; border:1px solid #E4DFD4; border-radius:28px; padding:22px 20px; min-height:560px; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(40,40,40,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ vb.sizeBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ vb.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ vb.dotStyle }}"></span><span>You said&nbsp;<b style="{{ vb.sideTextStyle }}">{{ vb.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:19px; line-height:1.3; color:#2C2A24;">{{ vb.prompt }}</div>
+          <div style="margin-top:12px; line-height:1;"><span style="{{ vb.numStyle }}">{{ vb.valBig }}</span><span style="font-family:'Newsreader',serif; font-size:24px; color:#8A8475;">&nbsp;{{ vb.ofLabel }}</span></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#A89F8C; margin-top:8px;">{{ vb.pctLabel }}</div>
+          <div ref="{{ vb.setRow }}" onPointerDown="{{ vb.rowDown }}" onPointerMove="{{ vb.rowMove }}" onPointerUp="{{ vb.rowUp }}" style="position:relative; height:64px; border-radius:16px; background:#E6E0D3; margin-top:24px; overflow:hidden; cursor:ew-resize; touch-action:none; user-select:none;">
+            <div style="{{ vb.fillStyle }}"></div>
+            <sc-for list="{{ vb.ticks }}" as="t" hint-placeholder-count="4"><span style="{{ t.style }}"></span></sc-for>
+            <div style="{{ vb.handleStyle }}"><div style="width:6px; height:28px; border-radius:3px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.5px; color:#8A8475; margin-top:8px;"><span>NO ONE</span><span>{{ vb.allLabel }}</span></div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Lock it in &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════ 1c — EVERY ANSWER IS A BUTTON ══════════ -->
+    <div id="1c" data-screen-label="1c Every answer is a button" style="width:372px; display:flex; flex-direction:column; gap:9px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#1c" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#2C2A24; color:#F6F2E9; padding:3px 8px; border-radius:6px;">1c</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#2C2A24;">Every answer is a button</div>
+      </div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; line-height:1.5; color:#8A8475;">No gesture at all. In small rooms every valid count is a tappable option; in big rooms they become words (&ldquo;A few&rdquo;, &ldquo;Most&rdquo;&hellip;). Impossible to get confused, zero dexterity needed.</div>
+      <div style="background:#F4F0E5; border:1px solid #E4DFD4; border-radius:28px; padding:22px 20px; min-height:560px; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(40,40,40,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ vc.sizeBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ vc.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ vc.dotStyle }}"></span><span>You said&nbsp;<b style="{{ vc.sideTextStyle }}">{{ vc.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:19px; line-height:1.3; color:#2C2A24;">{{ vc.prompt }}</div>
+          <div style="{{ vc.gridStyle }}">
+            <sc-for list="{{ vc.opts }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.onClick }}" style="{{ o.style }}"><span>{{ o.label }}</span><span style="{{ o.pctStyle }}">{{ o.pct }}</span></button></sc-for>
+          </div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Lock it in &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════ 1d — SPLIT THE ROOM ══════════ -->
+    <div id="1d" data-screen-label="1d Split the room" style="width:372px; display:flex; flex-direction:column; gap:9px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#1d" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#2C2A24; color:#F6F2E9; padding:3px 8px; border-radius:6px;">1d</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#2C2A24;">Split the room</div>
+      </div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; line-height:1.5; color:#8A8475;">A different mental model: drag the divider to sort the room into two camps. Both sides stay visible and labeled; your side is always on the left. The divider snaps between people, so snapping reads as sorting.</div>
+      <div style="background:#F4F0E5; border:1px solid #E4DFD4; border-radius:28px; padding:22px 20px; min-height:560px; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(40,40,40,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ vd.sizeBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ vd.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ vd.dotStyle }}"></span><span>You said&nbsp;<b style="{{ vd.sideTextStyle }}">{{ vd.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:19px; line-height:1.3; color:#2C2A24;">How does the room split on this?</div>
+          <div style="margin-top:12px; line-height:1;"><span style="{{ vd.numStyle }}">{{ vd.splitBig }}</span></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#A89F8C; margin-top:8px;">{{ vd.pctLabel }}</div>
+          <div style="margin-top:24px; padding:16px 12px 12px; background:#EDE8DB; border-radius:18px;">
+            <div ref="{{ vd.setRow }}" onPointerDown="{{ vd.rowDown }}" onPointerMove="{{ vd.rowMove }}" onPointerUp="{{ vd.rowUp }}" style="position:relative; display:flex; align-items:center; touch-action:none; cursor:ew-resize; padding:8px 0; user-select:none;">
+              <sc-for list="{{ vd.dots }}" as="d" hint-placeholder-count="3"><span style="{{ d.wrapStyle }}"><span style="{{ d.style }}"></span></span></sc-for>
+              <div style="{{ vd.dividerStyle }}"><div style="width:18px; height:18px; border-radius:50%; background:#4A463E; border:3px solid #F4F0E5; margin-left:-7.5px; flex-shrink:0;"></div></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:10px; font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; font-weight:700;"><span style="{{ vd.leftLabelStyle }}">{{ vd.leftLabel }}</span><span style="{{ vd.rightLabelStyle }}">{{ vd.rightLabel }}</span></div>
+          </div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Lock it in &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════ CURRENT (REFERENCE) ══════════ -->
+    <div id="1e" data-screen-label="Current design reference" style="width:372px; display:flex; flex-direction:column; gap:9px; opacity:0.92;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <a href="#1e" style="text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:11px; background:#B7AE9B; color:#F6F2E9; padding:3px 8px; border-radius:6px;">ref</a>
+        <div style="font-family:'Hanken Grotesk',sans-serif; font-weight:700; font-size:15px; color:#8A8475;">Current design (for comparison)</div>
+      </div>
+      <div style="font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; line-height:1.5; color:#8A8475;">The meter docks to your answer&rsquo;s side, so &ldquo;more&rdquo; means left for Yes and right for No. Flip the chip and watch the direction reverse &mdash; the confusion you observed.</div>
+      <div style="background:#F4F0E5; border:1px dashed #CFC8B7; border-radius:28px; padding:22px 20px; min-height:560px; display:flex; flex-direction:column;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.6px; color:#8A8475;">THE GROUP CHAT</div>
+          <div style="display:flex; gap:2px; background:#EAE5D8; border-radius:999px; padding:2px;">
+            <sc-for list="{{ ve.sizeBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Newsreader',serif; font-weight:500; font-size:20px; line-height:1.25; color:#211F1A; margin-top:14px;">Is a hot dog a sandwich?</div>
+        <button onClick="{{ ve.flip }}" style="margin-top:10px; align-self:flex-start; display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid #E0DACE; border-radius:999px; background:#FBFAF6; font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#4A463E; cursor:pointer;"><span style="{{ ve.dotStyle }}"></span><span>You said&nbsp;<b style="{{ ve.sideTextStyle }}">{{ ve.sideLabel }}</b></span><span style="color:#A89F8C;">&#8646;</span></button>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div style="font-family:'Newsreader',serif; font-weight:500; font-size:19px; line-height:1.3; color:#2C2A24;">{{ ve.promptE }}</div>
+          <div style="margin-top:12px; line-height:1;"><span style="{{ ve.numStyle }}">{{ ve.predBig }}</span><span style="{{ ve.pctSmallStyle }}">%</span></div>
+          <div style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#8A8475; margin-top:6px;">{{ ve.predCount }}</div>
+          <div ref="{{ ve.setRow }}" onPointerDown="{{ ve.rowDown }}" onPointerMove="{{ ve.rowMove }}" onPointerUp="{{ ve.rowUp }}" style="position:relative; height:64px; border-radius:16px; background:#E6E0D3; margin-top:24px; overflow:hidden; cursor:ew-resize; touch-action:none; user-select:none;">
+            <div style="{{ ve.invStyle }}"></div>
+            <div style="{{ ve.fillStyle }}"></div>
+            <div style="{{ ve.dockLabelStyle }}">{{ ve.sideUpper }}</div>
+            <div style="{{ ve.handleStyle }}"><div style="width:6px; height:28px; border-radius:3px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.5px; color:#8A8475; margin-top:8px;"><span>{{ ve.scaleLeft }}</span><span>{{ ve.scaleRight }}</span></div>
+        </div>
+        <button style="width:100%; padding:16px; border:none; border-radius:16px; background:oklch(0.50 0.10 256); color:#fff; font-family:'Hanken Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer;">Lock it in &rarr;</button>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { v: {
+    a: { side: 'yes', others: 3, val: 2 },
+    b: { side: 'yes', others: 3, val: 2 },
+    c: { side: 'yes', others: 3, val: 2 },
+    d: { side: 'yes', others: 3, val: 2 },
+    e: { side: 'yes', others: 3, val: 2 },
+    t2: { side: 'yes', others: 3, frac: 1 },
+  } };
+  _refs = {};
+  _drag = null;
+
+  patch(k, obj) { this.setState(st => ({ v: { ...st.v, [k]: { ...st.v[k], ...obj } } })); }
+  flip = (k) => () => { const s = this.state.v[k]; this.patch(k, { side: s.side === 'yes' ? 'no' : 'yes' }); };
+  setSize = (k, n) => () => { const s = this.state.v[k]; this.patch(k, { others: n, val: Math.max(0, Math.min(n, Math.round(s.val / s.others * n))) }); };
+  setVal = (k, n) => () => this.patch(k, { val: n });
+  step = (k, d) => () => { const s = this.state.v[k]; this.patch(k, { val: Math.max(0, Math.min(s.others, s.val + d)) }); };
+
+  barAt(k, x) {
+    const el = this._refs[k]; if (!el) return;
+    const r = el.getBoundingClientRect();
+    let f = Math.max(0, Math.min(1, (x - r.left) / r.width));
+    const s = this.state.v[k];
+    if (k === 'e' && s.side === 'yes') f = 1 - f;
+    this.patch(k, { val: Math.round(f * s.others) });
+  }
+  barDown = (k) => (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} this._drag = k; this.barAt(k, e.clientX); };
+  barMove = (k) => (e) => { if (this._drag === k) this.barAt(k, e.clientX); };
+  barUp = (k) => () => { this._drag = null; };
+
+  t2Size = (n) => () => this.patch('t2', { others: n });
+  t2Flip = () => { const s = this.state.v.t2; this.patch('t2', { side: s.side === 'yes' ? 'no' : 'yes' }); };
+  t2At(x) {
+    const el = this._refs.t2; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (x - r.left) / r.width));
+    const s = this.state.v.t2;
+    const val = Math.round(f * s.others);
+    this.patch('t2', { frac: s.others ? val / s.others : 0 });
+  }
+  t2Down = (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} this._drag = 't2'; this.t2At(e.clientX); };
+  t2Move = (e) => { if (this._drag === 't2') this.t2At(e.clientX); };
+  t2Up = () => { this._drag = null; };
+
+  renderVals() {
+    const BLUE = 'oklch(0.50 0.10 256)', CLAY = 'oklch(0.55 0.105 47)';
+    const V = this.state.v;
+
+    const mk = (k) => {
+      const s = V[k]; const yes = s.side === 'yes';
+      const color = yes ? BLUE : CLAY;
+      const otherColor = yes ? CLAY : BLUE;
+      const colorSoft = yes ? 'oklch(0.55 0.10 256 / 0.85)' : 'oklch(0.55 0.11 47 / 0.9)';
+      const otherSoft = yes ? 'oklch(0.55 0.105 47 / 0.35)' : 'oklch(0.55 0.10 256 / 0.35)';
+      const pct = Math.round(s.val / s.others * 100);
+      const sizeBtns = [3, 7, 23].map(n => ({ key: 's' + n, label: String(n), onClick: this.setSize(k, n),
+        style: { padding: '4px 10px', border: 'none', borderRadius: '999px', background: s.others === n ? '#FFFDF6' : 'transparent', boxShadow: s.others === n ? '0 1px 3px rgba(40,40,40,0.12)' : 'none', color: s.others === n ? '#4A463E' : '#A89F8C', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', cursor: 'pointer' } }));
+      return { s, yes, color, otherColor, colorSoft, otherSoft, pct,
+        sideLabel: yes ? 'Yes' : 'No', otherLabel: yes ? 'No' : 'Yes',
+        valBig: String(s.val), ofLabel: 'of ' + s.others,
+        pctLabel: '\u2248 ' + pct + '% of the room',
+        prompt: 'How many of the other ' + s.others + ' also said \u201c' + (yes ? 'Yes' : 'No') + '\u201d?',
+        flip: this.flip(k), sizeBtns,
+        dotStyle: { width: '9px', height: '9px', borderRadius: '50%', background: color, display: 'inline-block' },
+        sideTextStyle: { color },
+        numStyle: { fontFamily: "'Newsreader',serif", fontSize: '60px', fontWeight: 500, color },
+        setRow: (el) => { this._refs[k] = el; }, rowDown: this.barDown(k), rowMove: this.barMove(k), rowUp: this.barUp(k) };
+    };
+
+    // 1a — count the people
+    const a = mk('a');
+    const aBig = a.s.others <= 8;
+    const va = { ...a,
+      dots: Array.from({ length: a.s.others }, (_, i) => ({ key: 'd' + i,
+        wrapStyle: { flex: '1 1 0', display: 'flex', justifyContent: 'center', pointerEvents: 'none' },
+        style: { width: aBig ? '32px' : '10px', height: aBig ? '32px' : '10px', borderRadius: '50%', background: i < a.s.val ? a.color : '#DFD9C9', boxShadow: i < a.s.val ? 'none' : 'inset 0 0 0 1px #D2CBB8', transition: 'background .15s' } })),
+      minus: this.step('a', -1), plus: this.step('a', 1),
+      minusStyle: { width: '46px', height: '46px', borderRadius: '50%', border: '1px solid #E0DACE', background: '#FBFAF6', color: a.s.val === 0 ? '#C9C2B0' : '#4A463E', fontSize: '22px', cursor: 'pointer', flexShrink: 0, fontFamily: "'Hanken Grotesk',sans-serif", lineHeight: 1 },
+      plusStyle: { width: '46px', height: '46px', borderRadius: '50%', border: '1px solid #E0DACE', background: '#FBFAF6', color: a.s.val >= a.s.others ? '#C9C2B0' : '#4A463E', fontSize: '22px', cursor: 'pointer', flexShrink: 0, fontFamily: "'Hanken Grotesk',sans-serif", lineHeight: 1 } };
+
+    // 1b — fixed meter with notches
+    const b = mk('b');
+    const vb = { ...b,
+      fillStyle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: b.pct + '%', background: b.colorSoft, transition: 'width .15s', zIndex: 0 },
+      ticks: Array.from({ length: b.s.others + 1 }, (_, i) => ({ key: 't' + i, style: { position: 'absolute', left: (i / b.s.others * 100) + '%', top: '12px', bottom: '12px', width: '2px', marginLeft: '-1px', borderRadius: '1px', background: 'rgba(74,70,62,0.18)', zIndex: 1, pointerEvents: 'none' } })),
+      handleStyle: { position: 'absolute', top: 0, bottom: 0, left: b.pct + '%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', zIndex: 2, transition: 'left .15s', pointerEvents: 'none' },
+      allLabel: 'ALL ' + b.s.others };
+
+    // 1c — buttons
+    const c = mk('c');
+    let cOpts;
+    if (c.s.others <= 8) {
+      cOpts = Array.from({ length: c.s.others + 1 }, (_, n) => ({ n,
+        label: n === 0 ? 'No one' : n === c.s.others ? 'All ' + n : (n === 1 ? '1 person' : n + ' people'),
+        sub: Math.round(n / c.s.others * 100) + '%' }));
+    } else {
+      cOpts = [['No one', 0], ['A few', Math.round(c.s.others * 0.25)], ['About half', Math.round(c.s.others / 2)], ['Most', Math.round(c.s.others * 0.75)], ['Everyone', c.s.others]]
+        .map(pair => ({ n: pair[1], label: pair[0], sub: '\u2248 ' + pair[1] + ' of ' + c.s.others }));
+    }
+    const vc = { ...c,
+      gridStyle: { display: 'grid', gridTemplateColumns: cOpts.length > 6 ? '1fr 1fr' : '1fr', gap: '8px', marginTop: '20px' },
+      opts: cOpts.map(o => { const sel = o.n === c.s.val; return { key: 'o' + o.n + o.label, label: o.label, pct: o.sub, onClick: this.setVal('c', o.n),
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', border: '1.5px solid ' + (sel ? c.color : '#E0DACE'), borderRadius: '14px', background: sel ? c.color : '#FBFAF6', color: sel ? '#FFFDF6' : '#4A463E', fontFamily: "'Hanken Grotesk',sans-serif", fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'background .15s, border-color .15s' },
+        pctStyle: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '10.5px', color: sel ? 'rgba(255,253,246,0.8)' : '#A89F8C' } }; }) };
+
+    // 1d — split the room
+    const d = mk('d');
+    const dBig = d.s.others <= 8;
+    const vd = { ...d,
+      dots: Array.from({ length: d.s.others }, (_, i) => ({ key: 'd' + i,
+        wrapStyle: { flex: '1 1 0', display: 'flex', justifyContent: 'center', pointerEvents: 'none' },
+        style: { width: dBig ? '26px' : '10px', height: dBig ? '26px' : '10px', borderRadius: '50%', background: i < d.s.val ? d.color : d.otherSoft, transition: 'background .15s' } })),
+      dividerStyle: { position: 'absolute', left: d.pct + '%', top: '-6px', bottom: '-6px', width: '3px', marginLeft: '-1.5px', borderRadius: '2px', background: '#4A463E', transition: 'left .15s', display: 'flex', alignItems: 'center', pointerEvents: 'none', zIndex: 2 },
+      leftLabel: d.sideLabel + ' \u00b7 ' + d.s.val,
+      rightLabel: d.otherLabel + ' \u00b7 ' + (d.s.others - d.s.val),
+      leftLabelStyle: { color: d.color }, rightLabelStyle: { color: d.otherColor },
+      splitBig: d.s.val + ' \u2013 ' + (d.s.others - d.s.val) };
+
+    // ref — current design replica
+    const e = mk('e');
+    const dockRight = e.yes; const epct = e.pct;
+    const ve = { ...e,
+      predBig: String(epct),
+      predCount: '\u2248 ' + e.s.val + ' of ' + e.s.others + ' people',
+      promptE: 'What share of the rest of the room also said \u201c' + e.sideLabel + '\u201d?',
+      fillStyle: { position: 'absolute', top: 0, bottom: 0, width: epct + '%', background: e.colorSoft, borderRadius: dockRight ? '0 16px 16px 0' : '16px 0 0 16px', [dockRight ? 'right' : 'left']: 0 },
+      invStyle: { position: 'absolute', top: 0, bottom: 0, width: (100 - epct) + '%', background: e.yes ? 'oklch(0.55 0.105 47 / 0.10)' : 'oklch(0.55 0.10 256 / 0.10)', [dockRight ? 'left' : 'right']: 0 },
+      dockLabelStyle: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', [dockRight ? 'right' : 'left']: '14px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', letterSpacing: '1.4px', color: '#fff', zIndex: 3, pointerEvents: 'none' },
+      sideUpper: e.sideLabel.toUpperCase(),
+      handleStyle: { position: 'absolute', top: 0, bottom: 0, left: (dockRight ? 100 - epct : epct) + '%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', zIndex: 4, pointerEvents: 'none' },
+      scaleLeft: dockRight ? 'NEARLY ALL' : 'NEARLY NONE', scaleRight: dockRight ? 'NEARLY NONE' : 'NEARLY ALL',
+      pctSmallStyle: { fontFamily: "'Newsreader',serif", fontSize: '26px', color: e.color } };
+
+    // ── turn 2: scaling notched meter ──
+    const t = V.t2; const t2yes = t.side === 'yes';
+    const t2color = t2yes ? BLUE : CLAY;
+    const t2soft = t2yes ? 'oklch(0.55 0.10 256 / 0.85)' : 'oklch(0.55 0.11 47 / 0.9)';
+    const t2others = t.others;
+    const t2val = Math.round(t.frac * t2others);
+    const t2frac = t2others ? t2val / t2others : 0;
+    const t2pct = Math.round(t2frac * 100);
+    const t2showNotches = t2others <= 15;
+    const fmt = (n) => n.toLocaleString();
+    const t2SizeBtns = [[2, '2'], [3, '3'], [15, '15'], [25, '25'], [100, '100'], [1000000, '1M']].map(pair => ({ key: 'ts' + pair[0], label: pair[1], onClick: this.t2Size(pair[0]),
+      style: { padding: '4px 9px', border: 'none', borderRadius: '999px', background: t2others === pair[0] ? '#FFFDF6' : 'transparent', boxShadow: t2others === pair[0] ? '0 1px 3px rgba(40,40,40,0.12)' : 'none', color: t2others === pair[0] ? '#4A463E' : '#A89F8C', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', cursor: 'pointer' } }));
+    let t2ticks;
+    if (t2showNotches) {
+      t2ticks = Array.from({ length: t2others + 1 }, (_, i) => ({ key: 'tk' + i, style: { position: 'absolute', left: (i / t2others * 100) + '%', top: '13px', bottom: '13px', width: '2px', marginLeft: '-1px', borderRadius: '1px', background: 'rgba(74,70,62,0.20)', zIndex: 1, pointerEvents: 'none' } }));
+    } else {
+      t2ticks = [25, 50, 75].map(p => ({ key: 'tq' + p, style: { position: 'absolute', left: p + '%', top: '16px', bottom: '16px', width: '1px', marginLeft: '-0.5px', background: 'rgba(74,70,62,0.14)', zIndex: 1, pointerEvents: 'none' } }));
+    }
+    const t2 = {
+      sideLabel: t2yes ? 'Yes' : 'No', flip: this.t2Flip, sizeBtns: t2SizeBtns,
+      dotStyle: { width: '9px', height: '9px', borderRadius: '50%', background: t2color, display: 'inline-block' },
+      sideTextStyle: { color: t2color },
+      prompt: 'How many will agree with you?',
+      eyebrow: 'Will pick \u201c' + (t2yes ? 'Yes' : 'No') + '\u201d',
+      eyebrowStyle: { fontFamily: "'Hanken Grotesk',sans-serif", fontSize: '17px', fontWeight: 700, color: t2color, marginTop: '8px' },
+      big: t2showNotches ? String(t2val) : (t2pct + '%'),
+      unit: t2showNotches ? (' of ' + t2others) : '',
+      unitStyle: { fontFamily: "'Newsreader',serif", fontSize: '26px', color: '#8A8475' },
+      numStyle: { fontFamily: "'Newsreader',serif", fontSize: '62px', fontWeight: 500, color: t2color },
+      sub: t2showNotches ? (t2pct + '% of the room') : (fmt(t2val) + '/' + fmt(t2others) + ' players'),
+      setRow: (el) => { this._refs.t2 = el; }, rowDown: this.t2Down, rowMove: this.t2Move, rowUp: this.t2Up,
+      fillStyle: { position: 'absolute', left: 0, top: 0, bottom: 0, width: t2pct + '%', background: t2soft, transition: 'width .12s', zIndex: 0 },
+      ticks: t2ticks,
+      handleStyle: { position: 'absolute', top: 0, bottom: 0, left: t2pct + '%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', zIndex: 2, transition: 'left .12s', pointerEvents: 'none' },
+      allLabel: t2showNotches ? ('ALL ' + t2others) : 'EVERYONE' };
+
+    return { va, vb, vc, vd, ve, t2 };
+  }
+}
+</script>
+</body>
+</html>

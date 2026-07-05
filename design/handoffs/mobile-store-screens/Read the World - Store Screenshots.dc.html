@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>*{ box-sizing:border-box; } body{ margin:0; background:#CDC7BA; }</style>
+</helmet>
+
+<div style="padding:60px 70px 90px; display:flex; flex-direction:column; gap:70px; font-family:'Hanken Grotesk',sans-serif; width:max-content;">
+
+  <div style="max-width:1100px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:2px; color:#7C7768;">STORE SCREENSHOTS &middot; v2</div>
+    <div style="font-family:'Newsreader',serif; font-weight:500; font-size:38px; letter-spacing:-0.8px; color:#211F1A; margin-top:10px;">Real app UI, device-framed with captions</div>
+    <div style="font-family:'Hanken Grotesk',sans-serif; font-size:15px; color:#5F5B52; margin-top:10px; line-height:1.55; max-width:920px;">Each frame is at exact native store pixel size &mdash; screenshot a single frame to export it. Screens recreate the v2 app: answer today&rsquo;s three questions, predict with the notched meter, see your read, track your Read Score, the three ways to play, and party mode. PNG, RGB, no transparency.</div>
+  </div>
+
+  <!-- ══════════════ GOOGLE PLAY · PHONE · 1080×1920 ══════════════ -->
+  <div style="display:flex; flex-direction:column; gap:26px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; letter-spacing:2px; color:#5F5B52;">GOOGLE PLAY &middot; PHONE &middot; 1080 &times; 1920</div>
+    <div style="display:flex; gap:80px; align-items:flex-start;">
+      <div data-screen-label="GP 1 Answer" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">1 / 6 &middot; ANSWER</div><dc-import name="Shot" screen="answer" kicker="THREE QUESTIONS DAILY" caption="Answer today." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+      <div data-screen-label="GP 2 Predict" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">2 / 6 &middot; PREDICT</div><dc-import name="Shot" screen="predict" kicker="THEN PREDICT" caption="Read the room." bg="#DBE0E5" kicker-color="oklch(0.46 0.10 256)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+      <div data-screen-label="GP 3 Reveal" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">3 / 6 &middot; REVEAL</div><dc-import name="Shot" screen="reveal" kicker="THE NEXT DAY" caption="See your read." bg="#ECE3D5" kicker-color="oklch(0.55 0.105 47)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+      <div data-screen-label="GP 4 Score" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">4 / 6 &middot; READ SCORE</div><dc-import name="Shot" screen="score" kicker="YOUR READ SCORE" caption="Get sharper." bg="#DFE3DF" kicker-color="oklch(0.46 0.10 256)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+      <div data-screen-label="GP 5 Ways" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">5 / 6 &middot; 3 WAYS TO PLAY</div><dc-import name="Shot" screen="ways" kicker="THREE WAYS TO PLAY" caption="Play your people." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+      <div data-screen-label="GP 6 Party" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">6 / 6 &middot; PARTY MODE</div><dc-import name="Shot" screen="party" kicker="PARTY MODE" caption="Pass the phone." bg="#EEE0D6" kicker-color="oklch(0.55 0.105 47)" w="1080" h="1920" hint-size="1080px,1920px" style="width:1080px; height:1920px;"></dc-import></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ APP STORE · iPHONE · 1320×2868 ══════════════ -->
+  <div style="display:flex; flex-direction:column; gap:26px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; letter-spacing:2px; color:#5F5B52;">APP STORE &middot; iPHONE 6.9&Prime; &middot; 1320 &times; 2868</div>
+    <div style="display:flex; gap:90px; align-items:flex-start;">
+      <div data-screen-label="AS 1 Answer" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">1 / 6 &middot; ANSWER</div><dc-import name="Shot" screen="answer" kicker="THREE QUESTIONS DAILY" caption="Answer today." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+      <div data-screen-label="AS 2 Predict" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">2 / 6 &middot; PREDICT</div><dc-import name="Shot" screen="predict" kicker="THEN PREDICT" caption="Read the room." bg="#DBE0E5" kicker-color="oklch(0.46 0.10 256)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+      <div data-screen-label="AS 3 Reveal" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">3 / 6 &middot; REVEAL</div><dc-import name="Shot" screen="reveal" kicker="THE NEXT DAY" caption="See your read." bg="#ECE3D5" kicker-color="oklch(0.55 0.105 47)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+      <div data-screen-label="AS 4 Score" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">4 / 6 &middot; READ SCORE</div><dc-import name="Shot" screen="score" kicker="YOUR READ SCORE" caption="Get sharper." bg="#DFE3DF" kicker-color="oklch(0.46 0.10 256)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+      <div data-screen-label="AS 5 Ways" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">5 / 6 &middot; 3 WAYS TO PLAY</div><dc-import name="Shot" screen="ways" kicker="THREE WAYS TO PLAY" caption="Play your people." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+      <div data-screen-label="AS 6 Party" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">6 / 6 &middot; PARTY MODE</div><dc-import name="Shot" screen="party" kicker="PARTY MODE" caption="Pass the phone." bg="#EEE0D6" kicker-color="oklch(0.55 0.105 47)" w="1320" h="2868" hint-size="1320px,2868px" style="width:1320px; height:2868px;"></dc-import></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ APP STORE · iPAD · 2064×2752 ══════════════ -->
+  <div style="display:flex; flex-direction:column; gap:26px;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; letter-spacing:2px; color:#5F5B52;">APP STORE &middot; iPAD 13&Prime; &middot; 2064 &times; 2752</div>
+    <div style="display:flex; gap:110px; align-items:flex-start;">
+      <div data-screen-label="iPad 1 Answer" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">1 / 6 &middot; ANSWER</div><dc-import name="PadShot" screen="answer" kicker="THREE QUESTIONS DAILY" caption="Answer today." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+      <div data-screen-label="iPad 2 Predict" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">2 / 6 &middot; PREDICT</div><dc-import name="PadShot" screen="predict" kicker="THEN PREDICT" caption="Read the room." bg="#DBE0E5" kicker-color="oklch(0.46 0.10 256)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+      <div data-screen-label="iPad 3 Reveal" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">3 / 6 &middot; REVEAL</div><dc-import name="PadShot" screen="reveal" kicker="THE NEXT DAY" caption="See your read." bg="#ECE3D5" kicker-color="oklch(0.55 0.105 47)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+      <div data-screen-label="iPad 4 Score" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">4 / 6 &middot; READ SCORE</div><dc-import name="PadShot" screen="score" kicker="YOUR READ SCORE" caption="Get sharper." bg="#DFE3DF" kicker-color="oklch(0.46 0.10 256)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+      <div data-screen-label="iPad 5 Ways" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">5 / 6 &middot; 3 WAYS TO PLAY</div><dc-import name="PadShot" screen="ways" kicker="THREE WAYS TO PLAY" caption="Play your people." bg="#E9E4D8" kicker-color="oklch(0.55 0.105 47)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+      <div data-screen-label="iPad 6 Party" style="display:flex; flex-direction:column; gap:16px;"><div style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:1.4px; color:#8A8475;">6 / 6 &middot; PARTY MODE</div><dc-import name="PadShot" screen="party" kicker="PARTY MODE" caption="Pass the phone." bg="#EEE0D6" kicker-color="oklch(0.55 0.105 47)" w="2064" h="2752" hint-size="2064px,2752px" style="width:2064px; height:2752px;"></dc-import></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
