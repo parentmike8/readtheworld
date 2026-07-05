@@ -115,6 +115,7 @@ export type DailySelectionInput = {
   candidates: CandidateQuestion[];
   usedQuestionIds: Set<string>;
   seenByMemberIds: Set<string>;
+  dislikedByMemberIds: Set<string>;
   count: number;
 };
 
@@ -128,7 +129,8 @@ export function selectDailyQuestions(input: DailySelectionInput): CandidateQuest
   const eligible = input.candidates.filter((candidate) =>
     tierAllowsQuestion(input.roomTier, candidate.tier) &&
     catsAllowQuestion(input.roomCats, candidate.tags) &&
-    !input.usedQuestionIds.has(candidate.id));
+    !input.usedQuestionIds.has(candidate.id) &&
+    !input.dislikedByMemberIds.has(candidate.id));
 
   const ordered = [...eligible].sort((a, b) => {
     const aSeen = input.seenByMemberIds.has(a.id) ? 1 : 0;

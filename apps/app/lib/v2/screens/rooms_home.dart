@@ -14,7 +14,11 @@ class RoomsHomeScreen extends ConsumerWidget {
   const RoomsHomeScreen({super.key});
 
   /// One-shot sheet requested by the intro's closer CTAs.
-  void _consumePendingAction(BuildContext context, WidgetRef ref, RoomsController rooms) {
+  void _consumePendingAction(
+    BuildContext context,
+    WidgetRef ref,
+    RoomsController rooms,
+  ) {
     final action = rooms.pendingHomeAction;
     if (action == null) return;
     rooms.pendingHomeAction = null;
@@ -73,7 +77,11 @@ class RoomsHomeScreen extends ConsumerWidget {
                   onTap: () => showCreateRoomSheet(context, ref),
                   child: Text(
                     '+ New room',
-                    style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                    style: v2Sans(
+                      13,
+                      color: RtwV2Colors.blue,
+                      weight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -90,7 +98,10 @@ class RoomsHomeScreen extends ConsumerWidget {
                     runSpacing: 16,
                     children: [
                       for (final binding in visible)
-                        SizedBox(width: cardWidth, child: _RoomCard(binding: binding)),
+                        SizedBox(
+                          width: cardWidth,
+                          child: _RoomCard(binding: binding),
+                        ),
                     ],
                   );
                 },
@@ -126,7 +137,10 @@ class _Wordmark extends StatelessWidget {
         text: 'read the world',
         style: v2Serif(21, letterSpacing: -0.5),
         children: [
-          TextSpan(text: '.', style: v2Serif(21, color: RtwV2Colors.clay)),
+          TextSpan(
+            text: '.',
+            style: v2Serif(21, color: RtwV2Colors.clay),
+          ),
         ],
       ),
     );
@@ -153,21 +167,25 @@ class _AvatarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: const ValueKey('rooms-profile-avatar'),
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _avatarColors[avatarIndex % _avatarColors.length],
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          initial,
-          style: v2Sans(16, color: Colors.white, weight: FontWeight.w700),
+    return Semantics(
+      button: true,
+      label: 'Profile',
+      child: GestureDetector(
+        key: const ValueKey('rooms-profile-avatar'),
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _avatarColors[avatarIndex % _avatarColors.length],
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            initial,
+            style: v2Sans(16, color: Colors.white, weight: FontWeight.w700),
+          ),
         ),
       ),
     );
@@ -183,14 +201,24 @@ class _WorldHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final world = rooms.worldRoom;
+    final invitePadding = _roomsWideValue(
+      context,
+      base: 14,
+      wide: 16,
+      full: 18,
+    );
+    final inviteFontSize = _roomsWideValue(
+      context,
+      base: 13,
+      wide: 13.5,
+      full: 14,
+    );
     final players = world?.memberCount ?? 0;
     final goal = world?.worldGoal ?? 5000;
     final pct = goal > 0 ? ((players / goal) * 100).round() : 0;
     final unlocked = rooms.worldPredictionsUnlocked;
     final answered = rooms.bindingFor(worldRoomId)?.played ?? false;
-    final cta = answered
-        ? 'View or modify your answers →'
-        : 'Answer world questions →';
+    final cta = answered ? 'Review answers' : 'Play →';
 
     return GestureDetector(
       onTap: () => context.push('/rooms/$worldRoomId'),
@@ -232,14 +260,21 @@ class _WorldHero extends StatelessWidget {
                         letterSpacing: 1.6,
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           unlocked ? 'OPEN · SCORING LIVE' : 'OPEN',
-                          style: v2Mono(10, color: const Color(0xFFB8B2A4), letterSpacing: 1),
+                          style: v2Mono(
+                            10,
+                            color: const Color(0xFFB8B2A4),
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ],
@@ -257,9 +292,14 @@ class _WorldHero extends StatelessWidget {
                   const SizedBox(height: 9),
                   Text(
                     unlocked
-                        ? 'Scoring is live. Read the whole world, one question at a time.'
-                        : 'Make your read on every question. Each one scores your World Read Score once it crosses its threshold and the game hits ${_formatCount(goal)} players.',
-                    style: v2Sans(13.5, color: const Color(0xFFC7C1B3), height: 1.5),
+                        ? 'Scoring is live.'
+                        : 'Reveals and scoring only opens once 5K players have joined. '
+                              'Until then, answer daily and invite your friends!',
+                    style: v2Sans(
+                      13.5,
+                      color: const Color(0xFFC7C1B3),
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -273,14 +313,21 @@ class _WorldHero extends StatelessWidget {
                           children: [
                             TextSpan(
                               text: ' / ${_formatCount(goal)}',
-                              style: v2Serif(15, color: const Color(0xFF8E887C)),
+                              style: v2Serif(
+                                15,
+                                color: const Color(0xFF8E887C),
+                              ),
                             ),
                           ],
                         ),
                       ),
                       Text(
                         '$pct% there',
-                        style: v2Mono(11, color: RtwV2Colors.onDarkBlue, letterSpacing: 0.5),
+                        style: v2Mono(
+                          11,
+                          color: RtwV2Colors.onDarkBlue,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ],
                   ),
@@ -296,7 +343,10 @@ class _WorldHero extends StatelessWidget {
                         child: Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [RtwV2Colors.gradBlue, RtwV2Colors.gradBlueLight],
+                              colors: [
+                                RtwV2Colors.gradBlue,
+                                RtwV2Colors.gradBlueLight,
+                              ],
                             ),
                           ),
                         ),
@@ -329,14 +379,16 @@ class _WorldHero extends StatelessWidget {
                     behavior: HitTestBehavior.opaque,
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: EdgeInsets.symmetric(vertical: invitePadding),
                       alignment: Alignment.center,
                       child: Text(
                         'Invite friends to help unlock world scoring',
                         textAlign: TextAlign.center,
                         style: v2Sans(
-                          13,
-                          color: const Color(0xFF9EC7FE), // oklch(0.82 0.09 256)
+                          inviteFontSize,
+                          color: const Color(
+                            0xFF9EC7FE,
+                          ), // oklch(0.82 0.09 256)
                           weight: FontWeight.w600,
                         ),
                       ),
@@ -362,6 +414,18 @@ String _formatCount(int value) {
   return buffer.toString();
 }
 
+double _roomsWideValue(
+  BuildContext context, {
+  required double base,
+  required double wide,
+  required double full,
+}) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width >= 960) return full;
+  if (width >= 820) return wide;
+  return base;
+}
+
 class _RoomCard extends ConsumerWidget {
   const _RoomCard({required this.binding});
 
@@ -372,16 +436,16 @@ class _RoomCard extends ConsumerWidget {
     final room = binding.room!;
     final played = binding.played;
     final isSolo = room.isSolo;
-    final streak = binding.me?.streak ?? 0;
     final rank = _rankLabel(binding);
-    final sub = isSolo
-        ? 'Just you, for now'
-        : '${room.memberCount} members · $streak day streak';
-    final statusLabel = played
-        ? 'View or modify answers →'
-        : isSolo
-            ? "Answer today's 3 →"
-            : "Play today's 3 →";
+    final sub = isSolo ? 'Just you, for now' : '${room.memberCount} members';
+    final statusLabel = played ? 'Review answers' : 'Play';
+    final actionPadY = _roomsWideValue(context, base: 0, wide: 3, full: 5);
+    final actionFontSize = _roomsWideValue(
+      context,
+      base: 13,
+      wide: 13.5,
+      full: 14,
+    );
     void onStatusTap() {
       final rooms = ref.read(roomsControllerProvider);
       rooms.markTodaySeen(room.id);
@@ -444,14 +508,22 @@ class _RoomCard extends ConsumerWidget {
                 ),
                 if (!played && !binding.todaySeen) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: RtwV2Colors.blue,
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Text(
                       'NEW',
-                      style: v2Mono(9, color: Colors.white, weight: FontWeight.w600, letterSpacing: 1.2),
+                      style: v2Mono(
+                        9,
+                        color: Colors.white,
+                        weight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -462,28 +534,45 @@ class _RoomCard extends ConsumerWidget {
             const SizedBox(height: 15),
             const V2Hairline(),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onStatusTap,
-                    behavior: HitTestBehavior.opaque,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        statusLabel,
-                        style: v2Sans(
-                          13,
-                          color: RtwV2Colors.blue,
-                          weight: FontWeight.w600,
-                        ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: actionPadY),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: onStatusTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: played
+                            ? Text(
+                                statusLabel,
+                                style: v2Sans(
+                                  actionFontSize,
+                                  color: RtwV2Colors.blue,
+                                  weight: FontWeight.w600,
+                                ),
+                              )
+                            : V2ArrowLabel(
+                                'Play',
+                                color: RtwV2Colors.blue,
+                                fontSize: actionFontSize,
+                                weight: FontWeight.w600,
+                              ),
                       ),
                     ),
                   ),
-                ),
-                if (rank != null)
-                  Text(rank, style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 0.5)),
-              ],
+                  if (rank != null)
+                    Text(
+                      rank,
+                      style: v2Mono(
+                        11,
+                        color: RtwV2Colors.muted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -526,7 +615,11 @@ class _EmptyRooms extends StatelessWidget {
                   color: RtwV2Colors.blue.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(Icons.grid_view_rounded, size: 20, color: RtwV2Colors.blue),
+                child: const Icon(
+                  Icons.grid_view_rounded,
+                  size: 20,
+                  color: RtwV2Colors.blue,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -537,7 +630,11 @@ class _EmptyRooms extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       "Start a room for your crew, or join with a friend's code.",
-                      style: v2Sans(13, color: RtwV2Colors.subText, height: 1.45),
+                      style: v2Sans(
+                        13,
+                        color: RtwV2Colors.subText,
+                        height: 1.45,
+                      ),
                     ),
                   ],
                 ),
@@ -559,17 +656,23 @@ class _JoinDashedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final padY = _roomsWideValue(context, base: 15, wide: 18, full: 22);
+    final fontSize = _roomsWideValue(context, base: 14, wide: 14.5, full: 15);
     return GestureDetector(
       onTap: onTap,
       child: CustomPaint(
         painter: _DashedBorderPainter(),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          padding: EdgeInsets.symmetric(vertical: padY),
           alignment: Alignment.center,
           child: Text(
             'Have a code? Join a room',
-            style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+            style: v2Sans(
+              fontSize,
+              color: const Color(0xFF5C584F),
+              weight: FontWeight.w600,
+            ),
           ),
         ),
       ),

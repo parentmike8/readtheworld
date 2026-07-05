@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -672,6 +673,22 @@ String revealLabelFor(String? dailyKey) {
 
 // ── PICK STAGE ──────────────────────────────────────────────────────────
 
+bool _tapHitsReactionButtons(
+  Offset position,
+  BoxConstraints constraints, {
+  required double cardHeight,
+}) {
+  final cardWidth = math.min(320.0, constraints.maxWidth);
+  final cardLeft = (constraints.maxWidth - cardWidth) / 2;
+  final cardTop = (constraints.maxHeight - cardHeight) / 2;
+  return Rect.fromLTWH(
+    cardLeft + cardWidth - 96,
+    cardTop + 12,
+    84,
+    48,
+  ).contains(position);
+}
+
 class _PickStage extends StatelessWidget {
   const _PickStage({
     required this.session,
@@ -694,6 +711,7 @@ class _PickStage extends StatelessWidget {
         : dx < -RtwV2Motion.borderTintThreshold
         ? RtwV2Colors.clay
         : RtwV2Colors.border;
+    final reaction = rooms.reactionForQuestion(question.qid);
 
     return Column(
       children: [
@@ -706,6 +724,13 @@ class _PickStage extends StatelessWidget {
                   key: const ValueKey('play-pick-zone'),
                   behavior: HitTestBehavior.translucent,
                   onTapUp: (details) {
+                    if (_tapHitsReactionButtons(
+                      details.localPosition,
+                      constraints,
+                      cardHeight: 320,
+                    )) {
+                      return;
+                    }
                     rooms.tapSide(
                       details.localPosition.dx < constraints.maxWidth / 2
                           ? 'b'
@@ -784,10 +809,8 @@ class _PickStage extends StatelessWidget {
                                 dx * RtwV2Motion.tiltFactor * 3.14159 / 180,
                               ),
                             transformAlignment: Alignment.center,
-                            constraints: const BoxConstraints(
-                              maxWidth: 320,
-                              minHeight: 320,
-                            ),
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            height: 320,
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               color: RtwV2Colors.card,
@@ -810,24 +833,41 @@ class _PickStage extends StatelessWidget {
                               ],
                             ),
                             child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                              mainAxisSize: MainAxisSize.max,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  question.tag.toUpperCase(),
-                                  style: v2Mono(
-                                    10,
-                                    color: RtwV2Colors.clay,
-                                    letterSpacing: 1.8,
-                                  ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        question.tag.toUpperCase(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: v2Mono(
+                                          10,
+                                          color: RtwV2Colors.clay,
+                                          letterSpacing: 1.8,
+                                        ),
+                                      ),
+                                    ),
+                                    V2QuestionReactionButtons(
+                                      reaction: reaction,
+                                      onToggle: (next) => unawaited(
+                                        rooms.toggleQuestionReaction(
+                                          question.qid,
+                                          next,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    minHeight: 208,
-                                  ),
+                                Expanded(
                                   child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Padding(
+                                    alignment: Alignment.topLeft,
+                                    child: SingleChildScrollView(
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 18,
                                       ),
@@ -842,6 +882,7 @@ class _PickStage extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 12),
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
@@ -941,10 +982,11 @@ class _PickStage extends StatelessWidget {
               onTap: rooms.goBack,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  '← Back to the last question',
-                  textAlign: TextAlign.center,
-                  style: v2Sans(13, color: RtwV2Colors.subText),
+                child: const V2LeadingArrowLabel(
+                  'Back to the last question',
+                  color: RtwV2Colors.subText,
+                  fontSize: 13,
+                  weight: FontWeight.w400,
                 ),
               ),
             ),
@@ -977,7 +1019,7 @@ class _PredictStage extends StatelessWidget {
     final others = (card.roomMembers - 1).clamp(0, 1 << 31);
     // Solo and The World read the prediction as a share of everyone who
     // answers, not a headcount of a fixed room.
-    final infinite = card.isWorld || others <= 0;
+    final infinite = session.mode == 'intro' || card.isWorld || others <= 0;
     final saveLabel = _saveLabel(session, card);
 
     return Column(
@@ -1027,20 +1069,14 @@ class _PredictStage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (session.mode == 'intro') ...[
-                Text(
-                  'Practice round. Picture 7 people you know answering this too, '
-                  'and predict how many agree with you.',
-                  textAlign: TextAlign.center,
-                  style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.4),
-                ),
-                const SizedBox(height: 14),
-              ],
               PredictionReadout(
                 percent: pred,
                 people: others,
                 sideLabel: sideLabel,
                 sideColor: sideColor,
+                prompt: session.mode == 'intro'
+                    ? 'What % of people would agree with you?'
+                    : 'How many will agree with you?',
                 infinite: infinite,
               ),
               const SizedBox(height: 28),
@@ -1069,10 +1105,11 @@ class _PredictStage extends StatelessWidget {
             onTap: rooms.changeAnswer,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '← Change my answer',
-                textAlign: TextAlign.center,
-                style: v2Sans(13, color: RtwV2Colors.subText),
+              child: const V2LeadingArrowLabel(
+                'Change my answer',
+                color: RtwV2Colors.subText,
+                fontSize: 13,
+                weight: FontWeight.w400,
               ),
             ),
           ),
@@ -1292,10 +1329,11 @@ class _AnswerSavedStage extends ConsumerWidget {
             onTap: rooms.changeAnswer,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '← Change my answer',
-                textAlign: TextAlign.center,
-                style: v2Sans(13, color: RtwV2Colors.subText),
+              child: const V2LeadingArrowLabel(
+                'Change my answer',
+                color: RtwV2Colors.subText,
+                fontSize: 13,
+                weight: FontWeight.w400,
               ),
             ),
           ),
@@ -1528,8 +1566,7 @@ class _CaughtUp extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 280),
             child: Text(
-              'Your reads are in across $label. The reveals land tomorrow, so '
-              'check each room to see how you read it.',
+              'Your reads are in across $label.',
               textAlign: TextAlign.center,
               style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
             ),
@@ -1567,6 +1604,7 @@ class _RoundSummary extends ConsumerWidget {
     final isWorld = room?.isWorld ?? roomId == worldRoomId;
     final day = isWorld ? rooms.worldToday : binding?.today;
     final answer = binding?.myTodayAnswer;
+    final worldGoal = _formatThousands(room?.worldGoal ?? 5000);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 64, 24, 40),
       child: Column(
@@ -1578,7 +1616,7 @@ class _RoundSummary extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   V2Eyebrow(
-                    'This round · $roomName',
+                    roomName,
                     size: 11,
                     color: RtwV2Colors.clay,
                     letterSpacing: 1.6,
@@ -1591,95 +1629,59 @@ class _RoundSummary extends ConsumerWidget {
                   const SizedBox(height: 14),
                   Text(
                     isWorld
-                        ? 'Your World reads are in. Each question reveals and moves '
-                              'your World Read Score once it crosses its answer '
-                              'threshold and The World reaches '
-                              '${_formatThousands(room?.worldGoal ?? 5000)} players.'
-                        : 'Nothing is final yet. You can still change your answers '
-                              'right up until the reveal.',
+                        ? 'Saved for The World.'
+                        : 'Editable until the reveal.',
                     style: v2Sans(15, color: RtwV2Colors.subText, height: 1.55),
                   ),
                   const SizedBox(height: 24),
                   if (day != null && answer != null) ...[
-                    _RoundAnswerSummary(day: day, answer: answer),
+                    _RoundAnswerSummary(
+                      day: day,
+                      answer: answer,
+                      onReview: () =>
+                          rooms.dismissSummaryTo('/rooms/$roomId/review'),
+                    ),
                     const SizedBox(height: 16),
                   ],
                   if (isWorld)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 18,
-                      ),
-                      decoration: BoxDecoration(
-                        color: RtwV2Colors.card,
-                        border: Border.all(color: RtwV2Colors.border),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: RtwV2Colors.meterBlue.withValues(
-                                alpha: 0.12,
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.public,
-                              size: 20,
-                              color: RtwV2Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'For now, every answer helps build the global split '
-                              'and brings The World closer to unlocking.',
-                              style: v2Sans(
-                                13.5,
-                                color: const Color(0xFF5C584F),
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
+                    _WorldSummaryCard(goal: worldGoal)
                   else
-                    const _WhatHappensNextCard(),
+                    const _RevealSummaryCard(),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: RtwV2Colors.ink,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text.rich(
-              TextSpan(
-                text:
-                    'Every friend you bring gets the World closer to unlocking. ',
-                style: v2Sans(13, color: const Color(0xFFC7C1B3), height: 1.5),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showInviteSheet(context, rooms, roomId),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: RtwV2Colors.ink,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
                 children: [
-                  WidgetSpan(
-                    child: GestureDetector(
-                      onTap: () => showInviteSheet(context, rooms, roomId),
-                      child: Text(
-                        'Invite →',
-                        style: v2Sans(
-                          13,
-                          color: RtwV2Colors.onDarkBlue,
-                          weight: FontWeight.w600,
-                        ),
+                  Expanded(
+                    child: Text(
+                      'Bring friends in to unlock World scoring.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: v2Sans(
+                        13,
+                        color: const Color(0xFFC7C1B3),
+                        height: 1.35,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  const V2ArrowLabel(
+                    'Invite',
+                    color: RtwV2Colors.onDarkBlue,
+                    fontSize: 13,
+                    weight: FontWeight.w700,
                   ),
                 ],
               ),
@@ -1698,10 +1700,8 @@ class _RoundSummary extends ConsumerWidget {
   }
 }
 
-/// "What happens next" for a normal room round: the live reveal countdown as
-/// the anchor, then the sequence of events at 00:00 ET.
-class _WhatHappensNextCard extends StatelessWidget {
-  const _WhatHappensNextCard();
+class _RevealSummaryCard extends StatelessWidget {
+  const _RevealSummaryCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1746,31 +1746,17 @@ class _WhatHappensNextCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Everyone in the room locks in at the same moment.',
-                      style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.4),
+                      'See how the room answered, then get your score.',
+                      style: v2Sans(
+                        12.5,
+                        color: RtwV2Colors.muted,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          const _NextStep(
-            marker: '1',
-            label: 'Now',
-            detail: 'Your answers are saved, and still editable.',
-          ),
-          const SizedBox(height: 10),
-          const _NextStep(
-            marker: '2',
-            label: 'At the reveal',
-            detail: "You'll see how the room actually answered.",
-          ),
-          const SizedBox(height: 10),
-          const _NextStep(
-            marker: '3',
-            label: 'Then',
-            detail: 'Your Read Score moves with how well you read the room.',
           ),
         ],
       ),
@@ -1778,60 +1764,70 @@ class _WhatHappensNextCard extends StatelessWidget {
   }
 }
 
-class _NextStep extends StatelessWidget {
-  const _NextStep({
-    required this.marker,
-    required this.label,
-    required this.detail,
-  });
+class _WorldSummaryCard extends StatelessWidget {
+  const _WorldSummaryCard({required this.goal});
 
-  final String marker;
-  final String label;
-  final String detail;
+  final String goal;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: RtwV2Colors.border,
-            shape: BoxShape.circle,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: RtwV2Colors.meterBlue.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.public, size: 20, color: RtwV2Colors.blue),
           ),
-          child: Text(
-            marker,
-            style: v2Sans(11, color: RtwV2Colors.subText, weight: FontWeight.w800),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              text: '$label — ',
-              style: v2Sans(13, color: const Color(0xFF2C2A24), weight: FontWeight.w700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextSpan(
-                  text: detail,
-                  style: v2Sans(13, color: const Color(0xFF5C584F), weight: FontWeight.w400),
+                Text(
+                  'World scoring',
+                  style: v2Sans(
+                    16,
+                    color: RtwV2Colors.blue,
+                    weight: FontWeight.w800,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Unlocks once $goal players join.',
+                  style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.4),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _RoundAnswerSummary extends StatelessWidget {
-  const _RoundAnswerSummary({required this.day, required this.answer});
+  const _RoundAnswerSummary({
+    required this.day,
+    required this.answer,
+    required this.onReview,
+  });
 
   final RoomDay day;
   final RoomAnswer answer;
+  final VoidCallback onReview;
 
   @override
   Widget build(BuildContext context) {
@@ -1841,8 +1837,11 @@ class _RoundAnswerSummary extends StatelessWidget {
       if (pick != null) rows.add((question: question, pick: pick));
     }
     if (rows.isEmpty) return const SizedBox.shrink();
+    final answeredLabel = rows.length == 1
+        ? '1 answered'
+        : '${rows.length} answered';
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
         color: RtwV2Colors.card,
         border: Border.all(color: RtwV2Colors.border),
@@ -1851,12 +1850,26 @@ class _RoundAnswerSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const V2Eyebrow('Your answers', letterSpacing: 1.4),
-          const SizedBox(height: 10),
-          for (final row in rows) ...[
-            _RoundAnswerRow(question: row.question, pick: row.pick),
-            const SizedBox(height: 12),
+          V2Eyebrow(answeredLabel, letterSpacing: 1.4),
+          const SizedBox(height: 12),
+          for (var index = 0; index < rows.length; index++) ...[
+            _RoundAnswerRow(
+              question: rows[index].question,
+              pick: rows[index].pick,
+            ),
+            if (index < rows.length - 1) const SizedBox(height: 10),
           ],
+          const SizedBox(height: 16),
+          V2Button(
+            'Review answers',
+            onPressed: onReview,
+            background: RtwV2Colors.card,
+            foreground: RtwV2Colors.inkSoft,
+            border: const BorderSide(color: RtwV2Colors.border),
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            radius: 14,
+            fontSize: 14,
+          ),
         ],
       ),
     );
@@ -1875,48 +1888,40 @@ class _RoundAnswerRow extends StatelessWidget {
     final sideLabel = sideA ? question.optA : question.optB;
     final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          margin: const EdgeInsets.only(top: 5),
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                question.prompt,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: v2Sans(
-                  13,
-                  color: const Color(0xFF3B3831),
-                  height: 1.35,
-                  weight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  text: 'You said ',
-                  style: v2Sans(12.5, color: RtwV2Colors.subText),
-                  children: [
-                    TextSpan(
-                      text: sideLabel,
-                      style: v2Sans(
-                        12.5,
-                        color: sideColor,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: Text(
+            question.prompt,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: v2Sans(
+              13,
+              color: const Color(0xFF3B3831),
+              height: 1.25,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 112),
+          child: Text(
+            sideLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: v2Sans(
+              13,
+              color: sideColor,
+              weight: FontWeight.w800,
+              height: 1.25,
+            ),
           ),
         ),
       ],

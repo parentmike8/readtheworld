@@ -91,6 +91,7 @@ describe("selectDailyQuestions", () => {
     roomCats: ["All"],
     usedQuestionIds: new Set<string>(),
     seenByMemberIds: new Set<string>(),
+    dislikedByMemberIds: new Set<string>(),
     count: 3,
   };
 
@@ -117,6 +118,21 @@ describe("selectDailyQuestions", () => {
     ];
     const picked = selectDailyQuestions({ ...base, roomCats: ["Social"], candidates });
     expect(picked.map((question) => question.id)).toEqual(["ok"]);
+  });
+
+  it("excludes questions disliked by any current room member", () => {
+    const candidates = [
+      candidate({ id: "liked-enough" }),
+      candidate({ id: "member-disliked", timesUsed: 0 }),
+      candidate({ id: "fine", shape: "GREY" }),
+    ];
+    const picked = selectDailyQuestions({
+      ...base,
+      candidates,
+      dislikedByMemberIds: new Set(["member-disliked"]),
+    });
+    expect(picked.map((question) => question.id)).not.toContain("member-disliked");
+    expect(picked.map((question) => question.id).sort()).toEqual(["fine", "liked-enough"]);
   });
 
   it("prefers questions unseen by members, then least used", () => {

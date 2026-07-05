@@ -20,6 +20,14 @@ int? _timestampMillis(Object? value) {
   return null;
 }
 
+Set<String> _stringSet(Object? value) {
+  if (value is! List) return {};
+  return value
+      .map((item) => item.toString())
+      .where((item) => item.isNotEmpty)
+      .toSet();
+}
+
 /// Live view of one room the user belongs to: room doc + my member doc +
 /// today's question set + my locked answer for it.
 class RoomBinding {
@@ -60,7 +68,12 @@ class RoomRevealData {
 
 /// In-flight play state, mirroring the prototype's `play` object.
 class PlaySession {
-  PlaySession({required this.mode, required this.deck, this.roomId, this.dailyKey});
+  PlaySession({
+    required this.mode,
+    required this.deck,
+    this.roomId,
+    this.dailyKey,
+  });
 
   /// 'today' (cross-room deck with intro cards) or 'room' (single block).
   final String mode;
@@ -131,6 +144,8 @@ class RoomsController extends ChangeNotifier {
   /// users/{uid} profile doc state — gates the first-run onboarding demo.
   bool profileLoaded = false;
   bool hasOnboarded = false;
+  Set<String> likedQuestionIds = {};
+  Set<String> dislikedQuestionIds = {};
 
   StreamSubscription<User?>? _authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSub;
@@ -160,6 +175,11 @@ class RoomsController extends ChangeNotifier {
       roomOrder = [];
       play = null;
       summaryRoomId = null;
+      _partyPool = [];
+      _partyPlayed.clear();
+      partyPoolLoading = false;
+      partyPoolLoadAttempted = false;
+      partyPoolError = null;
       loadingRooms = true;
       profileLoaded = false;
       hasOnboarded = false;
@@ -182,6 +202,8 @@ class RoomsController extends ChangeNotifier {
           hasMatureConsent || snapshot.data()?['matureContent'] == true;
       notifPrimerSeen =
           notifPrimerSeen || snapshot.data()?['notifPrimerSeenAt'] != null;
+      likedQuestionIds = _stringSet(snapshot.data()?['likedQuestionIds']);
+      dislikedQuestionIds = _stringSet(snapshot.data()?['dislikedQuestionIds']);
       profileLoaded = true;
       notifyListeners();
     }, onError: _handleError);
@@ -207,12 +229,16 @@ class RoomsController extends ChangeNotifier {
     final currentUid = uid;
     if (currentUid == null) return;
     unawaited(
-      _db.collection('users').doc(currentUid).set({
-        'notifPrimerSeenAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true)).catchError((Object error) {
-        _handleError(error);
-      }),
+      _db
+          .collection('users')
+          .doc(currentUid)
+          .set({
+            'notifPrimerSeenAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .catchError((Object error) {
+            _handleError(error);
+          }),
     );
   }
 
@@ -465,8 +491,11 @@ class RoomsController extends ChangeNotifier {
       )
       .toList();
 
-  int get caughtUpCount =>
-      visibleRooms.where((binding) => binding.played).length;
+  int get caughtUpCount {
+    final roomCount = visibleRooms.where((binding) => binding.played).length;
+    final worldCount = (_worldBinding?.played ?? false) ? 1 : 0;
+    return roomCount + worldCount;
+  }
 
   RoomBinding? bindingFor(String? roomId) => roomId == null
       ? null
@@ -595,7 +624,8 @@ class RoomsController extends ChangeNotifier {
     final session = play;
     if (session != null && session.mode != 'intro') {
       final roomId = session.roomId;
-      pendingPlayExitRoute = _playEntryRoute ??
+      pendingPlayExitRoute =
+          _playEntryRoute ??
           (roomId != null && roomId.isNotEmpty ? '/rooms/$roomId' : '/rooms');
     } else {
       pendingPlayExitRoute = null;
@@ -615,6 +645,54 @@ class RoomsController extends ChangeNotifier {
     if (binding == null || binding.todaySeen) return;
     binding.todaySeen = true;
     notifyListeners();
+  }
+
+  QuestionReaction? reactionForQuestion(String qid) {
+    if (likedQuestionIds.contains(qid)) return QuestionReaction.liked;
+    if (dislikedQuestionIds.contains(qid)) return QuestionReaction.disliked;
+    return null;
+  }
+
+  Future<void> toggleQuestionReaction(
+    String qid,
+    QuestionReaction reaction,
+  ) async {
+    if (qid.isEmpty) return;
+    final beforeLiked = {...likedQuestionIds};
+    final beforeDisliked = {...dislikedQuestionIds};
+    final nextReaction = reactionForQuestion(qid) == reaction ? null : reaction;
+    _applyLocalQuestionReaction(qid, nextReaction);
+    notifyListeners();
+    if (!firebaseReady) return;
+    try {
+      await _callable('setQuestionReaction').call({
+        'qid': qid,
+        'reaction': nextReaction == null
+            ? null
+            : switch (nextReaction) {
+                QuestionReaction.liked => 'liked',
+                QuestionReaction.disliked => 'disliked',
+              },
+      });
+    } catch (error) {
+      likedQuestionIds = beforeLiked;
+      dislikedQuestionIds = beforeDisliked;
+      lastError = _callableMessage(error);
+      notifyListeners();
+    }
+  }
+
+  void _applyLocalQuestionReaction(String qid, QuestionReaction? reaction) {
+    likedQuestionIds = {...likedQuestionIds}..remove(qid);
+    dislikedQuestionIds = {...dislikedQuestionIds}..remove(qid);
+    switch (reaction) {
+      case QuestionReaction.liked:
+        likedQuestionIds = {...likedQuestionIds}..add(qid);
+      case QuestionReaction.disliked:
+        dislikedQuestionIds = {...dislikedQuestionIds}..add(qid);
+      case null:
+        break;
+    }
   }
 
   /// Intro answers lock straight to The World (auto-enrolls on first
@@ -661,7 +739,8 @@ class RoomsController extends ChangeNotifier {
     final session = play;
     if (session == null || session.stage != PlayStage.predict) return;
     final people = _predictionPeople(session);
-    if (!_predictionInfinite(session) && people <= _countFirstPredictionThreshold) {
+    if (!_predictionInfinite(session) &&
+        people <= _countFirstPredictionThreshold) {
       final current = ((session.pred / 100) * people).round();
       final rawNext = current + delta;
       final next = rawNext < 0
@@ -790,7 +869,8 @@ class RoomsController extends ChangeNotifier {
   int _snapPredictionForSession(PlaySession session, int value) {
     final bounded = _boundedPrediction(value);
     final people = _predictionPeople(session);
-    if (_predictionInfinite(session) || people > _countFirstPredictionThreshold) {
+    if (_predictionInfinite(session) ||
+        people > _countFirstPredictionThreshold) {
       return bounded;
     }
     final rawCount = ((bounded / 100) * people).round();
@@ -805,7 +885,8 @@ class RoomsController extends ChangeNotifier {
   int _snapPredictionFractionForSession(PlaySession session, double fraction) {
     final boundedFraction = fraction.clamp(0.0, 1.0);
     final people = _predictionPeople(session);
-    if (_predictionInfinite(session) || people > _countFirstPredictionThreshold) {
+    if (_predictionInfinite(session) ||
+        people > _countFirstPredictionThreshold) {
       return _boundedPrediction((boundedFraction * 100).round());
     }
     final count = (boundedFraction * people).round().clamp(0, people);
@@ -1008,25 +1089,51 @@ class RoomsController extends ChangeNotifier {
             {
               'qid': pick.qid,
               'side': pick.side,
-              if (pick.prediction != null) 'prediction': pick.prediction,
+              if (pick.prediction != null) ...{
+                'prediction': pick.prediction,
+                'predictedShare': pick.prediction,
+              },
             },
         ],
       };
       if (dailyKey != null) payload['dailyKey'] = dailyKey;
       await _callable('lockRoomAnswers').call(payload);
+      _hydrateSubmittedRoomAnswer(roomId, picks, dailyKey: dailyKey);
       return true;
     } on FirebaseFunctionsException catch (error) {
-      if (error.code != 'already-exists') {
-        lastError = error.message ?? error.code;
-        return false;
-      }
-      return true;
+      lastError = error.message ?? error.code;
+      return false;
     } catch (error) {
       lastError = error.toString();
       return false;
     } finally {
       submitting = false;
       notifyListeners();
+    }
+  }
+
+  void _hydrateSubmittedRoomAnswer(
+    String roomId,
+    List<RoomPick> picks, {
+    String? dailyKey,
+  }) {
+    if (picks.isEmpty) return;
+    final binding = bindingFor(roomId);
+    final submittedAnswer = RoomAnswer(
+      picks: List<RoomPick>.unmodifiable(picks),
+      answerOnly: picks.every((pick) => pick.prediction == null),
+    );
+    if (binding != null &&
+        (dailyKey == null || binding.today?.dailyKey == dailyKey)) {
+      binding.myTodayAnswer = submittedAnswer;
+    }
+    if (roomId == worldRoomId &&
+        (dailyKey == null || worldToday?.dailyKey == dailyKey)) {
+      final worldBinding = bindings.putIfAbsent(
+        worldRoomId,
+        () => RoomBinding(),
+      );
+      worldBinding.myTodayAnswer = submittedAnswer;
     }
   }
 
@@ -1085,8 +1192,8 @@ class RoomsController extends ChangeNotifier {
       final closedDocs = includeLive
           ? daysSnap.docs.toList()
           : daysSnap.docs
-              .where((doc) => doc.data()['status'] == 'closed')
-              .toList();
+                .where((doc) => doc.data()['status'] == 'closed')
+                .toList();
       final answers = await Future.wait([
         for (final doc in closedDocs)
           doc.reference.collection('answers').doc(currentUid).get(),
@@ -1374,13 +1481,18 @@ class RoomsController extends ChangeNotifier {
   List<PartyQuestion> _partyPool = [];
   final Set<String> _partyPlayed = {};
   bool partyPoolLoading = false;
+  bool partyPoolLoadAttempted = false;
+  String? partyPoolError;
 
-  List<PartyQuestion> get partyPool => _partyPool;
+  List<PartyQuestion> get partyPool => _partyPool
+      .where((question) => !dislikedQuestionIds.contains(question.qid))
+      .toList();
 
   /// Fetch a fresh pool, optionally scoped to a spice level server-side so
   /// e.g. After Dark gets a full deck instead of a diluted random sample.
   Future<void> refreshPartyPool({RoomTier? tier}) async {
     partyPoolLoading = true;
+    partyPoolError = null;
     notifyListeners();
     try {
       final result = await _callable('getPartyPool').call({
@@ -1397,8 +1509,10 @@ class RoomsController extends ChangeNotifier {
           .toList();
     } catch (error) {
       // Offline: keep whatever pool we already have cached in memory.
+      partyPoolError = _callableMessage(error);
       debugPrint('Party pool refresh failed: $error');
     } finally {
+      partyPoolLoadAttempted = true;
       partyPoolLoading = false;
       notifyListeners();
     }
@@ -1417,15 +1531,17 @@ class RoomsController extends ChangeNotifier {
     return (data['rows'] as List? ?? const [])
         .whereType<Map>()
         .map((raw) => Map<String, dynamic>.from(raw))
-        .map((row) => WorldLeaderRow(
-              rank: (row['rank'] as num?)?.toInt() ?? 0,
-              uid: row['uid']?.toString() ?? '',
-              displayName: row['displayName']?.toString() ?? 'Reader',
-              avatarColor: row['avatarColor']?.toString() ?? 'blue',
-              readScore: (row['readScore'] as num?)?.toInt() ?? 1500,
-              questionsScored:
-                  (row['officialQuestionsAnswered'] as num?)?.toInt() ?? 0,
-            ))
+        .map(
+          (row) => WorldLeaderRow(
+            rank: (row['rank'] as num?)?.toInt() ?? 0,
+            uid: row['uid']?.toString() ?? '',
+            displayName: row['displayName']?.toString() ?? 'Reader',
+            avatarColor: row['avatarColor']?.toString() ?? 'blue',
+            readScore: (row['readScore'] as num?)?.toInt() ?? 1500,
+            questionsScored:
+                (row['officialQuestionsAnswered'] as num?)?.toInt() ?? 0,
+          ),
+        )
         .toList();
   }
 

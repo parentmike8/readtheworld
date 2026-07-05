@@ -30,6 +30,7 @@ service cloud.firestore {
         "demographics",
         "dailyReminder",
         "onboardedAt",
+        "notifPrimerSeenAt",
         "matureContent",
         "createdAt",
         "updatedAt"
@@ -45,6 +46,7 @@ service cloud.firestore {
         "demographics",
         "dailyReminder",
         "onboardedAt",
+        "notifPrimerSeenAt",
         "matureContent",
         "updatedAt"
       ];
@@ -204,6 +206,18 @@ service cloud.firestore {
     }
 
     match /questionBank/{qid} {
+      allow read, write: if isAdmin();
+    }
+
+    match /questionFeedback/{qid} {
+      allow read, write: if isAdmin();
+    }
+
+    match /feedback/{feedbackId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /accountNotifications/{uid} {
       allow read, write: if isAdmin();
     }
 

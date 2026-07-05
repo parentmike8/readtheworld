@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:read_the_world/app_state.dart';
 import 'package:read_the_world/app_settings.dart';
 import 'package:read_the_world/main.dart';
 import 'package:read_the_world/scoring.dart';
 import 'package:read_the_world/v2/models_v2.dart';
+import 'package:read_the_world/v2/mappers_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/play_surface.dart';
+import 'package:read_the_world/v2/screens/profile_screen.dart';
 import 'package:read_the_world/v2/screens/room_detail.dart';
 import 'package:read_the_world/v2/screens/rooms_home.dart';
 import 'package:read_the_world/v2/sheets/room_sheets.dart';
@@ -282,6 +285,25 @@ void main() {
       expect(rooms.play!.stage, PlayStage.predict);
     });
 
+    test('caught up count includes The World with personal rooms', () {
+      final test = _binding(id: 'test', name: 'Test')
+        ..myTodayAnswer = const RoomAnswer(picks: [], answerOnly: false);
+      final yeah = _binding(id: 'yeah', name: 'YEAH')
+        ..myTodayAnswer = const RoomAnswer(picks: [], answerOnly: false);
+      final world = _binding(
+        id: worldRoomId,
+        name: 'The World',
+        members: 4,
+        isWorld: true,
+      )..myTodayAnswer = const RoomAnswer(picks: [], answerOnly: false);
+      final rooms = _roomsWith([test, yeah])
+        ..worldRoom = world.room
+        ..worldToday = world.today
+        ..bindings[worldRoomId] = world;
+
+      expect(rooms.caughtUpCount, 3);
+    });
+
     test(
       'answered world room reopens with saved picks for modification',
       () async {
@@ -391,6 +413,17 @@ void main() {
       expect(rooms.play!.pred, 25);
       rooms.meterUpdate(0.26);
       expect(rooms.play!.pred, 26);
+    });
+
+    test('room answer mapper accepts legacy predictedShare picks', () {
+      final answer = roomAnswerFromFirestore({
+        'picks': [
+          {'qid': 'q1', 'side': 'b', 'predictedShare': 62},
+        ],
+        'answerOnly': false,
+      });
+
+      expect(answer.pickFor('q1')?.prediction, 62);
     });
 
     test(
@@ -671,9 +704,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Read all of humanity.'), findsOneWidget);
       expect(
-        find.textContaining('scores your World Read Score once it crosses'),
+        find.text(
+          'Reveals and scoring only opens once 5K players have joined. '
+          'Until then, answer daily and invite your friends!',
+        ),
         findsOneWidget,
       );
+      expect(find.bySemanticsLabel('Play →'), findsOneWidget);
       expect(find.textContaining('more players to unlock'), findsNothing);
       expect(
         find.text('Invite friends to help unlock world scoring'),
@@ -711,8 +748,42 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('View or modify your answers →'), findsOneWidget);
-      expect(find.text('Answer world questions →'), findsNothing);
+      expect(find.text('Review answers'), findsOneWidget);
+      expect(find.bySemanticsLabel('Play →'), findsNothing);
+      expect(find.bySemanticsLabel('Answer world questions →'), findsNothing);
+    });
+
+    testWidgets('profile exposes feedback composer', (tester) async {
+      final profile = RtwController(firebaseReady: false)
+        ..displayName = 'Mike'
+        ..email = 'mike@example.com'
+        ..lastError = null;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            rtwControllerProvider.overrideWith(
+              (_) => profile,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Share feedback'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Share feedback'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share feedback'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tell us what to fix.'), findsOneWidget);
+      expect(find.text('Send feedback'), findsOneWidget);
+      expect(find.byType(TextField), findsWidgets);
     });
 
     testWidgets('submitted room card exposes a modify action', (tester) async {
@@ -738,7 +809,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('View or modify answers →'), findsOneWidget);
+      expect(find.text('Review answers'), findsOneWidget);
       expect(find.textContaining('Locked in'), findsNothing);
     });
 
@@ -795,8 +866,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.textContaining('tomorrow'), findsNothing);
-        expect(find.text('YOUR ANSWERS'), findsOneWidget);
-        expect(find.textContaining('You said'), findsWidgets);
+        expect(find.text('3 ANSWERED'), findsOneWidget);
+        expect(find.widgetWithText(V2Button, 'Review answers'), findsOneWidget);
+        expect(find.textContaining('You said'), findsNothing);
 
         await tester.tap(find.widgetWithText(V2Button, 'Back to The World'));
         await tester.pumpAndSettle();
@@ -946,7 +1018,11 @@ void main() {
       await tester.tap(find.text('Party'));
       await tester.pumpAndSettle();
       expect(find.text('Pass the phone.'), findsOneWidget);
-      expect(find.text('Loading questions…'), findsOneWidget);
+      expect(
+        find.text('Play with everyone in the room, right from your phone.'),
+        findsOneWidget,
+      );
+      expect(find.text('Try loading again'), findsOneWidget);
     });
 
     testWidgets('party play surface exposes swaps and the game menu', (
@@ -1084,6 +1160,45 @@ void main() {
 
       expect(rooms.play!.side, 'a');
       expect(rooms.play!.stage, PlayStage.predict);
+    });
+
+    testWidgets('question reaction buttons do not choose a side', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final rooms = _roomsWith([
+        _binding(id: 'studio', name: 'The Studio', qids: const ['q1']),
+      ]);
+      rooms.startRoomPlay('studio');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: MaterialApp(home: PlaySurface(session: rooms.play!)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsLabel('Like question'));
+      await tester.pump(
+        RtwV2Motion.cardFling + const Duration(milliseconds: 1),
+      );
+
+      expect(rooms.reactionForQuestion('q1'), QuestionReaction.liked);
+      expect(rooms.play!.side, isNull);
+      expect(rooms.play!.stage, PlayStage.pick);
+      expect(find.byIcon(Icons.thumb_up_alt), findsOneWidget);
     });
   });
 }

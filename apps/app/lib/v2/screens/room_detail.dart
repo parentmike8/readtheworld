@@ -34,7 +34,9 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   /// play surface pre-loaded with their picks so they can revise.
   void _maybeAutoEdit(RoomsController rooms, RtwRoom room) {
     if (!widget.edit || _autoEditDone) return;
-    final day = room.isWorld ? rooms.worldToday : rooms.bindingFor(room.id)?.today;
+    final day = room.isWorld
+        ? rooms.worldToday
+        : rooms.bindingFor(room.id)?.today;
     final answer = rooms.bindingFor(room.id)?.myTodayAnswer;
     if (day == null || !day.isLive || answer == null) return;
     _autoEditDone = true;
@@ -76,7 +78,8 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
       // after navigation while its doc streams — show a spinner, don't bounce.
       // (That brief bounce was why exits/backs kept landing on Rooms.)
       final isWorldRoom = widget.roomId == worldRoomId;
-      final known = isWorldRoom ||
+      final known =
+          isWorldRoom ||
           binding != null ||
           rooms.roomOrder.contains(widget.roomId);
       if (!rooms.loadingRooms && !known) {
@@ -123,7 +126,11 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                   ),
                   child: const Padding(
                     padding: EdgeInsets.all(6),
-                    child: Icon(Icons.more_vert, size: 20, color: RtwV2Colors.muted),
+                    child: Icon(
+                      Icons.more_vert,
+                      size: 20,
+                      color: RtwV2Colors.muted,
+                    ),
                   ),
                 ),
               ],
@@ -154,17 +161,25 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                             isWorld
                                 ? '${_thousands(room.memberCount)} players answering'
                                 : isSolo
-                                    ? 'Just you, for now'
-                                    : '${room.memberCount} members',
+                                ? 'Just you, for now'
+                                : '${room.memberCount} members',
                             style: v2Sans(13, color: RtwV2Colors.muted),
                           ),
                           if (hasBoard) ...[
                             const SizedBox(width: 9),
-                            Container(width: 1, height: 11, color: const Color(0xFFD8D2C5)),
+                            Container(
+                              width: 1,
+                              height: 11,
+                              color: const Color(0xFFD8D2C5),
+                            ),
                             const SizedBox(width: 9),
                             Text(
                               'RANK #${me?.rank ?? '—'}',
-                              style: v2Mono(11, color: RtwV2Colors.muted, letterSpacing: 0.5),
+                              style: v2Mono(
+                                11,
+                                color: RtwV2Colors.muted,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ],
                         ],
@@ -185,7 +200,9 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
               ),
             const SizedBox(height: 26),
             if (isSolo)
-              _SoloNudge(onInvite: () => showInviteSheet(context, rooms, room.id))
+              _SoloNudge(
+                onInvite: () => showInviteSheet(context, rooms, room.id),
+              )
             else if (isWorld)
               _WorldProgressCard(room: room, rooms: rooms)
             else
@@ -194,7 +211,9 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
               const SizedBox(height: 16),
               _AddQuestionButton(rooms: rooms, roomId: room.id),
             ],
-            if (!isWorld && reveal != null && (reveal!.myAnswer?.picks.isNotEmpty ?? false)) ...[
+            if (!isWorld &&
+                reveal != null &&
+                (reveal!.myAnswer?.picks.isNotEmpty ?? false)) ...[
               const SizedBox(height: 24),
               V2Eyebrow(
                 revealLabelFor(reveal!.dailyKey),
@@ -224,12 +243,20 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const V2Eyebrow('Room leaderboard', size: 11, letterSpacing: 1.6),
+                  const V2Eyebrow(
+                    'Room leaderboard',
+                    size: 11,
+                    letterSpacing: 1.6,
+                  ),
                   GestureDetector(
                     onTap: () => showInviteSheet(context, rooms, room.id),
                     child: Text(
                       'Invite +',
-                      style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                      style: v2Sans(
+                        13,
+                        color: RtwV2Colors.blue,
+                        weight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -243,7 +270,11 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     );
   }
 
-  void _showHistorySheet(BuildContext context, RoomsController rooms, RtwRoom room) {
+  void _showHistorySheet(
+    BuildContext context,
+    RoomsController rooms,
+    RtwRoom room,
+  ) {
     // The World answers from history, so it needs a route (push/pop) rather
     // than a sheet; regular rooms are review-only and keep the sheet.
     if (room.isWorld) {
@@ -252,7 +283,6 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
       showRoomHistorySheet(context, rooms, room);
     }
   }
-
 }
 
 String _thousands(int value) {
@@ -273,14 +303,12 @@ class _PlayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final playCopy = room.isWorld
-        ? 'Answering is always open. Predicting turns on once the game hits '
-            '${_thousands(room.worldGoal)} players.'
-        : room.isSolo
-            ? "Swipe to answer each one. No one to predict yet, so it's just you "
-                'keeping your streak going.'
-            : 'Swipe to answer each one, then predict how the room actually answered.';
-    final cta = (room.isSolo || room.isWorld) ? "Answer today's 3 →" : "Play today's 3 →";
+    final playCopy = room.isSolo
+        ? null
+        : room.isWorld
+        ? 'Call each one, then predict the world.'
+        : 'Call each one, then predict the room.';
+    const cta = 'Play →';
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -290,15 +318,29 @@ class _PlayCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          V2Eyebrow('Today · 3 questions', color: const Color(0xFFB8D3F9), letterSpacing: 1.6),
+          V2Eyebrow(
+            'Today · 3 questions',
+            color: const Color(0xFFB8D3F9),
+            letterSpacing: 1.6,
+          ),
           const SizedBox(height: 10),
           Text(
             'Can you read the room today?',
-            style: v2Serif(27, color: Colors.white, height: 1.1, letterSpacing: -0.4),
+            style: v2Serif(
+              27,
+              color: Colors.white,
+              height: 1.1,
+              letterSpacing: -0.4,
+            ),
           ),
-          const SizedBox(height: 9),
-          Text(playCopy, style: v2Sans(14, color: const Color(0xFFD8E6F9), height: 1.5)),
-          const SizedBox(height: 18),
+          SizedBox(height: playCopy == null ? 24 : 9),
+          if (playCopy != null) ...[
+            Text(
+              playCopy,
+              style: v2Sans(14, color: const Color(0xFFD8E6F9), height: 1.5),
+            ),
+            const SizedBox(height: 18),
+          ],
           V2Button(
             cta,
             background: Colors.white,
@@ -344,24 +386,26 @@ class _PlayedCard extends StatelessWidget {
             children: [
               const Icon(Icons.check, size: 14, color: RtwV2Colors.green),
               const SizedBox(width: 8),
-              const V2Eyebrow('Today · 3 questions · in', letterSpacing: 1.6),
+              const V2Eyebrow('All 3 answered', letterSpacing: 1.6),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            'Your reads are in for today.',
+            'Answers in for today.',
             style: v2Serif(26, height: 1.1, letterSpacing: -0.4),
           ),
           const SizedBox(height: 9),
           Text(
-            'See how the room answered tomorrow. The reveal lands with the '
-            'next set of questions.',
+            "Editable until tomorrow's reveal.",
             style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
           ),
           if (canModify) ...[
             const SizedBox(height: 18),
             V2Button(
-              'View or modify your answers →',
+              'Review answers',
+              background: RtwV2Colors.card,
+              foreground: RtwV2Colors.inkSoft,
+              border: const BorderSide(color: RtwV2Colors.borderStrong),
               fontWeight: FontWeight.w700,
               fontSize: 15,
               padding: const EdgeInsets.symmetric(vertical: 15),
@@ -391,11 +435,10 @@ class _SoloNudge extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const V2Eyebrow('No one to read, yet', letterSpacing: 1.6),
+          const V2Eyebrow('Solo for now', letterSpacing: 1.6),
           const SizedBox(height: 8),
           Text(
-            'Predicting and Read Score turn on as soon as one other person '
-            'joins. Until then, just answer for the streak.',
+            'Invite at least one person to turn on predicting and your Read Score.',
             style: v2Sans(14, color: const Color(0xFF5C584F), height: 1.5),
           ),
           const SizedBox(height: 14),
@@ -449,7 +492,10 @@ class _WorldProgressCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Text('$pct%', style: v2Mono(11, color: RtwV2Colors.blue, letterSpacing: 0.5)),
+              Text(
+                '$pct%',
+                style: v2Mono(11, color: RtwV2Colors.blue, letterSpacing: 0.5),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -467,19 +513,14 @@ class _WorldProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'You always make a read here. A question reveals and scores your '
-            'World Read Score once it crosses 1,000 answers and the game passes '
-            '${_thousands(room.worldGoal)} players.',
+            'Predicting turns on once the game hits ${_thousands(room.worldGoal)} '
+            'players and a question crosses 1,000 answers.',
             style: v2Sans(13, color: RtwV2Colors.subText, height: 1.5),
           ),
           const SizedBox(height: 6),
           _WorldLink(
-            label: 'Browse & answer past questions →',
+            label: 'Browse other world questions',
             onTap: () => context.push('/rooms/${room.id}/history'),
-          ),
-          _WorldLink(
-            label: 'How you stack against your peers →',
-            onTap: () => context.push('/world/leaderboard'),
           ),
         ],
       ),
@@ -502,9 +543,11 @@ class _WorldLink extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Text(
+        child: V2ArrowLabel(
           label,
-          style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+          color: RtwV2Colors.blue,
+          fontSize: 13.5,
+          weight: FontWeight.w600,
         ),
       ),
     );
@@ -533,7 +576,11 @@ class _ScoreCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const V2Eyebrow('Your read score', color: Color(0xFF8E887C), letterSpacing: 1.6),
+              const V2Eyebrow(
+                'Your read score',
+                color: Color(0xFF8E887C),
+                letterSpacing: 1.6,
+              ),
               const SizedBox(height: 6),
               Text(
                 _thousands(me?.roomScore ?? 1500),
@@ -549,14 +596,20 @@ class _ScoreCard extends StatelessWidget {
                   '${delta >= 0 ? '+' : ''}$delta',
                   style: v2Mono(
                     15,
-                    color: delta >= 0 ? RtwV2Colors.deltaUp : RtwV2Colors.deltaDown,
+                    color: delta >= 0
+                        ? RtwV2Colors.deltaUp
+                        : RtwV2Colors.deltaDown,
                     weight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'FROM ${_whenLabel(me?.lastScoredDailyKey)}',
-                  style: v2Mono(9, color: const Color(0xFF8E887C), letterSpacing: 1),
+                  style: v2Mono(
+                    9,
+                    color: const Color(0xFF8E887C),
+                    letterSpacing: 1,
+                  ),
                 ),
               ],
             ),
@@ -596,15 +649,25 @@ class _AddQuestionButton extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text('+', style: v2Sans(17, color: RtwV2Colors.blue, height: 1)),
+                    Text(
+                      '+',
+                      style: v2Sans(17, color: RtwV2Colors.blue, height: 1),
+                    ),
                     const SizedBox(width: 9),
                     Text(
                       'Add your own question',
-                      style: v2Sans(14, color: const Color(0xFF5C584F), weight: FontWeight.w600),
+                      style: v2Sans(
+                        14,
+                        color: const Color(0xFF5C584F),
+                        weight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
-                Text('$count in the pool', style: v2Mono(11, letterSpacing: 0.5)),
+                Text(
+                  '$count in the pool',
+                  style: v2Mono(11, letterSpacing: 0.5),
+                ),
               ],
             ),
           ),
@@ -658,11 +721,19 @@ class _YesterdayCard extends StatelessWidget {
                   Text.rich(
                     TextSpan(
                       text: '$score',
-                      style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 0),
+                      style: v2Mono(
+                        11,
+                        color: RtwV2Colors.clay,
+                        letterSpacing: 0,
+                      ),
                       children: [
                         TextSpan(
                           text: '/100',
-                          style: v2Mono(11, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                          style: v2Mono(
+                            11,
+                            color: const Color(0xFFBCB6A8),
+                            letterSpacing: 0,
+                          ),
                         ),
                       ],
                     ),
@@ -691,7 +762,10 @@ class _YesterdayCard extends StatelessWidget {
                     ),
                     if (guess != null)
                       Align(
-                        alignment: Alignment((guess / 100).clamp(0.0, 1.0) * 2 - 1, 0),
+                        alignment: Alignment(
+                          (guess / 100).clamp(0.0, 1.0) * 2 - 1,
+                          0,
+                        ),
                         child: Container(width: 2, color: RtwV2Colors.blue),
                       ),
                   ],
@@ -709,13 +783,20 @@ class _YesterdayCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: youLabel,
-                        style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w700),
+                        style: v2Sans(
+                          12,
+                          color: RtwV2Colors.blue,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                       if (guess != null) TextSpan(text: ' · guessed $guess%'),
                     ],
                   ),
                 ),
-                Text('Room $roomPct%', style: v2Sans(12, color: RtwV2Colors.muted)),
+                Text(
+                  'Room $roomPct%',
+                  style: v2Sans(12, color: RtwV2Colors.muted),
+                ),
               ],
             ),
           ],
@@ -726,7 +807,11 @@ class _YesterdayCard extends StatelessWidget {
 }
 
 class _Leaderboard extends StatelessWidget {
-  const _Leaderboard({required this.rooms, required this.roomId, required this.myUid});
+  const _Leaderboard({
+    required this.rooms,
+    required this.roomId,
+    required this.myUid,
+  });
 
   final RoomsController rooms;
   final String roomId;
@@ -750,7 +835,10 @@ class _Leaderboard extends StatelessWidget {
             children: [
               for (final (index, member) in members.indexed) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
                   color: member.uid == myUid
                       ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
                       : null,
@@ -758,7 +846,10 @@ class _Leaderboard extends StatelessWidget {
                     children: [
                       SizedBox(
                         width: 26,
-                        child: Text('#${index + 1}', style: v2Mono(13, letterSpacing: 0)),
+                        child: Text(
+                          '#${index + 1}',
+                          style: v2Mono(13, letterSpacing: 0),
+                        ),
                       ),
                       Container(
                         width: 7,
@@ -777,7 +868,9 @@ class _Leaderboard extends StatelessWidget {
                           style: v2Sans(
                             15,
                             color: RtwV2Colors.inkSoft,
-                            weight: member.uid == myUid ? FontWeight.w700 : FontWeight.w500,
+                            weight: member.uid == myUid
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                         ),
                       ),

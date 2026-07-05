@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions";
@@ -89,8 +90,11 @@ import {
 } from "./notifications";
 import {
   dailyHabitEmail,
+  feedbackEmail,
   isValidEmail,
   memberJoinedEmail,
+  newUserEmail,
+  PostmarkSendError,
   postmarkServerToken,
   sendPostmarkEmail,
   verificationEmail,
@@ -121,9 +125,15 @@ const MARKETING_URL = "https://readtheworld.today";
 const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
+const FEEDBACK_COOLDOWN_MS = 60 * 1000;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
+const authOnlyCallableOptions = callableOptions;
 const emailCallableOptions = {
+  ...callableOptions,
+  secrets: [postmarkServerToken],
+};
+const feedbackCallableOptions = {
   ...callableOptions,
   secrets: [postmarkServerToken],
 };
@@ -251,6 +261,39 @@ function assertString(value: unknown, field: string): string {
     throw new HttpsError("invalid-argument", `${field} is required.`);
   }
   return value.trim();
+}
+
+function assertQuestionReactionId(value: unknown): string {
+  const qid = assertString(value, "qid");
+  if (!/^[A-Za-z0-9_-]{1,120}$/.test(qid)) {
+    throw new HttpsError("invalid-argument", "qid is invalid.");
+  }
+  return qid;
+}
+
+function assertFeedbackMessage(value: unknown): string {
+  const message = assertString(value, "feedback");
+  if (message.length < 2) {
+    throw new HttpsError("invalid-argument", "Write a little feedback first.");
+  }
+  if (message.length > 4000) {
+    throw new HttpsError("invalid-argument", "Feedback must be 4000 characters or fewer.");
+  }
+  return message;
+}
+
+function normalizeFeedbackSource(value: unknown): string {
+  if (typeof value !== "string") return "profile";
+  const source = value.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{1,40}$/.test(source)) return "profile";
+  return source;
+}
+
+function timestampToIso(value: unknown): string {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" && value.trim().length > 0) return value.trim();
+  return new Date().toISOString();
 }
 
 function assertPrediction(value: unknown): number {
@@ -2408,24 +2451,240 @@ export const sendVerificationEmail = onCall(emailCallableOptions, async (request
     return { sent: false, alreadyVerified: true };
   }
 
-  const link = await getAuth().generateEmailVerificationLink(email, {
-    url: `${APP_URL}/rooms`,
-    handleCodeInApp: false,
+  try {
+    const link = await getAuth().generateEmailVerificationLink(email, {
+      url: `${APP_URL}/rooms`,
+      handleCodeInApp: false,
+    });
+    const profileSnap = await db.collection("users").doc(uid).get();
+    const profile = profileSnap.data() ?? {};
+    const result = await sendPostmarkEmail(verificationEmail({
+      to: email,
+      displayName: String(profile.displayName ?? authUser.displayName ?? "Reader"),
+      verificationUrl: link,
+    }));
+    await db.collection("users").doc(uid).set({
+      email,
+      verificationEmailSentAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.info("Sent verification email", { uid, messageId: result.MessageID ?? null });
+    return { sent: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many verification emails were requested. Try again later.",
+      );
+    }
+    if (error instanceof PostmarkSendError) {
+      logger.warn("Verification email provider rejected send", {
+        uid,
+        status: error.status,
+        message: error.postmarkMessage,
+      });
+      if (error.status === 422 && error.postmarkMessage.includes("pending approval")) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Email delivery is still being approved for external addresses.",
+        );
+      }
+      throw new HttpsError(
+        "unavailable",
+        "Verification email delivery is temporarily unavailable.",
+      );
+    }
+    logger.error("Verification email failed", { uid, error: message });
+    throw new HttpsError(
+      "internal",
+      "Verification email could not be sent. Try again later.",
+    );
+  }
+});
+
+export const submitFeedback = onCall(feedbackCallableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const message = assertFeedbackMessage(request.data?.message);
+  const source = normalizeFeedbackSource(request.data?.source);
+  const authUser = await getAuth().getUser(uid);
+  const userRef = db.collection("users").doc(uid);
+  const feedbackRef = db.collection("feedback").doc();
+  let displayName = "Reader";
+  let email = "";
+
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const userData = userSnap.data() ?? {};
+    const lastFeedbackAt = userData.lastFeedbackAt;
+    if (
+      lastFeedbackAt instanceof Timestamp &&
+      Date.now() - lastFeedbackAt.toMillis() < FEEDBACK_COOLDOWN_MS
+    ) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Feedback was just sent. Try again in a minute.",
+      );
+    }
+    displayName = String(userData.displayName ?? authUser.displayName ?? "Reader").trim() || "Reader";
+    email = String(userData.email ?? authUser.email ?? "").trim().toLowerCase();
+    tx.set(feedbackRef, {
+      uid,
+      displayName,
+      email: email || null,
+      message,
+      source,
+      emailStatus: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(userRef, {
+      lastFeedbackAt: FieldValue.serverTimestamp(),
+      feedbackCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
   });
-  const profileSnap = await db.collection("users").doc(uid).get();
-  const profile = profileSnap.data() ?? {};
-  const result = await sendPostmarkEmail(verificationEmail({
-    to: email,
-    displayName: String(profile.displayName ?? authUser.displayName ?? "Reader"),
-    verificationUrl: link,
-  }));
-  await db.collection("users").doc(uid).set({
-    email,
-    verificationEmailSentAt: FieldValue.serverTimestamp(),
+
+  try {
+    const result = await sendPostmarkEmail(feedbackEmail({
+      to: ALLOWED_ADMIN_EMAIL,
+      displayName,
+      email,
+      uid,
+      message,
+      source,
+    }));
+    await feedbackRef.set({
+      emailStatus: "sent",
+      emailSentAt: FieldValue.serverTimestamp(),
+      emailMessageId: result.MessageID ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.info("Sent feedback email", {
+      uid,
+      feedbackId: feedbackRef.id,
+      messageId: result.MessageID ?? null,
+    });
+    return { saved: true, emailed: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await feedbackRef.set({
+      emailStatus: "failed",
+      emailError: errorMessage.slice(0, 500),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.warn("Feedback saved but email failed", {
+      uid,
+      feedbackId: feedbackRef.id,
+      error: errorMessage,
+    });
+    return { saved: true, emailed: false };
+  }
+});
+
+async function sendNewUserNotification(
+  uid: string,
+  data: DocumentData,
+): Promise<{ sent: boolean; skipped?: boolean; saved?: boolean }> {
+  const authUser = await getAuth().getUser(uid);
+  const notificationRef = db.collection("accountNotifications").doc(uid);
+  const accountCreatedAt = authUser.metadata.creationTime ?? new Date().toISOString();
+  const accountCreatedAtMs = Date.parse(accountCreatedAt);
+  const accountAgeMs = Number.isFinite(accountCreatedAtMs)
+    ? Date.now() - accountCreatedAtMs
+    : 0;
+
+  try {
+    await notificationRef.create({
+      uid,
+      emailStatus: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === 6 || code === "already-exists") {
+      logger.info("Skipped duplicate new user notification", { uid });
+      return { sent: false, skipped: true };
+    }
+    throw error;
+  }
+
+  if (accountAgeMs > 7 * 24 * 60 * 60 * 1000) {
+    await notificationRef.set({
+      emailStatus: "skipped",
+      skipReason: "account-too-old",
+      accountCreatedAt,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.info("Skipped new user email for older account", { uid, accountCreatedAt });
+    return { sent: false, skipped: true };
+  }
+
+  const displayName = String(data.displayName ?? authUser.displayName ?? "Reader").trim() || "Reader";
+  const email = String(data.email ?? authUser.email ?? "").trim().toLowerCase();
+  const providers = authUser.providerData.map((provider) => provider.providerId);
+  const createdAt = timestampToIso(data.createdAt ?? accountCreatedAt);
+
+  await notificationRef.set({
+    displayName,
+    email: email || null,
+    providers,
+    accountCreatedAt: createdAt,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  logger.info("Sent verification email", { uid, messageId: result.MessageID ?? null });
-  return { sent: true };
+
+  try {
+    const result = await sendPostmarkEmail(newUserEmail({
+      to: ALLOWED_ADMIN_EMAIL,
+      displayName,
+      email,
+      uid,
+      providers,
+      createdAt,
+    }));
+    await notificationRef.set({
+      emailStatus: "sent",
+      emailSentAt: FieldValue.serverTimestamp(),
+      emailMessageId: result.MessageID ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.info("Sent new user email", {
+      uid,
+      messageId: result.MessageID ?? null,
+    });
+    return { sent: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await notificationRef.set({
+      emailStatus: "failed",
+      emailError: errorMessage.slice(0, 500),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.warn("New user notification email failed", {
+      uid,
+      error: errorMessage,
+    });
+    return { sent: false, saved: true };
+  }
+}
+
+export const notifyNewUserOnProfileCreate = onDocumentCreated(
+  {
+    document: "users/{uid}",
+    secrets: [postmarkServerToken],
+  },
+  async (event) => {
+    const uid = event.params.uid;
+    const data = event.data?.data() ?? {};
+    await sendNewUserNotification(uid, data);
+  },
+);
+
+export const notifyNewUser = onCall(feedbackCallableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const userSnap = await db.collection("users").doc(uid).get();
+  return sendNewUserNotification(uid, userSnap.data() ?? {});
 });
 
 export const sendBroadcastNotification = onCall(callableOptions, async (request) => {
@@ -2759,6 +3018,61 @@ function roomDayRef(roomId: string, dailyKey: string) {
   return roomRef(roomId).collection("days").doc(dailyKey);
 }
 
+async function roomDislikedQuestionIds(
+  roomId: string,
+  room: DocumentData,
+): Promise<Set<string>> {
+  if (room.isWorld === true) return new Set();
+  const snap = await roomRef(roomId).collection("questionDislikes")
+    .where("count", ">", 0)
+    .get();
+  return new Set(snap.docs.map((doc) => doc.id));
+}
+
+async function userDislikedQuestionIds(uid: string): Promise<string[]> {
+  const userSnap = await db.collection("users").doc(uid).get();
+  const disliked = userSnap.data()?.dislikedQuestionIds;
+  return Array.isArray(disliked) ? disliked.map(String) : [];
+}
+
+async function applyUserDislikesToRoom(
+  uid: string,
+  roomId: string,
+  delta: 1 | -1,
+): Promise<void> {
+  if (roomId === WORLD_ROOM_ID) return;
+  const dislikedQuestionIds = await userDislikedQuestionIds(uid);
+  if (dislikedQuestionIds.length === 0) return;
+  await commitBatchedWrites(dislikedQuestionIds.map((qid) => (batch) => {
+    batch.set(roomRef(roomId).collection("questionDislikes").doc(qid), {
+      qid,
+      count: FieldValue.increment(delta),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }));
+}
+
+async function applyQuestionDislikeDeltaToMemberRooms(
+  uid: string,
+  qid: string,
+  delta: number,
+): Promise<void> {
+  if (delta === 0) return;
+  const membershipsSnap = await db.collection("users").doc(uid)
+    .collection("memberships")
+    .get();
+  const roomIds = membershipsSnap.docs
+    .map((doc) => String(doc.data().roomId ?? doc.id))
+    .filter((roomId) => roomId !== WORLD_ROOM_ID);
+  await commitBatchedWrites(roomIds.map((roomId) => (batch) => {
+    batch.set(roomRef(roomId).collection("questionDislikes").doc(qid), {
+      qid,
+      count: FieldValue.increment(delta),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }));
+}
+
 function assertRoomId(value: unknown): string {
   const roomId = assertString(value, "roomId");
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(roomId)) {
@@ -2843,6 +3157,44 @@ async function bankCandidates(): Promise<CandidateQuestion[]> {
   }).filter((candidate) => candidate.prompt.length > 0);
 }
 
+function fallbackPartyCandidates(tier: BankTier | null): CandidateQuestion[] {
+  const fallbackTier: BankTier = tier === "work-safe" ? "work-safe" : "normal";
+  return buildProductionQuestionSeed({ historyDays: 0, futureDays: 80 })
+    .filter((question) => question.options.length >= 2)
+    .map((question) => ({
+      id: bankQuestionIdForPrompt(question.prompt),
+      prompt: question.prompt,
+      optA: question.options[0].label,
+      optB: question.options[1].label,
+      tags: [question.category],
+      tier: fallbackTier,
+      shape: "TASTE" as BankShape,
+      timesUsed: 0,
+    }));
+}
+
+function weightedPartyPool(
+  candidates: CandidateQuestion[],
+  likedQuestionIds: Set<string>,
+): CandidateQuestion[] {
+  const remaining = [...candidates];
+  const ordered: CandidateQuestion[] = [];
+  while (remaining.length > 0) {
+    const totalWeight = remaining.reduce(
+      (sum, candidate) => sum + (likedQuestionIds.has(candidate.id) ? 1.18 : 1),
+      0,
+    );
+    let pick = Math.random() * totalWeight;
+    let index = 0;
+    for (; index < remaining.length; index++) {
+      pick -= likedQuestionIds.has(remaining[index].id) ? 1.18 : 1;
+      if (pick <= 0) break;
+    }
+    ordered.push(remaining.splice(Math.min(index, remaining.length - 1), 1)[0]);
+  }
+  return ordered;
+}
+
 function dayQuestionFromCandidate(candidate: CandidateQuestion): RoomDayQuestion {
   return {
     qid: candidate.id,
@@ -2914,12 +3266,12 @@ async function assembleRoomDay(
 
   const bankCount = ROOM_QUESTIONS_PER_DAY - questions.length;
   if (bankCount > 0) {
-    const membersSnap = await roomRef(roomId).collection("members")
-      .limit(ROOM_MEMBER_SEEN_SCAN_CAP)
-      .get();
+    const membersSnap = await roomRef(roomId).collection("members").get();
     const memberUids = membersSnap.docs.map((doc) => doc.id);
+    const seenMemberUids = new Set(memberUids.slice(0, ROOM_MEMBER_SEEN_SCAN_CAP));
     const seenByMemberIds = new Set<string>();
-    for (const chunk of chunkArray(memberUids, 50)) {
+    const dislikedByMemberIds = await roomDislikedQuestionIds(roomId, room);
+    for (const chunk of chunkArray(Array.from(seenMemberUids), 50)) {
       const userSnaps = await db.getAll(
         ...chunk.map((uid) => db.collection("users").doc(uid)),
       );
@@ -2939,6 +3291,7 @@ async function assembleRoomDay(
         Array.isArray(room.usedQuestionIds) ? room.usedQuestionIds.map(String) : [],
       ),
       seenByMemberIds,
+      dislikedByMemberIds,
       count: bankCount,
     });
     if (picked.length < bankCount) {
@@ -3333,6 +3686,7 @@ export const createRoom = onCall(callableOptions, async (request) => {
     joinedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
+  await applyUserDislikesToRoom(uid, newRoomRef.id, 1);
 
   const todayKey = dailyKeyForEasternDate(new Date());
   await assembleRoomDay(newRoomRef.id, {
@@ -3408,6 +3762,7 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
     return String(roomSnap.data()?.tier ?? "normal");
   });
   if (joinedNewMember) {
+    await applyUserDislikesToRoom(uid, roomId, 1);
     try {
       const creatorSnap = await targetRoomRef.collection("members")
         .where("role", "==", "creator")
@@ -3463,6 +3818,7 @@ export const leaveRoom = onCall(callableOptions, async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   await batch.commit();
+  await applyUserDislikesToRoom(uid, roomId, -1);
   return { left: true, roomDeleted: false };
 });
 
@@ -3658,7 +4014,9 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
       return {
         qid,
         side,
-        prediction: answerOnly ? null : normalizePrediction(raw?.prediction),
+        prediction: answerOnly
+          ? null
+          : normalizePrediction(raw?.prediction ?? raw?.predictedShare),
       };
     });
   } catch (error) {
@@ -3689,7 +4047,11 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
       ? (existing.picks as Array<Record<string, unknown>>)
         .map((raw) => ({
           qid: typeof raw.qid === "string" ? raw.qid : "",
-          prediction: typeof raw.prediction === "number" ? raw.prediction : null,
+          prediction: typeof raw.prediction === "number"
+            ? raw.prediction
+            : typeof raw.predictedShare === "number"
+              ? raw.predictedShare
+              : null,
         }))
         .filter((pick) => pick.qid.length > 0)
       : [];
@@ -3996,6 +4358,71 @@ export const getRoomDayDetail = onCall(callableOptions, async (request) => {
   };
 });
 
+export const setQuestionReaction = onCall(authOnlyCallableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const qid = assertQuestionReactionId(request.data?.qid);
+  const rawReaction = request.data?.reaction;
+  const nextReaction = rawReaction === null || rawReaction === undefined
+    ? null
+    : rawReaction === "liked" || rawReaction === "disliked"
+      ? rawReaction
+      : null;
+  if (rawReaction !== null && rawReaction !== undefined && nextReaction === null) {
+    throw new HttpsError("invalid-argument", "reaction must be liked, disliked, or null.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const feedbackRef = db.collection("questionFeedback").doc(qid);
+  let memberRoomDislikeDelta = 0;
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const user = userSnap.data() ?? {};
+    const liked = Array.isArray(user.likedQuestionIds)
+      ? user.likedQuestionIds.map(String)
+      : [];
+    const disliked = Array.isArray(user.dislikedQuestionIds)
+      ? user.dislikedQuestionIds.map(String)
+      : [];
+    const previousReaction = liked.includes(qid)
+      ? "liked"
+      : disliked.includes(qid)
+        ? "disliked"
+        : null;
+    if (previousReaction === nextReaction) return;
+
+    const userUpdates: Record<string, unknown> = {
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (nextReaction === "liked") {
+      userUpdates.likedQuestionIds = FieldValue.arrayUnion(qid);
+      userUpdates.dislikedQuestionIds = FieldValue.arrayRemove(qid);
+    } else if (nextReaction === "disliked") {
+      userUpdates.dislikedQuestionIds = FieldValue.arrayUnion(qid);
+      userUpdates.likedQuestionIds = FieldValue.arrayRemove(qid);
+    } else {
+      userUpdates.likedQuestionIds = FieldValue.arrayRemove(qid);
+      userUpdates.dislikedQuestionIds = FieldValue.arrayRemove(qid);
+    }
+    tx.set(userRef, userUpdates, { merge: true });
+
+    const likeDelta =
+      (nextReaction === "liked" ? 1 : 0) - (previousReaction === "liked" ? 1 : 0);
+    const dislikeDelta =
+      (nextReaction === "disliked" ? 1 : 0) -
+      (previousReaction === "disliked" ? 1 : 0);
+    memberRoomDislikeDelta = dislikeDelta;
+    tx.set(feedbackRef, {
+      qid,
+      likedCount: FieldValue.increment(likeDelta),
+      dislikedCount: FieldValue.increment(dislikeDelta),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  await applyQuestionDislikeDeltaToMemberRooms(uid, qid, memberRoomDislikeDelta);
+
+  return { qid, reaction: nextReaction };
+});
+
 export const getPartyPool = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAppFeature("feature_party_mode", "Party mode is currently disabled.");
@@ -4007,7 +4434,14 @@ export const getPartyPool = onCall(callableOptions, async (request) => {
       .map(String),
   );
   const userSnap = await db.collection("users").doc(uid).get();
-  const allowMature = userSnap.data()?.matureContent === true;
+  const user = userSnap.data() ?? {};
+  const allowMature = user.matureContent === true;
+  const likedQuestionIds = new Set(
+    Array.isArray(user.likedQuestionIds) ? user.likedQuestionIds.map(String) : [],
+  );
+  const dislikedQuestionIds = new Set(
+    Array.isArray(user.dislikedQuestionIds) ? user.dislikedQuestionIds.map(String) : [],
+  );
 
   // Optional spice level: After Dark without recorded consent falls back to
   // Everyday rather than erroring (the client gates the picker on consent).
@@ -4015,16 +4449,25 @@ export const getPartyPool = onCall(callableOptions, async (request) => {
   const requestedTier = rawTier === null ? null : normalizeRoomTier(rawTier);
   const effectiveTier = requestedTier === "mature" && !allowMature ? "normal" : requestedTier;
 
-  const candidates = (await bankCandidates())
+  const filterCandidates = (source: CandidateQuestion[]) => source
     .filter((candidate) => allowMature || candidate.tier !== "mature")
+    .filter((candidate) => !dislikedQuestionIds.has(candidate.id))
     .filter((candidate) =>
       effectiveTier === null || tierAllowsQuestion(effectiveTier, candidate.tier));
-  const fresh = candidates.filter((candidate) => !excludeIds.has(candidate.id));
-  const pool = fresh.length >= count ? fresh : candidates;
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+  const bankPool = filterCandidates(await bankCandidates());
+  const fallbackPool = bankPool.length > 0
+    ? []
+    : filterCandidates(fallbackPartyCandidates(effectiveTier));
+  const candidates = bankPool.length > 0 ? bankPool : fallbackPool;
+  if (bankPool.length === 0) {
+    logger.warn("Party pool used fallback questions", {
+      uid,
+      requestedTier: effectiveTier,
+      fallbackCount: fallbackPool.length,
+    });
   }
+  const fresh = candidates.filter((candidate) => !excludeIds.has(candidate.id));
+  const pool = weightedPartyPool(fresh.length >= count ? fresh : candidates, likedQuestionIds);
   return {
     questions: pool.slice(0, count).map((candidate) => ({
       qid: candidate.id,

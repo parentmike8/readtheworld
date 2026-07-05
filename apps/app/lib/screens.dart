@@ -363,7 +363,7 @@ class _AuthBrandPanel extends StatelessWidget {
             child: Text(
               creating
                   ? 'One shared question a day. Predict how the world answers and build your Read Score.'
-                  : "Your streak, your Read Score, and today's question are waiting.",
+                  : "Your Read Score and today's question are waiting.",
               style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                 color: const Color(0xFFB7B1A4),
                 height: 1.55,
@@ -508,7 +508,7 @@ class _AuthForm extends StatelessWidget {
         ? 'We’ll text you a one-time code.'
         : creating
         ? 'Free, forever. One question a day.'
-        : 'Sign in to keep your streak going.';
+        : 'Sign in to save your answers.';
     return Column(
       mainAxisSize: mobile ? MainAxisSize.min : MainAxisSize.max,
       mainAxisAlignment: mobile

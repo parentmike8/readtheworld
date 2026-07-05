@@ -112,6 +112,81 @@ class RoomIcon extends StatelessWidget {
   }
 }
 
+class V2QuestionReactionButtons extends StatelessWidget {
+  const V2QuestionReactionButtons({
+    super.key,
+    required this.reaction,
+    required this.onToggle,
+  });
+
+  final QuestionReaction? reaction;
+  final ValueChanged<QuestionReaction> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _QuestionReactionButton(
+          reaction: QuestionReaction.liked,
+          active: reaction == QuestionReaction.liked,
+          onTap: onToggle,
+        ),
+        const SizedBox(width: 4),
+        _QuestionReactionButton(
+          reaction: QuestionReaction.disliked,
+          active: reaction == QuestionReaction.disliked,
+          onTap: onToggle,
+        ),
+      ],
+    );
+  }
+}
+
+class _QuestionReactionButton extends StatelessWidget {
+  const _QuestionReactionButton({
+    required this.reaction,
+    required this.active,
+    required this.onTap,
+  });
+
+  final QuestionReaction reaction;
+  final bool active;
+  final ValueChanged<QuestionReaction> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final liked = reaction == QuestionReaction.liked;
+    final color = active
+        ? (liked ? RtwV2Colors.blue : RtwV2Colors.clay)
+        : RtwV2Colors.faint;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: liked ? 'Like question' : 'Dislike question',
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onTap(reaction),
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: Icon(
+              liked
+                  ? (active ? Icons.thumb_up_alt : Icons.thumb_up_alt_outlined)
+                  : (active
+                        ? Icons.thumb_down_alt
+                        : Icons.thumb_down_alt_outlined),
+              size: 18,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Tier chip (mono 9, uppercase, tinted). Prototype hides it for `normal`.
 class TierChip extends StatelessWidget {
   const TierChip({super.key, required this.tier});
@@ -152,7 +227,9 @@ class V2Button extends StatelessWidget {
     this.fontSize = 15,
     this.fontWeight = FontWeight.w600,
     this.padding = const EdgeInsets.symmetric(vertical: 14),
+    this.responsiveHeight = true,
     this.radius = 14,
+    this.border,
   });
 
   final String label;
@@ -162,28 +239,259 @@ class V2Button extends StatelessWidget {
   final double fontSize;
   final FontWeight fontWeight;
   final EdgeInsets padding;
+  final bool responsiveHeight;
   final double radius;
+  final BorderSide? border;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final buttonWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final effectivePadding = responsiveHeight
+            ? _paddingForWidth(buttonWidth)
+            : padding;
+
+        return SizedBox(
+          width: double.infinity,
+          child: TextButton(
+            onPressed: onPressed,
+            style: TextButton.styleFrom(
+              backgroundColor: background,
+              disabledBackgroundColor: background.withValues(alpha: 0.5),
+              padding: effectivePadding,
+              side: border,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            ),
+            child: _V2ArrowText(
+              label,
+              style: v2Sans(fontSize, color: foreground, weight: fontWeight),
+              color: foreground,
+              fontSize: fontSize,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  EdgeInsets _paddingForWidth(double width) {
+    final currentVertical = padding.vertical / 2;
+    final minVertical = switch (width) {
+      >= 900 => 20.0,
+      >= 640 => 18.0,
+      >= 480 => 16.0,
+      _ => currentVertical,
+    };
+    if (minVertical <= currentVertical) return padding;
+    final extraVertical = minVertical - currentVertical;
+    return EdgeInsets.fromLTRB(
+      padding.left,
+      padding.top + extraVertical,
+      padding.right,
+      padding.bottom + extraVertical,
+    );
+  }
+}
+
+class V2ArrowLabel extends StatelessWidget {
+  const V2ArrowLabel(
+    this.label, {
+    super.key,
+    required this.color,
+    required this.fontSize,
+    required this.weight,
+  });
+
+  final String label;
+  final Color color;
+  final double fontSize;
+  final FontWeight weight;
+
+  @override
+  Widget build(BuildContext context) {
+    return _V2ArrowText(
+      '$label →',
+      style: v2Sans(fontSize, color: color, weight: weight),
+      color: color,
+      fontSize: fontSize,
+    );
+  }
+}
+
+class V2LeadingArrowLabel extends StatelessWidget {
+  const V2LeadingArrowLabel(
+    this.label, {
+    super.key,
+    required this.color,
+    required this.fontSize,
+    this.weight = FontWeight.w600,
+    this.gap = 6,
+  });
+
+  final String label;
+  final Color color;
+  final double fontSize;
+  final FontWeight weight;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '← $label',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Transform.translate(
+              offset: Offset(0, fontSize * 0.04),
+              child: V2InlineArrow(
+                direction: V2ArrowDirection.left,
+                color: color,
+                fontSize: fontSize,
+              ),
+            ),
+            SizedBox(width: gap),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: v2Sans(fontSize, color: color, weight: weight),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _V2ArrowText extends StatelessWidget {
+  const _V2ArrowText(
+    this.label, {
+    required this.style,
+    required this.color,
+    required this.fontSize,
+  });
+
+  final String label;
+  final TextStyle style;
+  final Color color;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _stripTrailingRightArrow(label);
+    if (text == null) {
+      return Text(label, style: style, textAlign: TextAlign.center);
+    }
+
+    return Semantics(
+      label: label,
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(text, style: style, textAlign: TextAlign.center),
+            SizedBox(width: (fontSize * 0.35).clamp(5.0, 7.0)),
+            Transform.translate(
+              offset: Offset(0, fontSize * 0.03),
+              child: V2InlineArrow(
+                direction: V2ArrowDirection.right,
+                color: color,
+                fontSize: fontSize,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String? _stripTrailingRightArrow(String label) {
+  final trimmed = label.trimRight();
+  if (!trimmed.endsWith('→')) return null;
+  return trimmed.substring(0, trimmed.length - 1).trimRight();
+}
+
+enum V2ArrowDirection { left, right }
+
+class V2InlineArrow extends StatelessWidget {
+  const V2InlineArrow({
+    super.key,
+    required this.direction,
+    required this.color,
+    required this.fontSize,
+  });
+
+  final V2ArrowDirection direction;
+  final Color color;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: double.infinity,
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          backgroundColor: background,
-          disabledBackgroundColor: background.withValues(alpha: 0.5),
-          padding: padding,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radius),
-          ),
-        ),
-        child: Text(
-          label,
-          style: v2Sans(fontSize, color: foreground, weight: fontWeight),
+      width: (fontSize * 0.95).clamp(13.0, 16.0),
+      height: (fontSize * 0.56).clamp(7.5, 9.5),
+      child: CustomPaint(
+        painter: _V2InlineArrowPainter(
+          direction: direction,
+          color: color,
+          strokeWidth: (fontSize * 0.09).clamp(1.25, 1.45),
         ),
       ),
     );
+  }
+}
+
+class _V2InlineArrowPainter extends CustomPainter {
+  const _V2InlineArrowPainter({
+    required this.direction,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final V2ArrowDirection direction;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final midY = size.height / 2;
+    final headInset = size.width * 0.34;
+    final headY = size.height * 0.38;
+    final startX = strokeWidth / 2;
+    final endX = size.width - strokeWidth / 2;
+    final points = direction == V2ArrowDirection.right
+        ? (tip: endX, tail: startX, headBase: endX - headInset)
+        : (tip: startX, tail: endX, headBase: startX + headInset);
+
+    final path = Path()
+      ..moveTo(points.tail, midY)
+      ..lineTo(points.tip, midY)
+      ..moveTo(points.headBase, midY - headY)
+      ..lineTo(points.tip, midY)
+      ..lineTo(points.headBase, midY + headY);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _V2InlineArrowPainter oldDelegate) {
+    return oldDelegate.direction != direction ||
+        oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
 
@@ -396,8 +704,7 @@ class _TrianglePainter extends CustomPainter {
 
 /// v2 page scaffold: phone-column surface centered on wide screens
 /// (spec §8), optional bottom nav, prototype fade-up entrance.
-/// Sleek nav back control — a thin iOS-style chevron plus a short label,
-/// replacing the long "←" arrow.
+/// Compact text-arrow back control from the v2 design mock.
 class V2BackButton extends StatelessWidget {
   const V2BackButton({super.key, required this.label, required this.onTap});
 
@@ -414,15 +721,11 @@ class V2BackButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.arrow_back_ios_new,
-              size: 14,
-              color: RtwV2Colors.subText,
-            ),
-            const SizedBox(width: 5),
-            Text(
+            V2LeadingArrowLabel(
               label,
-              style: v2Sans(14.5, color: RtwV2Colors.subText, weight: FontWeight.w600),
+              color: RtwV2Colors.subText,
+              fontSize: 14.5,
+              weight: FontWeight.w600,
             ),
           ],
         ),
@@ -557,26 +860,30 @@ class V2TopNav extends ConsumerWidget {
                 tab('Rooms', roomsActive, '/rooms'),
                 tab('Party', partyActive, '/party'),
                 const Spacer(),
-                GestureDetector(
-                  onTap: () => context.push('/profile'),
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const [
-                        RtwV2Colors.blue,
-                        RtwV2Colors.clay,
-                        RtwV2Colors.green,
-                        RtwV2Colors.inkColorOption,
-                      ][profile.avatarIndex % 4],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      initial,
-                      textAlign: TextAlign.center,
-                      style: v2Serif(16, color: Colors.white, height: 1.0),
+                Semantics(
+                  button: true,
+                  label: 'Profile',
+                  child: GestureDetector(
+                    onTap: () => context.push('/profile'),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const [
+                          RtwV2Colors.blue,
+                          RtwV2Colors.clay,
+                          RtwV2Colors.green,
+                          RtwV2Colors.inkColorOption,
+                        ][profile.avatarIndex % 4],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        initial,
+                        textAlign: TextAlign.center,
+                        style: v2Serif(16, color: Colors.white, height: 1.0),
+                      ),
                     ),
                   ),
                 ),
@@ -1051,13 +1358,10 @@ class V2InProgressScreen extends StatelessWidget {
             const SizedBox(height: 18),
             TextButton(
               onPressed: () => context.go('/rooms'),
-              child: Text(
-                '← Back to rooms',
-                style: v2Sans(
-                  14,
-                  color: RtwV2Colors.blue,
-                  weight: FontWeight.w600,
-                ),
+              child: const V2LeadingArrowLabel(
+                'Back to rooms',
+                color: RtwV2Colors.blue,
+                fontSize: 14,
               ),
             ),
           ],

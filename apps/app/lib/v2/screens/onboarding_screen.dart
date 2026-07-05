@@ -15,7 +15,8 @@ import 'play_surface.dart' show PlaySurface;
 /// ONBOARDING — two beats, ~30 seconds, on the REAL play surface:
 ///  1. Today's three World questions played with the real mechanic — swipe
 ///     card, fling physics, prediction meter ("the people in your life").
-///  2. "3 ways to play" closer with room CTAs.
+///  2. Lightweight scoring explainer.
+///  3. "3 ways to play" closer with room CTAs.
 /// Finishing locks the answer sides to The World (predictions in the intro
 /// are the lesson, not data — The World is answer-only until it unlocks),
 /// so the first 30 seconds produce real world answers, not a demo.
@@ -63,6 +64,7 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
   bool _sawIntroSession = false;
   bool _worldWaitOver = false;
   bool _usingFallback = false;
+  bool _sawScoringBeat = false;
   List<RoomDayQuestion>? _questions;
   List<RoomPick>? _picks;
 
@@ -168,11 +170,154 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
                 child: CircularProgressIndicator(strokeWidth: 2.4),
               ),
             )
+          : !_sawScoringBeat
+          ? _ScoringBeat(onNext: () => setState(() => _sawScoringBeat = true))
           : _CloserBeat(
               onCreate: () => _finish(homeAction: 'create'),
               onJoin: () => _finish(homeAction: 'join'),
               onDone: () => _finish(),
             ),
+    );
+  }
+}
+
+class _ScoringBeat extends StatelessWidget {
+  const _ScoringBeat({required this.onNext});
+
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(26, 66, 26, 34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const V2Eyebrow('How scoring works', letterSpacing: 1.8),
+          const SizedBox(height: 26),
+          Text(
+            'Best read wins.',
+            style: v2Serif(40, height: 1.04, letterSpacing: -0.8),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Every 24 hours, predictions become Read Scores.',
+            style: v2Sans(15, color: RtwV2Colors.subText, height: 1.45),
+          ),
+          const SizedBox(height: 36),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: RtwV2Colors.card,
+              border: Border.all(color: RtwV2Colors.border),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                V2Eyebrow('Room leaderboard', letterSpacing: 1.5),
+                SizedBox(height: 14),
+                _ScorePreviewRow(
+                  rank: '1',
+                  name: 'You',
+                  score: '1,720',
+                  delta: '+26',
+                  active: true,
+                ),
+                _ScorePreviewRow(
+                  rank: '2',
+                  name: 'Maya',
+                  score: '1,690',
+                  delta: '+14',
+                ),
+                _ScorePreviewRow(
+                  rank: '3',
+                  name: 'Sam',
+                  score: '1,640',
+                  delta: '-8',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '3 new questions a day.',
+            textAlign: TextAlign.center,
+            style: v2Sans(14, color: RtwV2Colors.subText),
+          ),
+          const SizedBox(height: 90),
+          V2Button(
+            'Continue →',
+            onPressed: onNext,
+            padding: const EdgeInsets.symmetric(vertical: 17),
+            radius: 16,
+            fontSize: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScorePreviewRow extends StatelessWidget {
+  const _ScorePreviewRow({
+    required this.rank,
+    required this.name,
+    required this.score,
+    required this.delta,
+    this.active = false,
+  });
+
+  final String rank;
+  final String name;
+  final String score;
+  final String delta;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final deltaColor = delta.startsWith('-')
+        ? RtwV2Colors.deltaDown
+        : RtwV2Colors.deltaUp;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: active
+            ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text(
+              '#$rank',
+              style: v2Mono(12, color: RtwV2Colors.muted, letterSpacing: 0),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              name,
+              style: v2Sans(
+                15,
+                color: RtwV2Colors.inkSoft,
+                weight: active ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            score,
+            style: v2Sans(
+              15,
+              color: RtwV2Colors.inkSoft,
+              weight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(delta, style: v2Mono(12, color: deltaColor, letterSpacing: 0)),
+        ],
+      ),
     );
   }
 }

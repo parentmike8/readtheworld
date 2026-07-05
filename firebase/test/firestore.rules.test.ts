@@ -193,6 +193,7 @@ describe("official answers and scoring data", () => {
       updateDoc(doc(authedDb("alex"), "users/alex"), {
         displayName: "Alex P.",
         dailyReminder: true,
+        notifPrimerSeenAt: new Date("2026-07-05T15:00:00Z"),
       }),
     );
     await assertFails(
@@ -208,6 +209,16 @@ describe("official answers and scoring data", () => {
     await assertFails(
       updateDoc(doc(authedDb("alex"), "users/alex"), {
         averagePredictionBias: -8,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb("alex"), "users/alex"), {
+        likedQuestionIds: ["q-liked"],
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb("alex"), "users/alex"), {
+        dislikedQuestionIds: ["q-disliked"],
       }),
     );
     await assertFails(
@@ -319,6 +330,65 @@ describe("admin, links, invites, and leaderboards", () => {
     await assertFails(deleteDoc(doc(authedDb("alex"), "users/alex")));
     await assertFails(deleteDoc(doc(authedDb("bea"), "users/alex")));
     await assertSucceeds(deleteDoc(doc(authedDb("admin", { admin: true }), "users/alex")));
+  });
+
+  it("keeps aggregate question feedback admin-owned", async () => {
+    await seed("questionFeedback/q1", { likedCount: 1, dislikedCount: 0 });
+
+    await assertFails(getDoc(doc(authedDb("alex"), "questionFeedback/q1")));
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "questionFeedback/q2"), {
+        likedCount: 2,
+      }),
+    );
+    await assertSucceeds(getDoc(doc(authedDb("admin", { admin: true }), "questionFeedback/q1")));
+    await assertSucceeds(
+      setDoc(doc(authedDb("admin", { admin: true }), "questionFeedback/q2"), {
+        likedCount: 2,
+      }),
+    );
+  });
+
+  it("keeps profile feedback and account notifications admin-owned", async () => {
+    await seed("feedback/f1", {
+      uid: "alex",
+      message: "This was confusing.",
+      emailStatus: "sent",
+    });
+    await seed("accountNotifications/alex", {
+      uid: "alex",
+      emailStatus: "sent",
+    });
+
+    await assertFails(getDoc(doc(authedDb("alex"), "feedback/f1")));
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "feedback/f2"), {
+        uid: "alex",
+        message: "Client write",
+      }),
+    );
+    await assertFails(getDoc(doc(authedDb("alex"), "accountNotifications/alex")));
+    await assertFails(
+      setDoc(doc(authedDb("alex"), "accountNotifications/alex"), {
+        uid: "alex",
+        emailStatus: "pending",
+      }),
+    );
+
+    await assertSucceeds(getDoc(doc(authedDb("admin", { admin: true }), "feedback/f1")));
+    await assertSucceeds(
+      setDoc(doc(authedDb("admin", { admin: true }), "feedback/f2"), {
+        uid: "alex",
+        message: "Admin write",
+      }),
+    );
+    await assertSucceeds(getDoc(doc(authedDb("admin", { admin: true }), "accountNotifications/alex")));
+    await assertSucceeds(
+      setDoc(doc(authedDb("admin", { admin: true }), "accountNotifications/bea"), {
+        uid: "bea",
+        emailStatus: "pending",
+      }),
+    );
   });
 
   it("keeps friendship mutations server-owned", async () => {

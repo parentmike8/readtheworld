@@ -4,6 +4,8 @@ library;
 
 enum RoomTier { workSafe, normal, mature }
 
+enum QuestionReaction { liked, disliked }
+
 extension RoomTierWire on RoomTier {
   String get wire => switch (this) {
     RoomTier.workSafe => 'work-safe',
@@ -175,7 +177,9 @@ class RoomDay {
 
   /// Questions still open for answering (active and not yet revealed).
   List<RoomDayQuestion> get answerableQuestions => questions
-      .where((question) => !question.pulled && !revealedQids.contains(question.qid))
+      .where(
+        (question) => !question.pulled && !revealedQids.contains(question.qid),
+      )
       .toList();
 
   bool isRevealed(String qid) => revealedQids.contains(qid);

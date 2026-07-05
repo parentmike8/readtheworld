@@ -128,7 +128,9 @@ RoomPick roomPickFromData(Map<String, dynamic> data) {
   return RoomPick(
     qid: _stringValue(data['qid']),
     side: _stringValue(data['side'], fallback: 'a'),
-    prediction: _nullableIntValue(data['prediction']),
+    prediction:
+        _nullableIntValue(data['prediction']) ??
+        _nullableIntValue(data['predictedShare']),
   );
 }
 

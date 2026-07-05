@@ -9,7 +9,7 @@ import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 
 /// Read-only review of the caller's submitted answers for the current day,
-/// reached from "View or modify your answers". Editing is one tap away but
+/// reached from "Review answers". Editing is one tap away but
 /// nothing changes until the reader chooses to edit [Mike].
 class RoomReviewScreen extends ConsumerWidget {
   const RoomReviewScreen({super.key, required this.roomId});

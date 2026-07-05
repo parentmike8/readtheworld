@@ -50,7 +50,7 @@ class _PartyScreenV2State extends ConsumerState<PartyScreenV2> {
       showNav: party.stage == PartyStage.setup,
       child: switch (party.stage) {
         PartyStage.setup => _Setup(party: party, pool: rooms.partyPool),
-        PartyStage.play => _Play(party: party),
+        PartyStage.play => _Play(party: party, rooms: rooms),
         PartyStage.done => _Done(party: party, rooms: rooms),
       },
     );
@@ -96,6 +96,11 @@ class _Setup extends ConsumerWidget {
     final tierPool = pool
         .where((question) => party.tier.allowsQuestionTier(question.tier))
         .toList();
+    final waitingForInitialPool =
+        pool.isEmpty &&
+        (!rooms.partyPoolLoadAttempted || rooms.partyPoolLoading);
+    final partyPoolFailed =
+        pool.isEmpty && rooms.partyPoolLoadAttempted && !rooms.partyPoolLoading;
     final topics = [
       'All',
       ...{for (final question in tierPool) question.tag},
@@ -124,8 +129,7 @@ class _Setup extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'One device, no downloads. Take turns guessing how your group '
-            'will answer, then see who reads the room best.',
+            'Play with everyone in the room, right from your phone.',
             style: v2Sans(14, color: RtwV2Colors.subText, height: 1.55),
           ),
           const SizedBox(height: 26),
@@ -252,24 +256,48 @@ class _Setup extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           if (filtered.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(18),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: RtwV2Colors.hairline,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                rooms.partyPoolLoading || pool.isEmpty
-                    ? 'Loading questions…'
-                    : 'Nothing to play with this mix, try other topics',
-                style: v2Sans(
-                  15,
-                  color: RtwV2Colors.faint,
-                  weight: FontWeight.w600,
+            if (waitingForInitialPool)
+              Container(
+                padding: const EdgeInsets.all(18),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.hairline,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ),
-            )
+                child: Text(
+                  'Loading questions…',
+                  style: v2Sans(
+                    15,
+                    color: RtwV2Colors.faint,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else if (partyPoolFailed)
+              V2Button(
+                'Try loading again →',
+                onPressed: () => rooms.refreshPartyPool(tier: party.tier),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                radius: 16,
+                fontSize: 16,
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(18),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.hairline,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'Nothing to play with this mix, try other topics',
+                  style: v2Sans(
+                    15,
+                    color: RtwV2Colors.faint,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              )
           else
             V2Button(
               'Start the round →',
@@ -453,9 +481,10 @@ class _StepButton extends StatelessWidget {
 // ── PLAY ────────────────────────────────────────────────────────────────
 
 class _Play extends StatelessWidget {
-  const _Play({required this.party});
+  const _Play({required this.party, required this.rooms});
 
   final PartyController party;
+  final RoomsController rooms;
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +573,11 @@ class _Play extends StatelessWidget {
                 ),
                 child: switch (party.sub) {
                   PartySub.pass => _PassScreen(party: party),
-                  PartySub.pick => _PickPanel(party: party, card: card),
+                  PartySub.pick => _PickPanel(
+                    party: party,
+                    rooms: rooms,
+                    card: card,
+                  ),
                   PartySub.predict => _PredictPanel(party: party, card: card),
                   PartySub.reveal => _RevealPanel(party: party, card: card),
                 },
@@ -1054,10 +1087,31 @@ class _SwapQuestionButton extends StatelessWidget {
   }
 }
 
+bool _tapHitsReactionButtons(
+  Offset position,
+  BoxConstraints constraints, {
+  required double cardHeight,
+}) {
+  final cardWidth = math.min(320.0, constraints.maxWidth);
+  final cardLeft = (constraints.maxWidth - cardWidth) / 2;
+  final cardTop = (constraints.maxHeight - cardHeight) / 2;
+  return Rect.fromLTWH(
+    cardLeft + cardWidth - 96,
+    cardTop + 12,
+    84,
+    48,
+  ).contains(position);
+}
+
 class _PickPanel extends StatelessWidget {
-  const _PickPanel({required this.party, required this.card});
+  const _PickPanel({
+    required this.party,
+    required this.rooms,
+    required this.card,
+  });
 
   final PartyController party;
+  final RoomsController rooms;
   final PartyQuestion card;
 
   @override
@@ -1065,6 +1119,7 @@ class _PickPanel extends StatelessWidget {
     final dx = party.dragX;
     final yesOn = (dx / RtwV2Motion.zoneOpacityRamp).clamp(0.0, 1.0);
     final noOn = (-dx / RtwV2Motion.zoneOpacityRamp).clamp(0.0, 1.0);
+    final reaction = rooms.reactionForQuestion(card.qid);
     final borderColor = dx > RtwV2Motion.borderTintThreshold
         ? RtwV2Colors.blue
         : dx < -RtwV2Motion.borderTintThreshold
@@ -1085,6 +1140,13 @@ class _PickPanel extends StatelessWidget {
                 key: const ValueKey('party-pick-zone'),
                 behavior: HitTestBehavior.translucent,
                 onTapUp: (details) {
+                  if (_tapHitsReactionButtons(
+                    details.localPosition,
+                    constraints,
+                    cardHeight: 300,
+                  )) {
+                    return;
+                  }
                   party.tapSide(
                     details.localPosition.dx < constraints.maxWidth / 2
                         ? 'b'
@@ -1181,10 +1243,8 @@ class _PickPanel extends StatelessWidget {
                                 dx * RtwV2Motion.tiltFactor * 3.14159 / 180,
                               ),
                             transformAlignment: Alignment.center,
-                            constraints: const BoxConstraints(
-                              maxWidth: 320,
-                              minHeight: 300,
-                            ),
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            height: 300,
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               color: RtwV2Colors.card,
@@ -1207,30 +1267,56 @@ class _PickPanel extends StatelessWidget {
                               ],
                             ),
                             child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                              mainAxisSize: MainAxisSize.max,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  card.tag.toUpperCase(),
-                                  style: v2Mono(
-                                    10,
-                                    color: RtwV2Colors.clay,
-                                    letterSpacing: 1.8,
-                                  ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        card.tag.toUpperCase(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: v2Mono(
+                                          10,
+                                          color: RtwV2Colors.clay,
+                                          letterSpacing: 1.8,
+                                        ),
+                                      ),
+                                    ),
+                                    V2QuestionReactionButtons(
+                                      reaction: reaction,
+                                      onToggle: (next) => unawaited(
+                                        rooms.toggleQuestionReaction(
+                                          card.qid,
+                                          next,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                  ),
-                                  child: Text(
-                                    card.prompt,
-                                    style: v2Serif(
-                                      25,
-                                      height: 1.2,
-                                      letterSpacing: -0.3,
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.topLeft,
+                                    child: SingleChildScrollView(
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      child: Text(
+                                        card.prompt,
+                                        style: v2Serif(
+                                          25,
+                                          height: 1.2,
+                                          letterSpacing: -0.3,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 12),
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
@@ -1401,10 +1487,11 @@ class _PredictPanel extends StatelessWidget {
           onTap: party.changePick,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '← Change my answer',
-              textAlign: TextAlign.center,
-              style: v2Sans(13, color: RtwV2Colors.subText),
+            child: const V2LeadingArrowLabel(
+              'Change my answer',
+              color: RtwV2Colors.subText,
+              fontSize: 13,
+              weight: FontWeight.w400,
             ),
           ),
         ),

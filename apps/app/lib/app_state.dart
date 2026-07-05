@@ -71,6 +71,8 @@ class RtwController extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _answerDraftCache = {};
   final Map<String, Map<String, dynamic>> _scoreHistoryCache = {};
   final Map<String, Map<String, dynamic>> _resultCache = {};
+  final Map<String, Object?> _pendingProfileWriteValues = {};
+  final Map<String, Object?> _optimisticProfileValues = {};
   Timer? _draftWriteDebounce;
   String? _boundUid;
   String? _pendingHandoffQuestionId;
@@ -285,6 +287,9 @@ class RtwController extends ChangeNotifier {
     _answerDraftCache.clear();
     _scoreHistoryCache.clear();
     _resultCache.clear();
+    _profileWriteDebounce?.cancel();
+    _pendingProfileWriteValues.clear();
+    _optimisticProfileValues.clear();
     friendAnswerComparisons = const [];
     friendAnswerComparisonQuestionId = null;
     loadingFriendAnswerComparisons = false;
@@ -300,7 +305,10 @@ class RtwController extends ChangeNotifier {
           _scheduleAuthProfileWrite(user);
           return;
         }
+        _clearAcknowledgedProfileValue('displayName', data['displayName']);
+        _clearAcknowledgedProfileValue('avatarColor', data['avatarColor']);
         displayName =
+            _nonEmptyString(_optimisticProfileValues['displayName']) ??
             _nonEmptyString(data['displayName']) ??
             authDisplayName ??
             displayName;
@@ -311,7 +319,9 @@ class RtwController extends ChangeNotifier {
             authPhoneNumber ??
             phoneNumber;
         dailyReminder = data['dailyReminder'] as bool? ?? dailyReminder;
-        avatarIndex = _avatarIndexFromColor(data['avatarColor']);
+        avatarIndex = _avatarIndexFromColor(
+          _optimisticProfileValues['avatarColor'] ?? data['avatarColor'],
+        );
         final demographics = _stringKeyedMap(data['demographics']);
         if (demographics != null) {
           birthdate = _parseBirthdate(demographics['birthdate']);
@@ -441,19 +451,24 @@ class RtwController extends ChangeNotifier {
   }
 
   void _applyAuthUserDefaults(User user, {bool resetScoring = true}) {
-    displayName =
+    final authDisplayName =
         _nonEmptyString(user.displayName) ??
-        _displayNameFromEmail(user.email) ??
-        'Reader';
+        (resetScoring ? _displayNameFromEmail(user.email) : null);
+    displayName =
+        _nonEmptyString(_optimisticProfileValues['displayName']) ??
+        authDisplayName ??
+        (resetScoring ? 'Reader' : displayName);
     email = _nonEmptyString(user.email) ?? '';
     emailVerified = user.emailVerified;
     phoneNumber = _nonEmptyString(user.phoneNumber) ?? '';
-    dailyReminder = false;
-    avatarIndex = 0;
-    birthdate = null;
-    gender = null;
-    country = null;
     if (resetScoring) {
+      dailyReminder = false;
+      avatarIndex = _avatarIndexFromColor(
+        _optimisticProfileValues['avatarColor'],
+      );
+      birthdate = null;
+      gender = null;
+      country = null;
       readScore = 1500;
       officialQuestionsAnswered = 0;
       readScorePercentileLabel = 'Unranked worldwide';
@@ -1221,6 +1236,68 @@ class RtwController extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshEmailVerificationStatus() async {
+    if (!firebaseReady) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await user.reload();
+      final refreshed = FirebaseAuth.instance.currentUser;
+      final verified = refreshed?.emailVerified ?? false;
+      if (verified != emailVerified) {
+        emailVerified = verified;
+        notifyListeners();
+      }
+    } on FirebaseAuthException {
+      // Best-effort only. The next auth/userChanges event will resync state.
+    }
+  }
+
+  Future<bool> submitFeedback(String message) async {
+    lastError = null;
+    final text = message.trim();
+    if (text.length < 2) {
+      lastError = 'Write a little feedback first.';
+      notifyListeners();
+      return false;
+    }
+    if (text.length > 4000) {
+      lastError = 'Feedback must be 4000 characters or fewer.';
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady) {
+      lastError = 'Live feedback is unavailable.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('submitFeedback');
+      final result = await callable.call({
+        'message': text,
+        'source': 'profile',
+      });
+      final data = result.data;
+      final emailed =
+          data is Map && (data['emailed'] == true || data['emailed'] == 'true');
+      lastError = emailed
+          ? 'Feedback sent. Thank you.'
+          : 'Feedback saved. Email delivery is pending.';
+      notifyListeners();
+      return true;
+    } on FirebaseFunctionsException catch (error) {
+      lastError = error.message ?? error.code;
+      notifyListeners();
+      return false;
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   String _authMessage(FirebaseAuthException error) {
     switch (error.code) {
       case 'invalid-email':
@@ -1514,14 +1591,14 @@ class RtwController extends ChangeNotifier {
 
   void setDisplayName(String value) {
     displayName = value;
-    notifyListeners();
     _scheduleProfileWrite({'displayName': value.trim()});
+    notifyListeners();
   }
 
   void cycleAvatar() {
     avatarIndex = (avatarIndex + 1) % 4;
-    notifyListeners();
     _scheduleProfileWrite({'avatarColor': _avatarColorName(avatarIndex)});
+    notifyListeners();
   }
 
   Future<void> saveDemographics({
@@ -1863,11 +1940,34 @@ class RtwController extends ChangeNotifier {
     _liveTimer = null;
   }
 
+  void _clearAcknowledgedProfileValue(String key, Object? serverValue) {
+    if (!_optimisticProfileValues.containsKey(key)) return;
+    final optimisticValue = _optimisticProfileValues[key];
+    if (_profileValuesMatch(key, optimisticValue, serverValue)) {
+      _optimisticProfileValues.remove(key);
+    }
+  }
+
+  void _clearOptimisticProfileValues(Map<String, Object?> values) {
+    for (final entry in values.entries) {
+      final optimisticValue = _optimisticProfileValues[entry.key];
+      if (_profileValuesMatch(entry.key, optimisticValue, entry.value)) {
+        _optimisticProfileValues.remove(entry.key);
+      }
+    }
+  }
+
   void _scheduleProfileWrite(Map<String, Object?> values) {
     if (!firebaseReady) return;
+    _pendingProfileWriteValues.addAll(values);
+    _optimisticProfileValues.addAll(values);
     _profileWriteDebounce?.cancel();
     _profileWriteDebounce = Timer(const Duration(milliseconds: 500), () {
-      _writeUserProfile(values);
+      final pendingValues = Map<String, Object?>.from(
+        _pendingProfileWriteValues,
+      );
+      _pendingProfileWriteValues.clear();
+      unawaited(_writeUserProfile(pendingValues));
     });
   }
 
@@ -1881,6 +1981,7 @@ class RtwController extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (error) {
+      _clearOptimisticProfileValues(values);
       lastError = error.toString();
       notifyListeners();
     }
@@ -1939,6 +2040,13 @@ String? _nonEmptyString(Object? value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+bool _profileValuesMatch(String key, Object? a, Object? b) {
+  if (key == 'displayName') {
+    return _nonEmptyString(a) == _nonEmptyString(b);
+  }
+  return a?.toString() == b?.toString();
 }
 
 String? _normalizePhoneNumber(String value) {

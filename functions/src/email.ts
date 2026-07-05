@@ -22,6 +22,15 @@ type PostmarkResponse = {
   Message?: string;
 };
 
+export class PostmarkSendError extends Error {
+  constructor(
+    readonly status: number,
+    readonly postmarkMessage: string,
+  ) {
+    super(`Postmark send failed: ${status} ${postmarkMessage}`.trim());
+  }
+}
+
 export function isValidEmail(value: unknown): value is string {
   return typeof value === "string" &&
     value.length <= 254 &&
@@ -55,7 +64,7 @@ export async function sendPostmarkEmail(email: PostmarkEmail): Promise<PostmarkR
   });
   const body = await response.json().catch(() => ({})) as PostmarkResponse;
   if (!response.ok || (body.ErrorCode ?? 0) !== 0) {
-    throw new Error(`Postmark send failed: ${response.status} ${body.Message ?? ""}`.trim());
+    throw new PostmarkSendError(response.status, body.Message ?? "");
   }
   return body;
 }
@@ -153,6 +162,100 @@ export function memberJoinedEmail(input: {
       "",
       "Open the room:",
       input.roomUrl,
+    ].join("\n"),
+  };
+}
+
+export function feedbackEmail(input: {
+  to: string;
+  displayName: string;
+  email: string;
+  uid: string;
+  message: string;
+  source: string;
+}): PostmarkEmail {
+  const name = input.displayName.trim() || "A reader";
+  const email = input.email.trim() || "No email on file";
+  const messageParagraphs = input.message
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+  return {
+    to: input.to,
+    subject: `Read the World feedback from ${name}`,
+    messageStream: POSTMARK_TRANSACTIONAL_STREAM,
+    tag: "user-feedback",
+    metadata: {
+      uid: input.uid,
+      source: input.source,
+    },
+    htmlBody: emailFrame({
+      preheader: `${name} sent feedback.`,
+      eyebrow: "USER FEEDBACK",
+      title: "New feedback.",
+      body: [
+        `${name} sent feedback from ${input.source}.`,
+        `Email: ${email}`,
+        `UID: ${input.uid}`,
+        ...messageParagraphs,
+      ],
+      ctaLabel: "Open app",
+      ctaUrl: "https://app.readtheworld.today",
+    }),
+    textBody: [
+      "New feedback",
+      "",
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `UID: ${input.uid}`,
+      `Source: ${input.source}`,
+      "",
+      input.message,
+    ].join("\n"),
+  };
+}
+
+export function newUserEmail(input: {
+  to: string;
+  displayName: string;
+  email: string;
+  uid: string;
+  providers: string[];
+  createdAt: string;
+}): PostmarkEmail {
+  const name = input.displayName.trim() || "Reader";
+  const email = input.email.trim() || "No email on file";
+  const providers = input.providers.length > 0 ? input.providers.join(", ") : "Unknown";
+  return {
+    to: input.to,
+    subject: `New Read the World user: ${name}`,
+    messageStream: POSTMARK_TRANSACTIONAL_STREAM,
+    tag: "new-user",
+    metadata: {
+      uid: input.uid,
+    },
+    htmlBody: emailFrame({
+      preheader: `${name} created an account.`,
+      eyebrow: "NEW USER",
+      title: "A new reader joined.",
+      body: [
+        `Name: ${name}`,
+        `Email: ${email}`,
+        `UID: ${input.uid}`,
+        `Provider: ${providers}`,
+        `Created: ${input.createdAt}`,
+      ],
+      ctaLabel: "Open app",
+      ctaUrl: "https://app.readtheworld.today",
+    }),
+    textBody: [
+      "A new reader joined.",
+      "",
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `UID: ${input.uid}`,
+      `Provider: ${providers}`,
+      `Created: ${input.createdAt}`,
     ].join("\n"),
   };
 }

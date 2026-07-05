@@ -17,8 +17,10 @@ class ProfileScreenV2 extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreenV2> createState() => _ProfileScreenV2State();
 }
 
-class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
+class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
+    with WidgetsBindingObserver {
   TextEditingController? nameController;
+  bool sendingVerification = false;
 
   static const _avatarColors = [
     RtwV2Colors.blue,
@@ -28,9 +30,26 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(rtwControllerProvider).refreshEmailVerificationStatus();
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     nameController?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(rtwControllerProvider).refreshEmailVerificationStatus();
+    }
   }
 
   @override
@@ -41,7 +60,8 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
         : null;
     final authSummary = _authSummary(authUser, profile);
     final authEmail = authUser?.email ?? profile.email;
-    final authEmailVerified = authUser?.emailVerified ?? profile.emailVerified;
+    final authEmailVerified =
+        profile.emailVerified || (authUser?.emailVerified ?? false);
     nameController ??= TextEditingController(text: profile.displayName);
     final initial = profile.displayName.isEmpty
         ? '?'
@@ -69,35 +89,52 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
             Center(
               child: Column(
                 children: [
-                  GestureDetector(
-                    onTap: () => ref.read(rtwControllerProvider).cycleAvatar(),
-                    child: Container(
-                      width: 84,
-                      height: 84,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color:
-                            _avatarColors[profile.avatarIndex %
-                                _avatarColors.length],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        initial,
-                        style: v2Serif(36, color: Colors.white),
+                  Semantics(
+                    button: true,
+                    label: 'Change colour',
+                    child: GestureDetector(
+                      onTap: () =>
+                          ref.read(rtwControllerProvider).cycleAvatar(),
+                      child: Container(
+                        width: 84,
+                        height: 84,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              _avatarColors[profile.avatarIndex %
+                                  _avatarColors.length],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Transform.translate(
+                          offset: const Offset(0, 2),
+                          child: Text(
+                            initial,
+                            textAlign: TextAlign.center,
+                            style: v2Serif(
+                              36,
+                              color: Colors.white,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(profile.displayName, style: v2Serif(25)),
                   const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () => ref.read(rtwControllerProvider).cycleAvatar(),
-                    child: Text(
-                      'Change colour',
-                      style: v2Sans(
-                        12,
-                        color: RtwV2Colors.blue,
-                        weight: FontWeight.w600,
+                  Semantics(
+                    button: true,
+                    child: GestureDetector(
+                      onTap: () =>
+                          ref.read(rtwControllerProvider).cycleAvatar(),
+                      child: Text(
+                        'Change colour',
+                        style: v2Sans(
+                          12,
+                          color: RtwV2Colors.blue,
+                          weight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -184,16 +221,26 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
                 children: [
                   if (authEmail.isNotEmpty && !authEmailVerified) ...[
                     _ProfileRow(
-                      label: 'Verify email',
-                      onTap: () => ref
-                          .read(rtwControllerProvider)
-                          .sendVerificationEmail(),
+                      label: sendingVerification
+                          ? 'Sending verification...'
+                          : 'Verify email',
+                      leading: const Icon(
+                        Icons.warning_amber_rounded,
+                        size: 18,
+                        color: RtwV2Colors.clay,
+                      ),
+                      onTap: sendingVerification ? null : _verifyEmail,
                     ),
                     const V2Hairline(),
                   ],
                   _ProfileRow(
                     label: 'Replay the intro',
                     onTap: () => context.go('/onboarding'),
+                  ),
+                  const V2Hairline(),
+                  _ProfileRow(
+                    label: 'Share feedback',
+                    onTap: () => _showFeedbackSheet(context),
                   ),
                   const V2Hairline(),
                   _ProfileRow(
@@ -219,6 +266,119 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
     );
   }
 
+  Future<void> _verifyEmail() async {
+    setState(() => sendingVerification = true);
+    await ref.read(rtwControllerProvider).sendVerificationEmail();
+    if (!mounted) return;
+    setState(() => sendingVerification = false);
+  }
+
+  void _showFeedbackSheet(BuildContext context) {
+    final controller = TextEditingController();
+    var submitting = false;
+    String? error;
+    showV2Sheet(context, (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          Future<void> submit() async {
+            setSheetState(() {
+              submitting = true;
+              error = null;
+            });
+            final sent = await ref
+                .read(rtwControllerProvider)
+                .submitFeedback(controller.text);
+            if (!sheetContext.mounted) return;
+            if (sent) {
+              Navigator.of(sheetContext).pop();
+              return;
+            }
+            setSheetState(() {
+              submitting = false;
+              error = ref.read(rtwControllerProvider).lastError;
+            });
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const V2Eyebrow('Feedback'),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Tell us what to fix.',
+                  style: v2Serif(26, letterSpacing: -0.3),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Ideas, bugs, confusing bits, anything.',
+                  style: v2Sans(14, color: RtwV2Colors.subText, height: 1.45),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                minLines: 4,
+                maxLines: 7,
+                maxLength: 4000,
+                textInputAction: TextInputAction.newline,
+                style: v2Sans(15, color: RtwV2Colors.inkSoft, height: 1.45),
+                decoration: InputDecoration(
+                  hintText: 'Write feedback...',
+                  hintStyle: v2Sans(15, color: RtwV2Colors.faint),
+                  counterStyle: v2Sans(11, color: RtwV2Colors.faint),
+                  filled: true,
+                  fillColor: RtwV2Colors.card,
+                  contentPadding: const EdgeInsets.all(14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: RtwV2Colors.borderStrong,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: RtwV2Colors.blue),
+                  ),
+                ),
+              ),
+              if (error != null && error!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(error!, style: v2Sans(13, color: RtwV2Colors.danger)),
+              ],
+              const SizedBox(height: 12),
+              V2Button(
+                submitting ? 'Sending...' : 'Send feedback',
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                radius: 16,
+                onPressed: submitting ? null : submit,
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () => Navigator.of(sheetContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: v2Sans(
+                      14,
+                      color: RtwV2Colors.subText,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }).whenComplete(controller.dispose);
+  }
+
   void _confirmClear(BuildContext context) {
     showV2Sheet(context, (sheetContext) {
       return Column(
@@ -236,8 +396,7 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(
-              'This erases your answers, scores, streaks, and room history. '
-              'There is no undo.',
+              'This erases your answers, scores, and room history. There is no undo.',
               style: v2Sans(14, color: RtwV2Colors.subText, height: 1.55),
             ),
           ),
@@ -378,7 +537,9 @@ class _ProfileStatusMessage extends StatelessWidget {
     final value = message?.trim();
     if (value == null || value.isEmpty) return const SizedBox.shrink();
     final positive =
-        value.contains('sent') || value.contains('already verified');
+        value.contains('sent') ||
+        value.contains('saved') ||
+        value.contains('already verified');
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Text(
@@ -398,11 +559,13 @@ class _ProfileRow extends StatelessWidget {
   const _ProfileRow({
     required this.label,
     required this.onTap,
+    this.leading,
     this.color = RtwV2Colors.inkSoft,
   });
 
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final Widget? leading;
   final Color color;
 
   @override
@@ -414,7 +577,22 @@ class _ProfileRow extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: v2Sans(15, color: color)),
+            Expanded(
+              child: Row(
+                children: [
+                  if (leading != null) ...[leading!, const SizedBox(width: 10)],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: v2Sans(15, color: color),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
             Text('›', style: v2Sans(16, color: RtwV2Colors.faint)),
           ],
         ),
