@@ -1591,7 +1591,9 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
   @override
   void initState() {
     super.initState();
-    widget.rooms.loadRoomHistory(widget.room.id).then((days) {
+    widget.rooms
+        .loadRoomHistory(widget.room.id, includeLive: widget.room.isWorld)
+        .then((days) {
       if (mounted) setState(() => history = days);
     });
   }
@@ -1715,7 +1717,19 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
                   for (var i = 0; i < firstDow; i++) const SizedBox.shrink(),
                   for (var dayNumber = 1; dayNumber <= daysInMonth; dayNumber++)
                     Builder(builder: (context) {
-                      final has = entriesByDay.containsKey(dayNumber);
+                      final dayEntry = entriesByDay[dayNumber];
+                      final has = dayEntry != null;
+                      // Open ring = still has questions you can answer (World);
+                      // filled dot = a day you've engaged with.
+                      var hasOpen = false;
+                      if (has && widget.room.isWorld) {
+                        for (final q in dayEntry.day.answerableQuestions) {
+                          if (dayEntry.myAnswer?.pickFor(q.qid) == null) {
+                            hasOpen = true;
+                            break;
+                          }
+                        }
+                      }
                       return Container(
                         decoration: BoxDecoration(
                           color: has
@@ -1739,7 +1753,12 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: has ? RtwV2Colors.blue : Colors.transparent,
+                                color: hasOpen
+                                    ? Colors.transparent
+                                    : (has ? RtwV2Colors.blue : Colors.transparent),
+                                border: hasOpen
+                                    ? Border.all(color: RtwV2Colors.blue, width: 1.5)
+                                    : null,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -1772,7 +1791,8 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
             _HistoryQuestionCard(
               entry: card.entry,
               question: card.question,
-              onTap: () => showQuestionDetailSheet(
+              isWorld: widget.room.isWorld,
+              onReview: () => showQuestionDetailSheet(
                 context,
                 widget.rooms,
                 roomId: widget.room.id,
@@ -1780,6 +1800,16 @@ class _RoomHistorySheetState extends State<_RoomHistorySheet> {
                 question: card.question,
                 day: card.entry.day,
               ),
+              onAnswer: () {
+                widget.rooms.startWorldDayPlay(
+                  card.entry,
+                  entryRoute: '/rooms/$worldRoomId',
+                );
+                if (widget.rooms.play != null) {
+                  Navigator.of(context).pop();
+                  context.go('/today/play');
+                }
+              },
             ),
             const SizedBox(height: 11),
           ],
@@ -1817,28 +1847,39 @@ class _HistoryQuestionCard extends StatelessWidget {
   const _HistoryQuestionCard({
     required this.entry,
     required this.question,
-    required this.onTap,
+    required this.isWorld,
+    required this.onReview,
+    required this.onAnswer,
   });
 
   final RoomHistoryDay entry;
   final RoomDayQuestion question;
-  final VoidCallback onTap;
+  final bool isWorld;
+  final VoidCallback onReview;
+  final VoidCallback onAnswer;
 
   @override
   Widget build(BuildContext context) {
     final pick = entry.myAnswer?.pickFor(question.qid);
-    final score = entry.myAnswer?.accuracies[question.qid];
+    final answered = pick != null;
+    final revealed =
+        isWorld ? entry.day.isRevealed(question.qid) : entry.day.isClosed;
+    final canAnswer = isWorld && !revealed && !answered;
     final result = entry.day.resultFor(question.qid);
-    final youLabel = pick == null
+    final score = entry.myAnswer?.accuracies[question.qid];
+    final threshold = question.threshold ?? 1000;
+    final answers = entry.day.answerCounts[question.qid] ?? result?.answers ?? 0;
+    final showProgress = isWorld && !revealed;
+    final pct = (answers / threshold).clamp(0.0, 1.0);
+
+    final youLabel =
+        pick == null ? null : (pick.side == 'a' ? question.optA : question.optB);
+    final crowdPct = result == null
         ? null
-        : pick.side == 'a'
-            ? question.optA
-            : question.optB;
-    final roomPct = result == null || pick == null
-        ? null
-        : pick.side == 'a'
-            ? result.aPct
-            : 100 - result.aPct;
+        : (answered
+            ? (pick.side == 'a' ? result.aPct : 100 - result.aPct)
+            : result.aPct);
+
     final date = DateTime.tryParse(entry.day.dailyKey);
     const months = [
       'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
@@ -1848,7 +1889,8 @@ class _HistoryQuestionCard extends StatelessWidget {
         date == null ? entry.day.dailyKey : '${months[date.month - 1]} ${date.day}';
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: canAnswer ? onAnswer : onReview,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -1876,6 +1918,18 @@ class _HistoryQuestionCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                  )
+                else if (canAnswer)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: RtwV2Colors.blue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      'UNANSWERED',
+                      style: v2Mono(9, color: RtwV2Colors.blue, letterSpacing: 1.2),
+                    ),
                   ),
               ],
             ),
@@ -1885,9 +1939,12 @@ class _HistoryQuestionCard extends StatelessWidget {
               style: v2Serif(18, color: const Color(0xFF2C2A24), height: 1.28),
             ),
             const SizedBox(height: 11),
-            Row(
-              children: [
-                if (youLabel != null)
+            if (answered)
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 9,
+                runSpacing: 6,
+                children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -1895,19 +1952,49 @@ class _HistoryQuestionCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      'You said $youLabel',
+                      pick.prediction != null
+                          ? 'You said $youLabel @ ${pick.prediction}%'
+                          : 'You said $youLabel',
                       style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w600),
                     ),
                   ),
-                if (roomPct != null && pick?.prediction != null) ...[
-                  const SizedBox(width: 9),
-                  Text(
-                    'Room $roomPct% · guessed ${pick!.prediction}%',
-                    style: v2Mono(11, color: RtwV2Colors.subText, letterSpacing: 0),
-                  ),
+                  if (revealed && crowdPct != null)
+                    Text(
+                      'Crowd $crowdPct% agreed',
+                      style: v2Mono(11, color: RtwV2Colors.subText, letterSpacing: 0),
+                    ),
                 ],
-              ],
-            ),
+              )
+            else if (revealed && crowdPct != null)
+              Text(
+                'Crowd $crowdPct% picked ${question.optA}',
+                style: v2Sans(12.5, color: RtwV2Colors.subText),
+              )
+            else if (canAnswer)
+              Text(
+                'Tap to make your read',
+                style: v2Sans(12.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+              ),
+            if (showProgress) ...[
+              const SizedBox(height: 11),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Container(
+                  height: 6,
+                  color: const Color(0xFFE6E0D3),
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: pct,
+                    child: Container(color: RtwV2Colors.blue),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
+                style: v2Sans(11.5, color: RtwV2Colors.muted),
+              ),
+            ],
           ],
         ),
       ),

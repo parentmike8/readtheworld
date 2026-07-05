@@ -463,8 +463,8 @@ class _WorldProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           _WorldLink(
-            label: 'Browse other world questions →',
-            onTap: () => showWorldBrowseSheet(context, rooms),
+            label: 'Browse & answer past questions →',
+            onTap: () => showRoomHistorySheet(context, rooms, room),
           ),
           _WorldLink(
             label: 'How you stack against your peers →',

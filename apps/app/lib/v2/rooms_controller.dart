@@ -1020,6 +1020,7 @@ class RoomsController extends ChangeNotifier {
   Future<List<RoomHistoryDay>> loadRoomHistory(
     String roomId, {
     int limitDays = 90,
+    bool includeLive = false,
   }) async {
     final currentUid = uid;
     if (currentUid == null) return const [];
@@ -1031,9 +1032,13 @@ class RoomsController extends ChangeNotifier {
           .orderBy('dailyKey', descending: true)
           .limit(limitDays)
           .get();
-      final closedDocs = daysSnap.docs
-          .where((doc) => doc.data()['status'] == 'closed')
-          .toList();
+      // The World never "closes" its days (questions reveal per-threshold), so
+      // its history includes live/open days the reader can still answer.
+      final closedDocs = includeLive
+          ? daysSnap.docs.toList()
+          : daysSnap.docs
+              .where((doc) => doc.data()['status'] == 'closed')
+              .toList();
       final answers = await Future.wait([
         for (final doc in closedDocs)
           doc.reference.collection('answers').doc(currentUid).get(),
