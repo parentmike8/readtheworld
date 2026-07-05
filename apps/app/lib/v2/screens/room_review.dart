@@ -107,7 +107,9 @@ class RoomReviewScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             Center(
               child: GestureDetector(
-                onTap: () => context.go('/rooms/$roomId'),
+                onTap: () => context.canPop()
+                    ? context.pop()
+                    : context.go('/rooms/$roomId'),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(

@@ -354,7 +354,7 @@ class _PlayedCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
               fontSize: 15,
               padding: const EdgeInsets.symmetric(vertical: 15),
-              onPressed: () => context.go('/rooms/${room.id}/review'),
+              onPressed: () => context.push('/rooms/${room.id}/review'),
             ),
           ],
         ],

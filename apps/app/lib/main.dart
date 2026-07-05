@@ -30,6 +30,7 @@ import 'v2/screens/party_screen.dart';
 import 'v2/screens/play_surface.dart';
 import 'v2/screens/profile_screen.dart';
 import 'v2/screens/room_detail.dart';
+import 'v2/screens/notifications_primer.dart';
 import 'v2/screens/room_review.dart';
 import 'v2/screens/room_reveal.dart';
 import 'v2/screens/rooms_home.dart';
@@ -319,6 +320,7 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       final path = state.uri.path;
       final authRequiredPath =
           path == '/onboarding' ||
+          path == '/notifications' ||
           path == '/profile' ||
           path == '/party' ||
           path == '/today' ||
@@ -335,12 +337,23 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (gatedTabs.contains(state.uri.path) && roomsController.needsOnboarding) {
         return '/onboarding';
       }
+      // One-time notifications primer on mobile, after onboarding.
+      if (!kIsWeb &&
+          gatedTabs.contains(state.uri.path) &&
+          roomsController.needsNotifPrimer) {
+        return '/notifications';
+      }
       return null;
     },
     routes: [
       GoRoute(path: '/', redirect: (_, _) => '/today'),
       _appRoute('/auth', (_, _) => const AuthScreen()),
       _appRoute('/onboarding', (_, _) => const OnboardingScreenV2()),
+      _appRoute(
+        '/notifications',
+        (_, _) => const NotificationsPrimerScreen(),
+        mainFade: true,
+      ),
       _appRoute('/today', (_, _) => const TodayScreenV2(), mainFade: true),
       _appRoute('/party', (_, _) => const PartyScreenV2(), mainFade: true),
       // Legacy v1 paths (old notification routes, bookmarks) land safely.

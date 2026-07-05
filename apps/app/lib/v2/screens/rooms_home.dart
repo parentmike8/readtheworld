@@ -193,7 +193,7 @@ class _WorldHero extends StatelessWidget {
         : 'Answer world questions →';
 
     return GestureDetector(
-      onTap: () => context.go('/rooms/$worldRoomId'),
+      onTap: () => context.push('/rooms/$worldRoomId'),
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -314,7 +314,7 @@ class _WorldHero extends StatelessWidget {
                       // Already answered -> read-only review first; otherwise
                       // straight into the play flow.
                       if (answered) {
-                        context.go('/rooms/$worldRoomId/review');
+                        context.push('/rooms/$worldRoomId/review');
                         return;
                       }
                       rooms.startRoomPlay(worldRoomId);
@@ -387,7 +387,7 @@ class _RoomCard extends ConsumerWidget {
       rooms.markTodaySeen(room.id);
       // Already answered -> read-only review; otherwise into the play flow.
       if (played) {
-        context.go('/rooms/${room.id}/review');
+        context.push('/rooms/${room.id}/review');
         return;
       }
       rooms.startRoomPlay(room.id);

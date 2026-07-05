@@ -162,6 +162,7 @@ class RoomsController extends ChangeNotifier {
       profileLoaded = false;
       hasOnboarded = false;
       hasMatureConsent = false;
+      notifPrimerSeen = false;
       notifyListeners();
       if (user == null) return;
       _bindProfile(user.uid);
@@ -177,9 +178,40 @@ class RoomsController extends ChangeNotifier {
       hasOnboarded = hasOnboarded || snapshot.data()?['onboardedAt'] != null;
       hasMatureConsent =
           hasMatureConsent || snapshot.data()?['matureContent'] == true;
+      notifPrimerSeen =
+          notifPrimerSeen || snapshot.data()?['notifPrimerSeenAt'] != null;
       profileLoaded = true;
       notifyListeners();
     }, onError: _handleError);
+  }
+
+  /// Whether the one-time "turn on notifications" primer should show: a
+  /// signed-in reader who has finished onboarding and hasn't seen it yet.
+  bool notifPrimerSeen = false;
+
+  bool get needsNotifPrimer =>
+      firebaseReady &&
+      profileLoaded &&
+      !loadingRooms &&
+      hasOnboarded &&
+      !notifPrimerSeen;
+
+  /// Stamp the profile so the notifications primer never shows again.
+  void markNotifPrimerSeen() {
+    if (notifPrimerSeen) return;
+    notifPrimerSeen = true;
+    notifyListeners();
+    if (!firebaseReady) return;
+    final currentUid = uid;
+    if (currentUid == null) return;
+    unawaited(
+      _db.collection('users').doc(currentUid).set({
+        'notifPrimerSeenAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).catchError((Object error) {
+        _handleError(error);
+      }),
+    );
   }
 
   /// Whether this user has ever accepted the After Dark consent sheet
