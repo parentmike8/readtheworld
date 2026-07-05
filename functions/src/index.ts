@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest, type Request } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
@@ -97,6 +97,7 @@ import {
   PostmarkSendError,
   postmarkServerToken,
   sendPostmarkEmail,
+  supportContactEmail,
   verificationEmail,
 } from "./email";
 import {
@@ -126,6 +127,7 @@ const SHARE_URL = `${MARKETING_URL}/share`;
 const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
 const FEEDBACK_COOLDOWN_MS = 60 * 1000;
+const SUPPORT_CONTACT_COOLDOWN_MS = 60 * 1000;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
 const authOnlyCallableOptions = callableOptions;
@@ -319,6 +321,31 @@ function normalizeEmail(value: unknown): string {
     throw new HttpsError("invalid-argument", "Enter a valid email address.");
   }
   return email;
+}
+
+function assertSupportName(value: unknown): string {
+  const name = assertString(value, "name");
+  if (name.length > 120) {
+    throw new HttpsError("invalid-argument", "Name must be 120 characters or fewer.");
+  }
+  return name;
+}
+
+function assertSupportMessage(value: unknown): string {
+  const message = assertString(value, "message");
+  if (message.length < 4) {
+    throw new HttpsError("invalid-argument", "Write a little more detail first.");
+  }
+  if (message.length > 4000) {
+    throw new HttpsError("invalid-argument", "Message must be 4000 characters or fewer.");
+  }
+  return message;
+}
+
+function requestIpHash(req: Request): string {
+  const forwarded = req.header("x-forwarded-for") ?? "";
+  const ip = forwarded.split(",")[0]?.trim() || req.ip || "unknown";
+  return createHash("sha256").update(ip).digest("hex");
 }
 
 function assertNotificationText(
@@ -2579,6 +2606,106 @@ export const submitFeedback = onCall(feedbackCallableOptions, async (request) =>
       error: errorMessage,
     });
     return { saved: true, emailed: false };
+  }
+});
+
+export const submitSupportContact = onRequest({
+  cors: true,
+  secrets: [postmarkServerToken],
+}, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (req.method !== "POST") {
+    res.set("Allow", "POST");
+    res.status(405).json({ error: "method-not-allowed" });
+    return;
+  }
+
+  try {
+    const body = typeof req.body === "object" && req.body !== null
+      ? req.body as Record<string, unknown>
+      : {};
+
+    // Honeypot for basic bot noise. Pretend success without sending.
+    if (typeof body.company === "string" && body.company.trim().length > 0) {
+      res.json({ ok: true, emailed: true });
+      return;
+    }
+
+    const name = assertSupportName(body.name);
+    const email = normalizeEmail(body.email);
+    const message = assertSupportMessage(body.message);
+    const ipHash = requestIpHash(req);
+    const emailHash = createHash("sha256").update(email).digest("hex");
+    const cooldownRef = db.collection("supportContactCooldowns").doc(
+      createHash("sha256").update(`${emailHash}:${ipHash}`).digest("hex"),
+    );
+    const contactRef = db.collection("supportContacts").doc();
+
+    await db.runTransaction(async (tx) => {
+      const cooldownSnap = await tx.get(cooldownRef);
+      const lastContactAt = cooldownSnap.data()?.lastContactAt;
+      if (
+        lastContactAt instanceof Timestamp &&
+        Date.now() - lastContactAt.toMillis() < SUPPORT_CONTACT_COOLDOWN_MS
+      ) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "That message was just sent. Try again in a minute.",
+        );
+      }
+
+      tx.set(contactRef, {
+        name,
+        email,
+        message,
+        source: "support-page",
+        ipHash,
+        userAgent: String(req.header("user-agent") ?? "").slice(0, 500) || null,
+        emailStatus: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(cooldownRef, {
+        emailHash,
+        ipHash,
+        lastContactAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    const result = await sendPostmarkEmail(supportContactEmail({
+      to: ALLOWED_ADMIN_EMAIL,
+      name,
+      email,
+      message,
+      contactId: contactRef.id,
+    }));
+    await contactRef.set({
+      emailStatus: "sent",
+      emailSentAt: FieldValue.serverTimestamp(),
+      emailMessageId: result.MessageID ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    logger.info("Sent support contact email", {
+      contactId: contactRef.id,
+      messageId: result.MessageID ?? null,
+    });
+    res.json({ ok: true, emailed: true, contactId: contactRef.id });
+  } catch (error) {
+    const code = error instanceof HttpsError ? error.code : "internal";
+    const message = error instanceof HttpsError
+      ? error.message
+      : "Support message could not be sent. Try again later.";
+    const status = code === "invalid-argument"
+      ? 400
+      : code === "resource-exhausted"
+        ? 429
+        : 500;
+    logger.warn("Support contact failed", {
+      code,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(status).json({ error: code, message });
   }
 });
 

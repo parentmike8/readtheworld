@@ -215,6 +215,10 @@ button.darkButton,
   font-weight: 600;
 }
 
+.lpSupportNavAction {
+  display: none;
+}
+
 .lpHero {
   position: relative;
   display: grid;
@@ -1117,12 +1121,171 @@ button.darkButton,
   border-top: 1px solid #dcd6c9;
 }
 
+.footerLinks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.footerLinks a {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .footerBottom span {
   color: var(--faint);
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+.supportPage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.supportNav,
+.supportFooter {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+.supportNav {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.supportNavLink,
+.supportFooter a:not(.wordmark) {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.supportWrap {
+  width: min(760px, 100%);
+  margin: auto;
+  padding: 86px 32px 96px;
+}
+
+.supportIntro {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.supportIntro h1 {
+  margin-top: 14px;
+  font-size: clamp(48px, 8vw, 74px);
+  line-height: 0.98;
+  letter-spacing: -1px;
+}
+
+.supportIntro p {
+  margin-top: 16px;
+  color: var(--subtext);
+  font-size: 18px;
+}
+
+.supportForm {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 26px;
+  background: var(--card);
+  box-shadow: 0 14px 44px rgba(40, 36, 28, 0.06);
+}
+
+.supportForm label {
+  display: grid;
+  gap: 8px;
+}
+
+.supportForm label span {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+}
+
+.supportForm input,
+.supportForm textarea {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: white;
+  color: var(--ink);
+  outline: none;
+}
+
+.supportForm input {
+  min-height: 52px;
+  padding: 0 16px;
+}
+
+.supportForm textarea {
+  min-height: 170px;
+  padding: 14px 16px;
+  resize: vertical;
+}
+
+.supportForm input:focus,
+.supportForm textarea:focus {
+  border-color: rgba(62, 91, 160, 0.55);
+  box-shadow: 0 0 0 4px var(--blue-tint);
+}
+
+.supportForm button {
+  min-height: 54px;
+  border: none;
+  border-radius: 14px;
+  background: var(--blue);
+  color: white;
+  font-weight: 800;
+}
+
+.supportForm button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.supportHiddenField {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.supportStatus {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.supportStatus.error {
+  color: var(--danger);
+}
+
+.supportFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 24px;
+  padding-bottom: 34px;
+  border-top: 1px solid #dcd6c9;
 }
 
 @keyframes lpFade {
@@ -2578,6 +2741,10 @@ pre {
     display: none;
   }
 
+  .lpSupportNavAction {
+    display: inline-flex;
+  }
+
   .lpHero,
   .lpCols,
   .ritualGrid,
@@ -2689,6 +2856,25 @@ pre {
   .footerBottom {
     align-items: center;
     text-align: center;
+  }
+
+  .footerLinks {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .supportNav,
+  .supportFooter {
+    padding-left: max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+  }
+
+  .supportWrap {
+    padding: 58px max(24px, env(safe-area-inset-right)) 70px max(24px, env(safe-area-inset-left));
+  }
+
+  .supportForm {
+    padding: 22px;
   }
 }
 

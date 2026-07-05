@@ -62,7 +62,13 @@ export async function sendPostmarkEmail(email: PostmarkEmail): Promise<PostmarkR
       Metadata: email.metadata,
     }),
   });
-  const body = await response.json().catch(() => ({})) as PostmarkResponse;
+  const rawBody = await response.text();
+  let body: PostmarkResponse = {};
+  try {
+    body = JSON.parse(rawBody) as PostmarkResponse;
+  } catch {
+    body = { Message: rawBody };
+  }
   if (!response.ok || (body.ErrorCode ?? 0) !== 0) {
     throw new PostmarkSendError(response.status, body.Message ?? "");
   }
@@ -209,6 +215,52 @@ export function feedbackEmail(input: {
       `Email: ${email}`,
       `UID: ${input.uid}`,
       `Source: ${input.source}`,
+      "",
+      input.message,
+    ].join("\n"),
+  };
+}
+
+export function supportContactEmail(input: {
+  to: string;
+  name: string;
+  email: string;
+  message: string;
+  contactId: string;
+}): PostmarkEmail {
+  const name = input.name.trim() || "A reader";
+  const email = input.email.trim() || "No email provided";
+  const messageParagraphs = input.message
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+  return {
+    to: input.to,
+    subject: `Read the World support message from ${name}`,
+    messageStream: POSTMARK_TRANSACTIONAL_STREAM,
+    tag: "support-contact",
+    metadata: {
+      contactId: input.contactId,
+    },
+    htmlBody: emailFrame({
+      preheader: `${name} sent a support message.`,
+      eyebrow: "SUPPORT",
+      title: "New support message.",
+      body: [
+        `Name: ${name}`,
+        `Email: ${email}`,
+        `Contact ID: ${input.contactId}`,
+        ...messageParagraphs,
+      ],
+      ctaLabel: "Open app",
+      ctaUrl: "https://app.readtheworld.today",
+    }),
+    textBody: [
+      "New support message",
+      "",
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `Contact ID: ${input.contactId}`,
       "",
       input.message,
     ].join("\n"),

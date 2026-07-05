@@ -339,8 +339,12 @@ export default function Home() {
             <a href="#party">Party mode</a>
             <a href="#world">The World</a>
             <a href="#faq">FAQ</a>
+            <a href="/support">Support</a>
           </nav>
           <div className="lpNavActions">
+            <a className="textNavButton lpSupportNavAction" href="/support">
+              Support
+            </a>
             {user ? (
               <button
                 className="textNavButton lpHideMobile"
@@ -804,7 +808,10 @@ export default function Home() {
           <a className="wordmark" href="#play">
             read the world<span>.</span>
           </a>
-          <span>&copy; 2026 &middot; A daily game of public opinion</span>
+          <div className="footerLinks">
+            <a href="/support">Support</a>
+            <span>&copy; 2026 &middot; A daily game of public opinion</span>
+          </div>
         </div>
       </footer>
     </main>
