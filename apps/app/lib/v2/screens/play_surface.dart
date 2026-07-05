@@ -53,14 +53,26 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
 }
 
 /// Single-room play (`/today/play`) — entered from Room Detail / Rooms home.
-class RoomPlayScreen extends ConsumerWidget {
+class RoomPlayScreen extends ConsumerStatefulWidget {
   const RoomPlayScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RoomPlayScreen> createState() => _RoomPlayScreenState();
+}
+
+class _RoomPlayScreenState extends ConsumerState<RoomPlayScreen> {
+  // One-shot guard: without a session or summary this screen navigates away,
+  // but it can rebuild several times during that transition. Firing the exit
+  // navigation more than once let a stale (cleared) exit route fall through to
+  // /rooms, overriding the intended destination.
+  bool _exiting = false;
+
+  @override
+  Widget build(BuildContext context) {
     final rooms = ref.watch(roomsControllerProvider);
     final session = rooms.play;
     if (session != null && !session.atEnd) {
+      _exiting = false;
       return V2Scaffold(
         wideWidth: 600,
         location: '/today/play',
@@ -69,6 +81,7 @@ class RoomPlayScreen extends ConsumerWidget {
       );
     }
     if (rooms.summaryRoomId != null) {
+      _exiting = false;
       return V2Scaffold(
         wideWidth: 600,
         location: '/today/play',
@@ -76,13 +89,18 @@ class RoomPlayScreen extends ConsumerWidget {
         child: _RoundSummary(roomId: rooms.summaryRoomId!),
       );
     }
-    final exitRoute = rooms.pendingPlayExitRoute;
-    // Return to wherever play was entered from (recorded entry route).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      rooms.clearPendingPlayExit();
-      context.go(exitRoute != null && exitRoute.isNotEmpty ? exitRoute : '/rooms');
-    });
+    if (!_exiting) {
+      _exiting = true;
+      final exitRoute = rooms.pendingPlayExitRoute;
+      // Return to wherever play was entered from (recorded entry route).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        rooms.clearPendingPlayExit();
+        context.go(
+          exitRoute != null && exitRoute.isNotEmpty ? exitRoute : '/rooms',
+        );
+      });
+    }
     return const V2Scaffold(
       wideWidth: 600,
       location: '/today/play',
@@ -1669,10 +1687,7 @@ class _RoundSummary extends ConsumerWidget {
           ),
           V2Button(
             'Back to $roomName',
-            onPressed: () {
-              context.go('/rooms/$roomId');
-              rooms.dismissSummary(notify: false);
-            },
+            onPressed: () => rooms.dismissSummaryTo('/rooms/$roomId'),
             padding: const EdgeInsets.symmetric(vertical: 17),
             radius: 16,
             fontSize: 16,

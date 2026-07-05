@@ -681,6 +681,15 @@ class RoomsController extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
+  /// Leave the round summary and route to [route] via the single play-exit
+  /// path (avoids the summary-back navigation racing the exit redirect, which
+  /// was bouncing "Back to [Room]" to /rooms).
+  void dismissSummaryTo(String route) {
+    summaryRoomId = null;
+    pendingPlayExitRoute = route;
+    notifyListeners();
+  }
+
   // ── swipe / gesture handlers (prototype thresholds, native physics) ───
 
   void cardDragStart() {
