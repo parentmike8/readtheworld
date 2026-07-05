@@ -659,7 +659,7 @@ class RoomsController extends ChangeNotifier {
     final session = play;
     if (session == null || session.stage != PlayStage.predict) return;
     final people = _predictionPeople(session);
-    if (people > 0 && people <= _countFirstPredictionThreshold) {
+    if (!_predictionInfinite(session) && people <= _countFirstPredictionThreshold) {
       final current = ((session.pred / 100) * people).round();
       final rawNext = current + delta;
       final next = rawNext < 0
@@ -765,6 +765,11 @@ class RoomsController extends ChangeNotifier {
     return math.max(0, members - 1);
   }
 
+  /// Solo and The World read the prediction as a free share of everyone, so the
+  /// meter must NOT snap to the current (often tiny) member count.
+  bool _predictionInfinite(PlaySession session) =>
+      (session.card?.isWorld ?? false) || _predictionPeople(session) <= 0;
+
   int _boundedPrediction(int value) => value < 0
       ? 0
       : value > 100
@@ -774,7 +779,7 @@ class RoomsController extends ChangeNotifier {
   int _snapPredictionForSession(PlaySession session, int value) {
     final bounded = _boundedPrediction(value);
     final people = _predictionPeople(session);
-    if (people <= 0 || people > _countFirstPredictionThreshold) {
+    if (_predictionInfinite(session) || people > _countFirstPredictionThreshold) {
       return bounded;
     }
     final rawCount = ((bounded / 100) * people).round();
@@ -789,7 +794,7 @@ class RoomsController extends ChangeNotifier {
   int _snapPredictionFractionForSession(PlaySession session, double fraction) {
     final boundedFraction = fraction.clamp(0.0, 1.0);
     final people = _predictionPeople(session);
-    if (people <= 0 || people > _countFirstPredictionThreshold) {
+    if (_predictionInfinite(session) || people > _countFirstPredictionThreshold) {
       return _boundedPrediction((boundedFraction * 100).round());
     }
     final count = (boundedFraction * people).round().clamp(0, people);
