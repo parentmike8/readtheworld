@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -589,20 +590,46 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
 
 // ── INVITE ──────────────────────────────────────────────────────────────
 
+/// Where to send someone who taps a "get the app" invite. Not published to the
+/// stores yet, so everyone lands on the marketing site (which will route to the
+/// right store once live). Swap in the store URLs below when published [Mike].
+const _marketingUrl = 'https://readtheworld.today';
+// const _iosStoreUrl = 'https://apps.apple.com/app/id0000000000';
+// const _androidStoreUrl =
+//     'https://play.google.com/store/apps/details?id=today.readtheworld.app';
+
+String _appDownloadLink() {
+  if (kIsWeb) return _marketingUrl;
+  switch (defaultTargetPlatform) {
+    // TODO: return _iosStoreUrl / _androidStoreUrl once the apps are published.
+    case TargetPlatform.iOS:
+    case TargetPlatform.android:
+      return _marketingUrl;
+    default:
+      return _marketingUrl;
+  }
+}
+
 Future<void> showInviteSheet(
   BuildContext context,
   RoomsController rooms,
   String roomId,
 ) {
   final room = rooms.bindingFor(roomId)?.room;
-  final code = room?.inviteCode;
-  return showV2Sheet(context, (context) => _InviteSheet(code: code));
+  final isWorld = roomId == worldRoomId || (room?.isWorld ?? false);
+  return showV2Sheet(
+    context,
+    (context) => _InviteSheet(code: room?.inviteCode, isWorld: isWorld),
+  );
 }
 
 class _InviteSheet extends StatefulWidget {
-  const _InviteSheet({required this.code});
+  const _InviteSheet({required this.code, required this.isWorld});
 
   final String? code;
+
+  /// The World has no room code — invite is a generic "get the game" link.
+  final bool isWorld;
 
   @override
   State<_InviteSheet> createState() => _InviteSheetState();
@@ -611,7 +638,19 @@ class _InviteSheet extends StatefulWidget {
 class _InviteSheetState extends State<_InviteSheet> {
   bool copied = false;
 
-  String get _link => 'https://$_shortLinkHost/${widget.code ?? ''}';
+  String get _link => widget.isWorld
+      ? _appDownloadLink()
+      : 'https://$_shortLinkHost/${widget.code ?? ''}';
+
+  String get _display =>
+      widget.isWorld ? _link.replaceFirst('https://', '') : '$_shortLinkHost/${widget.code ?? '…'}';
+
+  // World link is always shareable; a room link needs its code first.
+  bool get _shareable => widget.isWorld || widget.code != null;
+
+  String get _shareText => widget.isWorld
+      ? 'Come read the world with me: $_link'
+      : 'Join my room on Read the World: $_link';
 
   @override
   Widget build(BuildContext context) {
@@ -620,10 +659,13 @@ class _InviteSheetState extends State<_InviteSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _sheetEyebrow('Invite friends'),
-        _sheetTitle('Bring your people in.'),
+        _sheetTitle(widget.isWorld ? 'Bring the world in.' : 'Bring your people in.'),
         _sheetBody(
-          'They join your room and your leaderboard, and every new player gets '
-          'the World Room closer to unlocking for everyone.',
+          widget.isWorld
+              ? 'The more people playing, the sooner The World unlocks scoring '
+                  'for everyone. Share the game.'
+              : 'They join your room and your leaderboard, and every new player '
+                  'gets the World closer to unlocking for everyone.',
         ),
         const SizedBox(height: 20),
         Container(
@@ -637,14 +679,14 @@ class _InviteSheetState extends State<_InviteSheet> {
             children: [
               Expanded(
                 child: Text(
-                  '$_shortLinkHost/${widget.code ?? '…'}',
+                  _display,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: v2Mono(14, color: const Color(0xFF5C584F), letterSpacing: 0.5),
                 ),
               ),
               GestureDetector(
-                onTap: widget.code == null
+                onTap: !_shareable
                     ? null
                     : () async {
                         await Clipboard.setData(ClipboardData(text: _link));
@@ -667,12 +709,10 @@ class _InviteSheetState extends State<_InviteSheet> {
         ),
         const SizedBox(height: 14),
         V2Button(
-          'Share invite link',
-          onPressed: widget.code == null
+          widget.isWorld ? 'Share the game' : 'Share invite link',
+          onPressed: !_shareable
               ? null
-              : () => SharePlus.instance.share(
-                    ShareParams(text: 'Join my room on Read the World: $_link'),
-                  ),
+              : () => SharePlus.instance.share(ShareParams(text: _shareText)),
           padding: const EdgeInsets.symmetric(vertical: 16),
           radius: 16,
         ),
