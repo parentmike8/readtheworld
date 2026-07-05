@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -129,12 +130,13 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
     }
     rooms.markOnboarded();
     rooms.pendingHomeAction = homeAction;
-    context.go('/rooms');
+    // Mobile: end onboarding on the notifications primer (once), then rooms.
+    context.go(kIsWeb ? '/rooms' : '/notifications');
   }
 
   void _skip() {
     ref.read(roomsControllerProvider).markOnboarded();
-    context.go('/today');
+    context.go(kIsWeb ? '/today' : '/notifications');
   }
 
   @override

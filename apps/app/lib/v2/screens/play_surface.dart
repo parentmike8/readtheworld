@@ -80,8 +80,12 @@ class RoomPlayScreen extends ConsumerWidget {
     // Deep link with no active session: send home.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
-      if (exitRoute != null && exitRoute.isNotEmpty) {
-        rooms.clearPendingPlayExit();
+      rooms.clearPendingPlayExit();
+      // If play was pushed over its entry (e.g. World history), pop straight
+      // back to it; otherwise navigate to the recorded exit route.
+      if (context.canPop()) {
+        context.pop();
+      } else if (exitRoute != null && exitRoute.isNotEmpty) {
         context.go(exitRoute);
       } else {
         context.go('/rooms');

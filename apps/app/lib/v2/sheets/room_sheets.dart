@@ -1815,8 +1815,13 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                   entryRoute: '/rooms/${widget.room.id}/history',
                 );
                 if (widget.rooms.play != null) {
-                  if (!widget.asScreen) Navigator.of(context).pop();
-                  context.go('/today/play');
+                  if (widget.asScreen) {
+                    // Push play over the history route so Exit pops back to it.
+                    context.push('/today/play');
+                  } else {
+                    Navigator.of(context).pop();
+                    context.go('/today/play');
+                  }
                 }
               },
             ),

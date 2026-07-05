@@ -338,12 +338,6 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (gatedTabs.contains(state.uri.path) && roomsController.needsOnboarding) {
         return '/onboarding';
       }
-      // One-time notifications primer on mobile, after onboarding.
-      if (!kIsWeb &&
-          gatedTabs.contains(state.uri.path) &&
-          roomsController.needsNotifPrimer) {
-        return '/notifications';
-      }
       return null;
     },
     routes: [
