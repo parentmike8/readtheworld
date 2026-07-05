@@ -927,6 +927,20 @@ class _PickStage extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ),
+        if (rooms.canGoBack)
+          Center(
+            child: GestureDetector(
+              onTap: rooms.goBack,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '← Back to the last question',
+                  textAlign: TextAlign.center,
+                  style: v2Sans(13, color: RtwV2Colors.subText),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

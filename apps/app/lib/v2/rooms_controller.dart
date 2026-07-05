@@ -766,6 +766,50 @@ class RoomsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether there's an earlier question in the *current room block* to step
+  /// back to (never crosses an intro card or into another room's block).
+  bool get canGoBack {
+    final session = play;
+    final card = session?.card;
+    if (session == null || card == null) return false;
+    final prev = session.idx - 1;
+    return prev >= 0 &&
+        !session.deck[prev].intro &&
+        session.deck[prev].roomId == card.roomId;
+  }
+
+  /// Step back to the previous question to revise it — it's fine to change an
+  /// answer before the round locks (party-mode style). Restores the saved pick
+  /// on the editable predict step, or a clean pick if none.
+  void goBack() {
+    final session = play;
+    if (session == null || !canGoBack) return;
+    unawaited(HapticFeedback.selectionClick());
+    session.idx -= 1;
+    session.dragX = 0;
+    session.dragging = false;
+    session.answerSavedReason = null;
+    final card = session.card;
+    final qid = card?.question?.qid;
+    RoomPick? saved;
+    for (final pick in session.results[card?.roomId] ?? const <RoomPick>[]) {
+      if (pick.qid == qid) {
+        saved = pick;
+        break;
+      }
+    }
+    if (saved != null) {
+      session.side = saved.side;
+      session.pred = _snapPredictionForSession(session, saved.prediction ?? 50);
+      session.stage = PlayStage.predict;
+    } else {
+      session.side = null;
+      session.pred = 50;
+      session.stage = PlayStage.pick;
+    }
+    notifyListeners();
+  }
+
   RoomPick? _savedPickForCurrent(PlaySession session) {
     if (session.mode != 'room') return null;
     final card = session.card;
