@@ -34,7 +34,7 @@ import {
   smoothedCategoryScore,
   type LeaderboardInput,
 } from "./scoring";
-import { buildProductionQuestionSeed } from "./seedQuestions";
+import { addDaysToDailyKey, buildProductionQuestionSeed } from "./seedQuestions";
 import {
   isShortLinkType,
   shortLinkExpired,
@@ -1267,6 +1267,71 @@ function bucketRows(
     }));
 }
 
+async function adminDailyCompletionRows(): Promise<Array<{
+  label: string;
+  completers: number;
+  returningCompleters: number;
+  newCompleters: number;
+  returningPct: number;
+}>> {
+  const todayKey = dailyKeyForEasternDate(new Date());
+  const outputDayCount = 30;
+  const lookbackDayCount = 120;
+  const firstOutputKey = addDaysToDailyKey(todayKey, -(outputDayCount - 1));
+  const firstLookbackKey = addDaysToDailyKey(todayKey, -(lookbackDayCount - 1));
+  const outputKeys = Array.from({ length: outputDayCount }, (_, index) =>
+    addDaysToDailyKey(firstOutputKey, index));
+  const usersByDay = new Map<string, Set<string>>();
+
+  const roomsSnap = await db.collection("rooms").limit(500).get();
+  await Promise.all(roomsSnap.docs.map(async (roomDoc) => {
+    const daysSnap = await roomDoc.ref
+      .collection("days")
+      .where(FieldPath.documentId(), ">=", firstLookbackKey)
+      .where(FieldPath.documentId(), "<=", todayKey)
+      .get();
+
+    await Promise.all(daysSnap.docs.map(async (dayDoc) => {
+      const answersSnap = await dayDoc.ref.collection("answers").get();
+      if (answersSnap.empty) return;
+      let users = usersByDay.get(dayDoc.id);
+      if (!users) {
+        users = new Set<string>();
+        usersByDay.set(dayDoc.id, users);
+      }
+      for (const answerDoc of answersSnap.docs) {
+        users.add(answerDoc.id);
+      }
+    }));
+  }));
+
+  const firstCompletionDayByUid = new Map<string, string>();
+  for (const dailyKey of [...usersByDay.keys()].sort()) {
+    const users = usersByDay.get(dailyKey) ?? new Set<string>();
+    for (const uid of users) {
+      if (!firstCompletionDayByUid.has(uid)) {
+        firstCompletionDayByUid.set(uid, dailyKey);
+      }
+    }
+  }
+
+  return outputKeys.map((dailyKey) => {
+    const users = usersByDay.get(dailyKey) ?? new Set<string>();
+    const returningCompleters = [...users].filter((uid) => {
+      const firstCompletionDay = firstCompletionDayByUid.get(uid);
+      return Boolean(firstCompletionDay && firstCompletionDay < dailyKey);
+    }).length;
+    const completers = users.size;
+    return {
+      label: dailyKey,
+      completers,
+      returningCompleters,
+      newCompleters: Math.max(0, completers - returningCompleters),
+      returningPct: pct(returningCompleters, completers),
+    };
+  });
+}
+
 function optionPercentages(question: Question, counts: Record<string, number>): Record<string, number> {
   const total = counts.total || 0;
   const percentages: Record<string, number> = {};
@@ -1937,6 +2002,7 @@ export const getAdminOverview = onCall(callableOptions, async (request) => {
     notificationTokens,
     leaderboardRows,
     activeUserSample,
+    completionRows,
   ] = await Promise.all([
     db.collection("questions").limit(120).get(),
     db.collection("dailyResults").orderBy("closedAt", "desc").limit(30).get(),
@@ -1947,6 +2013,7 @@ export const getAdminOverview = onCall(callableOptions, async (request) => {
     countQuery(db.collectionGroup("notificationTokens").where("enabled", "==", true)),
     countQuery(db.collection("leaderboards").doc("global").collection("rows")),
     db.collection("users").where("officialQuestionsAnswered", ">", 0).limit(1000).get(),
+    adminDailyCompletionRows(),
   ]);
 
   const questions = sortAdminQuestions(
@@ -2025,6 +2092,7 @@ export const getAdminOverview = onCall(callableOptions, async (request) => {
   const sampledActiveUsers = activeUserSample.size;
   const avgStreak = activeStreaks === 0 ? 0 : Math.round((streakSum / activeStreaks) * 10) / 10;
   const focusResult = results.find((result) => result.questionId === focusQuestionId) ?? results[0] ?? null;
+  const todayCompletionRow = completionRows[completionRows.length - 1] ?? null;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -2037,6 +2105,9 @@ export const getAdminOverview = onCall(callableOptions, async (request) => {
       leaderboardRows,
       answersToday: liveCounters?.total ?? focusResult?.totalAnswers ?? 0,
       predictionsLocked: liveCounters?.total ?? 0,
+      dailyCompletersToday: todayCompletionRow?.completers ?? 0,
+      returningCompletersToday: todayCompletionRow?.returningCompleters ?? 0,
+      returningCompleterPctToday: todayCompletionRow?.returningPct ?? 0,
       avgStreak,
       activeStreaks,
     },
@@ -2055,6 +2126,7 @@ export const getAdminOverview = onCall(callableOptions, async (request) => {
         label: result.dailyKey || result.closedAt?.slice(0, 10) || result.questionId,
         value: result.totalAnswers,
       })),
+    completionRows,
     categoryRows: Object.entries(categoryAnswerTotals)
       .sort((a, b) => b[1] - a[1])
       .map(([category, answers]) => ({
@@ -3355,6 +3427,20 @@ async function assembleRoomDay(
     const status = existing.data()?.status;
     if (status === "scheduled") {
       await dayRef.set({ status: "live", activatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      const questions = Array.isArray(existing.data()?.questions)
+        ? existing.data()?.questions as RoomDayQuestion[]
+        : [];
+      const roomUpdates: Record<string, unknown> = {
+        currentDailyKey: dailyKey,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      const bankQids = questions
+        .filter((question) => !question.custom && typeof question.qid === "string" && question.qid.length > 0)
+        .map((question) => question.qid);
+      if (bankQids.length > 0) {
+        roomUpdates.usedQuestionIds = FieldValue.arrayUnion(...bankQids);
+      }
+      await roomRef(roomId).set(roomUpdates, { merge: true });
       return true;
     }
     return false;
@@ -4640,6 +4726,70 @@ export const importQuestionBank = onCall(callableOptions, async (request) => {
   });
   await commitBatchedWrites(writes);
   return { imported, errors };
+});
+
+function normalizeAdminBankTier(value: unknown): BankTier {
+  const tier = typeof value === "string" ? value.trim().toLowerCase() : "normal";
+  if (tier === "work-safe" || tier === "normal" || tier === "mature") {
+    return tier;
+  }
+  throw new HttpsError("invalid-argument", "tier must be work-safe, normal, or mature.");
+}
+
+export const upsertBankQuestion = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAdmin(uid);
+  const prompt = assertString(request.data?.prompt, "prompt");
+  const category = assertString(request.data?.category, "category").toUpperCase();
+  const tier = normalizeAdminBankTier(request.data?.tier);
+  const active = request.data?.active !== false;
+  const explicitQid =
+    typeof request.data?.qid === "string" && request.data.qid.trim().length > 0
+      ? assertQuestionReactionId(request.data.qid)
+      : "";
+
+  let question;
+  try {
+    question = normalizeBankRow({
+      prompt,
+      optA: request.data?.optA,
+      optB: request.data?.optB,
+      categories: category,
+      workSafe: tier === "work-safe",
+      mature: tier === "mature",
+      shape: request.data?.shape ?? "TASTE",
+      active,
+    });
+  } catch (error) {
+    mapRoomValidationError(error);
+  }
+
+  const computedQid = bankQuestionIdForPrompt(question.prompt);
+  const qid = explicitQid || computedQid;
+  if (explicitQid && explicitQid !== computedQid) {
+    const duplicate = await db.collection("questionBank").doc(computedQid).get();
+    if (duplicate.exists) {
+      throw new HttpsError(
+        "already-exists",
+        "A bank question with this exact prompt already exists.",
+      );
+    }
+  }
+
+  await db.collection("questionBank").doc(qid).set({
+    prompt: question.prompt,
+    optA: question.optA,
+    optB: question.optB,
+    tags: question.tags,
+    tier: question.tier,
+    shape: question.shape,
+    active: question.active,
+    timesUsed: FieldValue.increment(0),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: uid,
+  }, { merge: true });
+
+  return { qid, saved: true, active: question.active };
 });
 
 export const setBankQuestionActive = onCall(callableOptions, async (request) => {

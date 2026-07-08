@@ -99,7 +99,7 @@ class _Setup extends ConsumerWidget {
     final waitingForInitialPool =
         pool.isEmpty &&
         (!rooms.partyPoolLoadAttempted || rooms.partyPoolLoading);
-    final partyPoolFailed =
+    final shouldOfferPoolReload =
         pool.isEmpty && rooms.partyPoolLoadAttempted && !rooms.partyPoolLoading;
     final topics = [
       'All',
@@ -273,9 +273,9 @@ class _Setup extends ConsumerWidget {
                   ),
                 ),
               )
-            else if (partyPoolFailed)
+            else if (shouldOfferPoolReload)
               V2Button(
-                'Try loading again →',
+                'Load more questions →',
                 onPressed: () => rooms.refreshPartyPool(tier: party.tier),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 radius: 16,

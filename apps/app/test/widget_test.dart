@@ -673,6 +673,25 @@ void main() {
         isEmpty,
       );
     });
+
+    test('cached party pool excludes recently played questions', () {
+      final rooms = RoomsController(firebaseReady: false);
+      rooms.replacePartyPoolForTesting([
+        _partyQuestion('p1'),
+        _partyQuestion('p2'),
+        _partyQuestion('p3'),
+      ]);
+
+      expect(rooms.partyPool.map((question) => question.qid), [
+        'p1',
+        'p2',
+        'p3',
+      ]);
+
+      rooms.markPartyPlayed(['p2']);
+
+      expect(rooms.partyPool.map((question) => question.qid), ['p1', 'p3']);
+    });
   });
 
   group('v2 screens', () {
@@ -693,6 +712,45 @@ void main() {
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Rooms'), findsOneWidget);
       expect(find.text('Party'), findsOneWidget);
+    });
+
+    testWidgets('today starts when room data arrives after first build', (
+      tester,
+    ) async {
+      final rooms = RoomsController(firebaseReady: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const ReadTheWorldApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text("You're all caught up."), findsOneWidget);
+
+      final binding = _binding(id: 'studio', name: 'The Studio');
+      rooms.bindings[binding.room!.id] = binding;
+      rooms.roomOrder = [binding.room!.id];
+      rooms.markTodaySeen(binding.room!.id);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('The Studio'), findsWidgets);
+      expect(find.text("You're all caught up."), findsNothing);
+
+      await tester.tap(find.textContaining('Tap to start'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Prompt q1?'), findsOneWidget);
+      expect(find.text("You're all caught up."), findsNothing);
     });
 
     testWidgets('rooms tab renders the world hero and empty state', (
@@ -1022,7 +1080,7 @@ void main() {
         find.text('Play with everyone in the room, right from your phone.'),
         findsOneWidget,
       );
-      expect(find.text('Try loading again'), findsOneWidget);
+      expect(find.text('Load more questions'), findsOneWidget);
     });
 
     testWidgets('party play surface exposes swaps and the game menu', (

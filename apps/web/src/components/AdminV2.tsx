@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 // ── shared types ────────────────────────────────────────────────────────
 
-type BankQuestion = {
+export type BankQuestion = {
   id: string;
   prompt: string;
   optA: string;
@@ -58,7 +58,7 @@ function numberOf(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function useBankQuestions(firestore: Firestore | null) {
+export function useBankQuestions(firestore: Firestore | null) {
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
   useEffect(() => {
     if (!firestore) return undefined;

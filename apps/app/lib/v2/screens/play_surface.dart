@@ -27,10 +27,19 @@ class TodayScreenV2 extends ConsumerStatefulWidget {
 }
 
 class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
+  bool _enterTodayScheduled = false;
+
   @override
   void initState() {
     super.initState();
+    _scheduleEnterToday();
+  }
+
+  void _scheduleEnterToday() {
+    if (_enterTodayScheduled) return;
+    _enterTodayScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _enterTodayScheduled = false;
       if (!mounted) return;
       final rooms = ref.read(roomsControllerProvider);
       if (rooms.play?.mode != 'today') rooms.enterToday();
@@ -41,6 +50,9 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
   Widget build(BuildContext context) {
     final rooms = ref.watch(roomsControllerProvider);
     final session = rooms.play;
+    if (session?.mode != 'today') {
+      _scheduleEnterToday();
+    }
     final todaySwipe =
         session != null && session.mode == 'today' && !session.atEnd;
     return V2Scaffold(

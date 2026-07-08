@@ -10,6 +10,9 @@ export const metadata: Metadata = {
 };
 
 const adminViews: AdminView[] = [
+  "bank",
+  "world",
+  "rooms",
   "today",
   "schedule",
   "library",

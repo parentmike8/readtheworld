@@ -1795,7 +1795,7 @@ button.darkButton,
 }
 
 .adminScheduleGrid {
-  grid-template-columns: minmax(0, 1fr) 270px;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.42fr);
 }
 
 .adminNotifyGrid {
@@ -2064,6 +2064,11 @@ button.darkButton,
   box-shadow: inset 0 0 0 1px var(--clay);
 }
 
+.adminCalendar button.active {
+  border-color: var(--blue);
+  box-shadow: inset 0 0 0 2px var(--blue);
+}
+
 .adminCalendar button.needsQuestion {
   border-style: dashed;
   border-color: rgba(176, 67, 47, 0.6);
@@ -2124,7 +2129,111 @@ button.darkButton,
   line-height: 1.35;
 }
 
-.adminDrafts button {
+.adminWorldScheduler {
+  max-height: 74vh;
+  overflow: auto;
+}
+
+.adminScheduleSelected,
+.adminScheduleQuestionList {
+  display: grid;
+  gap: 9px;
+}
+
+.adminScheduleSelected {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+
+.adminScheduleSelected p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.adminSchedulePick,
+.adminScheduleQuestionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px;
+  background: #fffefa;
+}
+
+.adminSchedulePick strong,
+.adminScheduleQuestionRow strong {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-newsreader), serif;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.adminSchedulePick span,
+.adminScheduleQuestionRow span,
+.adminScheduleQuestionRow em {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.adminScheduleQuestionRow em {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.adminSchedulePick label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.adminSchedulePick input {
+  width: 86px;
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
+.adminSchedulePickerTop,
+.adminSchedulePager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.adminSchedulePickerTop input {
+  flex: 1;
+}
+
+.adminSchedulePickerTop span,
+.adminSchedulePager span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.adminSchedulePager button {
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.adminScheduleQuestionRow button:disabled {
+  opacity: 0.45;
+}
+
+.adminDrafts:not(.adminWorldScheduler) button {
   display: grid;
   gap: 7px;
   border: 1px solid #ece7dc;
@@ -2134,12 +2243,12 @@ button.darkButton,
   text-align: left;
 }
 
-.adminDrafts button span,
-.adminDrafts button strong {
+.adminDrafts:not(.adminWorldScheduler) button span,
+.adminDrafts:not(.adminWorldScheduler) button strong {
   display: block;
 }
 
-.adminDrafts button span {
+.adminDrafts:not(.adminWorldScheduler) button span {
   color: var(--muted);
   font-family: var(--font-mono), monospace;
   font-size: 9px;
@@ -2147,7 +2256,7 @@ button.darkButton,
   text-transform: uppercase;
 }
 
-.adminDrafts button strong {
+.adminDrafts:not(.adminWorldScheduler) button strong {
   color: var(--ink);
   font-family: var(--font-newsreader), serif;
   font-size: 16px;
@@ -2280,6 +2389,16 @@ button.darkButton,
   color: var(--blue);
 }
 
+.adminLibraryTable em[data-status="active"] {
+  background: rgba(78, 135, 91, 0.16);
+  color: #2e7d45;
+}
+
+.adminLibraryTable em[data-status="retired"] {
+  background: #ece7dc;
+  color: var(--muted);
+}
+
 .adminEditor {
   margin-top: 16px;
   padding: 18px;
@@ -2357,11 +2476,57 @@ button.darkButton,
 }
 
 .optionRow input {
+  flex: 1;
   min-width: 0;
 }
 
 .optionRow input:first-child {
   flex: 0 0 120px;
+}
+
+.optionRow > span {
+  flex: 0 0 28px;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.adminSimilarityPanel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.adminSimilarityPanel button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fffefa;
+  color: var(--ink);
+  text-align: left;
+}
+
+.adminSimilarityPanel button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adminSimilarityPanel button em,
+.adminSimilarityPanel p {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
 }
 
 .optionRow input:nth-child(2) {

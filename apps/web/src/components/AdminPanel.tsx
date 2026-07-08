@@ -12,6 +12,7 @@ import {
 } from "firebase/auth";
 import {
   collection,
+  doc,
   getFirestore,
   limit,
   onSnapshot,
@@ -25,27 +26,30 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
-  CheckCircle2,
   CircleDot,
   ClipboardList,
   Download,
-  Eye,
   Globe2,
   Library,
   RefreshCw,
   Save,
   SlidersHorizontal,
-  UploadCloud,
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { activateClientAppCheck } from "@/lib/appCheck";
-import { QuestionBankView, RoomsOverviewView, WorldCurationView } from "@/components/AdminV2";
+import {
+  QuestionBankView,
+  RoomsOverviewView,
+  WorldCurationView,
+  useBankQuestions,
+  type BankQuestion,
+} from "@/components/AdminV2";
 
 type AdminState = "missing-config" | "signed-out" | "checking" | "authorized" | "unauthorized";
 export type AdminView = "bank" | "world" | "rooms" | "today" | "schedule" | "library" | "analytics" | "results" | "notifications" | "settings";
 type BroadcastAudience = "all" | "streak_at_risk" | "lapsed_7d";
-type LibraryFilter = "All" | "Live" | "Scheduled" | "Used" | "Draft";
+type LibraryFilter = "All" | "Active" | "Retired" | "Used" | "Work-safe" | "Normal" | "After Dark";
 type QuestionOption = {
   id: string;
   label: string;
@@ -86,8 +90,18 @@ type AdminMetricSummary = {
   leaderboardRows: number;
   answersToday: number;
   predictionsLocked: number;
+  dailyCompletersToday: number;
+  returningCompletersToday: number;
+  returningCompleterPctToday: number;
   avgStreak: number;
   activeStreaks: number;
+};
+type AdminDailyCompletionRow = {
+  label: string;
+  completers: number;
+  returningCompleters: number;
+  newCompleters: number;
+  returningPct: number;
 };
 type AdminResultSummary = {
   questionId: string;
@@ -119,6 +133,7 @@ type AdminOverview = {
     optionPcts: Record<string, number>;
   } | null;
   dailyActivity: Array<{ label: string; value: number }>;
+  completionRows: AdminDailyCompletionRow[];
   categoryRows: Array<{ category: string; value: number; answers: number }>;
   retentionRows: Array<{ label: string; value: number }>;
   audience: {
@@ -126,6 +141,34 @@ type AdminOverview = {
     gender: Array<{ label: string; value: number; count: number }>;
     country: Array<{ label: string; value: number; count: number }>;
   };
+};
+
+type AdminWorldDayQuestion = {
+  qid: string;
+  prompt: string;
+  optA: string;
+  optB: string;
+  tag: string;
+  tier: string;
+  threshold: number | null;
+  pulled: boolean;
+};
+
+type AdminWorldDay = {
+  dailyKey: string;
+  status: string;
+  answerCount: number;
+  answerCounts: Record<string, number>;
+  questions: AdminWorldDayQuestion[];
+};
+type WorldSchedulePick = {
+  qid: string;
+  prompt: string;
+  optA: string;
+  optB: string;
+  tag: string;
+  tier: string;
+  threshold: number;
 };
 
 const firebaseConfig = {
@@ -422,6 +465,14 @@ const categoryColors: Record<string, string> = {
   ETHICS: "#697180",
 };
 
+const adminCategories = Object.keys(categoryColors);
+const bankShapes = ["TASTE", "CONFESS", "MIRROR", "GREY", "TRADE", "NORM", "HABIT", "BELIEF"];
+const adminTierLabels: Record<BankQuestion["tier"] | string, string> = {
+  "work-safe": "Work-safe",
+  normal: "Normal",
+  mature: "After Dark",
+};
+
 function hasFirebaseConfig() {
   return Object.values(firebaseConfig).every(Boolean);
 }
@@ -439,13 +490,11 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const [questionEditorOpen, setQuestionEditorOpen] = useState(false);
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [activeQuestionId, setActiveQuestionId] = useState("");
-  const [questionId, setQuestionId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [category, setCategory] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [dailyKey, setDailyKey] = useState("");
-  const [publishAt, setPublishAt] = useState("");
-  const [closeAt, setCloseAt] = useState("");
+  const [bankTier, setBankTier] = useState<BankQuestion["tier"]>("normal");
+  const [bankShape, setBankShape] = useState("TASTE");
+  const [bankActive, setBankActive] = useState(true);
   const [options, setOptions] = useState<QuestionOption[]>([
     { id: "yes", label: "Yes" },
     { id: "no", label: "No" },
@@ -453,6 +502,14 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [loadingWaitlist, setLoadingWaitlist] = useState(false);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [worldCurrentDailyKey, setWorldCurrentDailyKey] = useState("");
+  const [worldDay, setWorldDay] = useState<AdminWorldDay | null>(null);
+  const [scheduleWorldDays, setScheduleWorldDays] = useState<AdminWorldDay[]>([]);
+  const [selectedScheduleDailyKey, setSelectedScheduleDailyKey] = useState(defaultWorldScheduleKey());
+  const [scheduleMonthKey, setScheduleMonthKey] = useState(defaultWorldScheduleKey().slice(0, 7));
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, WorldSchedulePick[]>>({});
+  const [scheduleQuestionSearch, setScheduleQuestionSearch] = useState("");
+  const [scheduleQuestionPage, setScheduleQuestionPage] = useState(0);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<AdminFeatureFlag[]>([]);
   const [resultsQuestionId, setResultsQuestionId] = useState("");
@@ -475,12 +532,19 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   const firestore = app ? getFirestore(app) : null;
   const functions = app ? getFunctions(app, "us-central1") : null;
   const adminUnlocked = state === "authorized" || devAdminPreview;
+  const bankQuestions = useBankQuestions(adminUnlocked ? firestore : null);
   const overviewQuestions = overview?.questions ?? [];
   const liveRows = mergeAdminQuestions(overviewQuestions, questions);
   const rows = liveRows.length > 0 ? liveRows : devAdminPreview ? sampleQuestions : [];
-  const scheduleRows = devAdminPreview && questions.length === 0 ? calendarPreviewQuestions(rows) : rows;
+  const worldQuestion = worldDay?.questions.find((question) => !question.pulled) ?? null;
+  const worldQuestionAsAdmin = worldQuestion && worldDay
+    ? worldDayQuestionToAdminQuestion(worldQuestion, worldDay)
+    : null;
   const liveQuestion =
-    rows.find((question) => question.status === "live") ?? rows[0] ?? emptyAdminQuestion;
+    worldQuestionAsAdmin ??
+    rows.find((question) => question.status === "live") ??
+    rows[0] ??
+    emptyAdminQuestion;
   const nextQuestion =
     nextScheduledQuestion(rows, liveQuestion.dailyKey) ?? (devAdminPreview ? sampleQuestions[1] : emptyAdminQuestion);
   const resultsFocusQuestion = resultsQuestionId
@@ -601,6 +665,49 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }, [firestore, state]);
 
   useEffect(() => {
+    if (!firestore || !adminUnlocked) return undefined;
+    return onSnapshot(
+      doc(firestore, "rooms", "world"),
+      (snapshot) => {
+        const data = snapshot.data();
+        const nextDailyKey = stringValue(data?.currentDailyKey);
+        setWorldCurrentDailyKey(nextDailyKey);
+        if (!nextDailyKey) setWorldDay(null);
+      },
+      (error) => setMessage(error.message),
+    );
+  }, [adminUnlocked, firestore]);
+
+  useEffect(() => {
+    if (!firestore || !adminUnlocked || !worldCurrentDailyKey) return undefined;
+    return onSnapshot(
+      doc(firestore, "rooms", "world", "days", worldCurrentDailyKey),
+      (snapshot) => {
+        setWorldDay(snapshot.exists() ? worldDayFromData(snapshot.id, snapshot.data()) : null);
+      },
+      (error) => setMessage(error.message),
+    );
+  }, [adminUnlocked, firestore, worldCurrentDailyKey]);
+
+  useEffect(() => {
+    if (!firestore || !adminUnlocked) return undefined;
+    const daysQuery = query(
+      collection(firestore, "rooms", "world", "days"),
+      orderBy("dailyKey", "desc"),
+      limit(120),
+    );
+    return onSnapshot(
+      daysQuery,
+      (snapshot) => {
+        setScheduleWorldDays(snapshot.docs
+          .map((docSnap) => worldDayFromData(docSnap.id, docSnap.data()))
+          .sort((a, b) => a.dailyKey.localeCompare(b.dailyKey)));
+      },
+      (error) => setMessage(error.message),
+    );
+  }, [adminUnlocked, firestore]);
+
+  useEffect(() => {
     if (activeView !== "library" || !questionEditorOpen) return;
     questionEditorRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }, [activeQuestionId, activeView, questionEditorOpen]);
@@ -618,11 +725,15 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       const callable = httpsCallable(functions, name);
       const result = await callable(payload);
       setMessage(JSON.stringify(result.data, null, 2));
-      if (name === "upsertQuestion") {
-        const savedQuestionId = stringValue(objectValue(result.data).questionId) || stringValue(payload.questionId);
+      if (name === "upsertQuestion" || name === "upsertBankQuestion") {
+        const data = objectValue(result.data);
+        const savedQuestionId =
+          stringValue(data.questionId) ||
+          stringValue(data.qid) ||
+          stringValue(payload.questionId) ||
+          stringValue(payload.qid);
         if (savedQuestionId) {
           setActiveQuestionId(savedQuestionId);
-          setQuestionId(savedQuestionId);
           setQuestionEditorOpen(true);
         }
       }
@@ -651,7 +762,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }
 
   function startNewQuestion() {
-    resetQuestionForm(makeDraftQuestionId());
+    resetQuestionForm();
     setLibraryFilter("All");
     setQuestionEditorOpen(true);
   }
@@ -673,31 +784,38 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
       .filter((option) => option.id && option.label);
   }
 
-  function resetQuestionForm(nextQuestionId = "") {
+  function resetQuestionForm() {
     setActiveQuestionId("");
-    setQuestionId(nextQuestionId);
     setPrompt("");
-    setCategory("CULTURE");
-    setStatus("draft");
-    setDailyKey("");
-    setPublishAt("");
-    setCloseAt("");
+    setCategory(adminCategories[0] ?? "CULTURE");
+    setBankTier("normal");
+    setBankShape("TASTE");
+    setBankActive(true);
     setOptions([
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
     ]);
   }
 
+  function applyBankQuestion(question: BankQuestion) {
+    setQuestionEditorOpen(true);
+    setActiveQuestionId(question.id);
+    setPrompt(question.prompt);
+    setCategory((question.tags[0] ?? adminCategories[0] ?? "CULTURE").toUpperCase());
+    setBankTier(question.tier);
+    setBankShape(question.shape || "TASTE");
+    setBankActive(question.active);
+    setOptions([
+      { id: "a", label: question.optA || "Yes" },
+      { id: "b", label: question.optB || "No" },
+    ]);
+  }
+
   function applyQuestion(question: AdminQuestion) {
     setQuestionEditorOpen(true);
     setActiveQuestionId(question.id);
-    setQuestionId(question.id);
     setPrompt(question.prompt);
     setCategory(question.category);
-    setStatus(question.status);
-    setDailyKey(question.dailyKey);
-    setPublishAt(question.publishAt);
-    setCloseAt(question.closeAt);
     setOptions(question.options.length >= 2 ? question.options : [
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
@@ -707,16 +825,17 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
     }
   }
 
-  function questionPayload(statusOverride?: string) {
+  function bankQuestionPayload(activeOverride?: boolean) {
+    const normalized = normalizedOptions();
     return {
-      questionId,
+      qid: activeQuestionId || undefined,
       prompt,
       category,
-      dailyKey,
-      status: statusOverride ?? status,
-      publishAt,
-      closeAt,
-      options: normalizedOptions(),
+      tier: bankTier,
+      shape: bankShape,
+      active: activeOverride ?? bankActive,
+      optA: normalized[0]?.label || "Yes",
+      optB: normalized[1]?.label || "No",
     };
   }
 
@@ -873,6 +992,8 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   function renderToday() {
     const metrics = overview?.metrics;
     const dailyActivity = overview?.dailyActivity ?? [];
+    const worldAnswersToday = worldDay?.answerCount;
+    const answerCountToday = worldAnswersToday ?? metrics?.answersToday;
     return (
       <>
         <div className="adminViewHead">
@@ -894,14 +1015,23 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <h2 className="adminSerif">{liveQuestion.prompt}</h2>
             <div className="adminHeroActions">
               <button className="adminBlueButton" onClick={() => {
-                setResultsQuestionId(liveQuestion.id);
-                void loadOverview(liveQuestion.id);
-                setActiveView("results");
+                if (worldDay) {
+                  setActiveView("world");
+                } else {
+                  setResultsQuestionId(liveQuestion.id);
+                  void loadOverview(liveQuestion.id);
+                  setActiveView("results");
+                }
               }}>
                 View live results
               </button>
               <button onClick={() => {
-                applyQuestion(liveQuestion);
+                const bankQuestion = bankQuestions.find((question) => question.id === liveQuestion.id);
+                if (bankQuestion) {
+                  applyBankQuestion(bankQuestion);
+                } else {
+                  applyQuestion(liveQuestion);
+                }
                 setActiveView("library");
               }}>
                 Edit question
@@ -914,12 +1044,12 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
         <div className="adminMetricGrid">
           <MetricCard
             label="Answers today"
-            value={formatCount(metrics?.answersToday, devAdminPreview ? "1,640" : "0")}
-            detail={`${formatPercentOf(metrics?.answersToday, metrics?.activeUsers, devAdminPreview ? "87%" : "0%")} of active users`}
+            value={formatCount(answerCountToday, devAdminPreview ? "1,640" : "0")}
+            detail={`${formatPercentOf(answerCountToday, metrics?.activeUsers, devAdminPreview ? "87%" : "0%")} of active users`}
           />
           <MetricCard
             label="Predictions locked"
-            value={formatCount(metrics?.predictionsLocked, devAdminPreview ? "1,512" : "0")}
+            value={formatCount(answerCountToday ?? metrics?.predictionsLocked, devAdminPreview ? "1,512" : "0")}
             detail={focusedResult?.avgPredictedShare == null ? "Avg guess --" : `Avg guess ${focusedResult.avgPredictedShare}%`}
           />
           <MetricCard
@@ -954,14 +1084,76 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }
 
   function renderSchedule() {
+    const todayKey = defaultWorldScheduleKey();
+    const worldDayByKey = new Map(scheduleWorldDays.map((day) => [day.dailyKey, day]));
+    const selectedWorldDay = worldDayByKey.get(selectedScheduleDailyKey) ?? null;
+    const selectedPicks = scheduleDrafts[selectedScheduleDailyKey] ??
+      selectedWorldDay?.questions.map(worldQuestionToSchedulePick) ??
+      [];
+    const selectedIds = new Set(selectedPicks.map((pick) => pick.qid));
+    const activeBankQuestions = bankQuestions.filter((question) => question.active);
+    const questionNeedle = scheduleQuestionSearch.trim().toLowerCase();
+    const filteredQuestions = activeBankQuestions.filter((question) => {
+      if (!questionNeedle) return true;
+      return (
+        question.prompt.toLowerCase().includes(questionNeedle) ||
+        question.optA.toLowerCase().includes(questionNeedle) ||
+        question.optB.toLowerCase().includes(questionNeedle) ||
+        question.tags.some((tag) => tag.toLowerCase().includes(questionNeedle))
+      );
+    });
+    const questionPageSize = 10;
+    const pageCount = Math.max(1, Math.ceil(filteredQuestions.length / questionPageSize));
+    const safeQuestionPage = Math.min(scheduleQuestionPage, pageCount - 1);
+    const visibleQuestions = filteredQuestions.slice(
+      safeQuestionPage * questionPageSize,
+      safeQuestionPage * questionPageSize + questionPageSize,
+    );
+    const calendarCells = monthCalendarCells(scheduleMonthKey);
+
+    function setSelectedDate(dailyKey: string) {
+      setSelectedScheduleDailyKey(dailyKey);
+      setScheduleMonthKey(dailyKey.slice(0, 7));
+      setScheduleQuestionPage(0);
+    }
+
+    function setSchedulePicks(nextPicks: WorldSchedulePick[]) {
+      setScheduleDrafts((current) => ({
+        ...current,
+        [selectedScheduleDailyKey]: nextPicks,
+      }));
+    }
+
+    function addScheduleQuestion(question: BankQuestion) {
+      if (selectedIds.has(question.id) || selectedPicks.length >= 3) return;
+      setSchedulePicks([
+        ...selectedPicks,
+        {
+          qid: question.id,
+          prompt: question.prompt,
+          optA: question.optA,
+          optB: question.optB,
+          tag: question.tags[0] ?? "Everyday",
+          tier: question.tier,
+          threshold: 1000,
+        },
+      ]);
+    }
+
     return (
       <>
         <div className="adminViewHead">
           <div>
-            <h1 className="adminSerif">Schedule</h1>
-            <p>Assign one question to each day. Gaps are flagged in red.</p>
+            <h1 className="adminSerif">World schedule</h1>
+            <p>Click a date, then choose the 3 World questions for that day. Gaps are flagged in red.</p>
           </div>
           <div className="adminToolbar">
+            <button onClick={() => setScheduleMonthKey(shiftMonthKey(scheduleMonthKey, -1))}>
+              ← Previous
+            </button>
+            <button onClick={() => setScheduleMonthKey(shiftMonthKey(scheduleMonthKey, 1))}>
+              Next →
+            </button>
             <button className="adminBlueButton" onClick={() => {
               startNewQuestion();
               setActiveView("library");
@@ -972,49 +1164,157 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
         </div>
         <div className="adminScheduleGrid">
           <section>
+            <div className="adminViewHead compact">
+              <div>
+                <div className="adminKicker">The World · {monthLabel(scheduleMonthKey)}</div>
+              </div>
+            </div>
             <div className="adminWeekdays">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <span key={day}>{day}</span>
               ))}
             </div>
             <div className="adminCalendar">
-              {Array.from({ length: 35 }, (_, index) => {
-                const day = index;
-                if (day === 0 || day > 30) {
+              {calendarCells.map((dailyKey, index) => {
+                if (!dailyKey) {
                   return <div className="adminCalendarSpacer" key={`blank-${index}`} />;
                 }
-                const item = questionForDay(scheduleRows, day);
-                const needsQuestion = devAdminPreview ? day >= 28 : !item;
+                const item = worldDayByKey.get(dailyKey) ?? null;
+                const savedCount = item?.questions.length ?? 0;
+                const draftPicks = scheduleDrafts[dailyKey];
+                const draftCount = draftPicks?.length;
+                const count = draftCount ?? savedCount;
+                const cardPrompts = draftPicks?.map((pick) => pick.prompt) ??
+                  item?.questions.map((question) => question.prompt) ??
+                  [];
+                const needsQuestion = dailyKey >= todayKey && count !== 3;
+                const isSelected = dailyKey === selectedScheduleDailyKey;
+                const dayLabel = Number(dailyKey.slice(-2));
                 return (
                   <button
-                    className={item?.status === "live" ? "live" : needsQuestion ? "needsQuestion" : ""}
-                    key={day}
-                    onClick={() => item && applyQuestion(item)}
+                    className={[
+                      item?.status === "live" ? "live" : "",
+                      needsQuestion ? "needsQuestion" : "",
+                      isSelected ? "active" : "",
+                    ].filter(Boolean).join(" ")}
+                    key={dailyKey}
+                    onClick={() => setSelectedDate(dailyKey)}
                   >
-                    <span>{day}</span>
-                    {item ? (
+                    <span>{dayLabel}</span>
+                    {count > 0 ? (
                       <strong>
-                        <CategoryDot category={item.category} /> {item.prompt}
+                        {cardPrompts.slice(0, 2).join(" · ") || `${count} selected`}
                       </strong>
                     ) : needsQuestion ? (
-                      <em>Needs Q</em>
+                      <em>Needs 3</em>
                     ) : null}
+                    {count > 0 ? <em>{count}/3</em> : null}
                   </button>
                 );
               })}
             </div>
           </section>
-          <aside className="adminDrafts">
+          <aside className="adminDrafts adminWorldScheduler">
             <div className="adminDraftsIntro">
-              <span>Unscheduled drafts</span>
-              <p>Select a draft to edit and schedule it.</p>
+              <span>World room day</span>
+              <p>{longDate(selectedScheduleDailyKey) ?? selectedScheduleDailyKey}</p>
             </div>
-            {rows.filter((question) => question.status === "draft").slice(0, 3).map((question) => (
-              <button key={`draft-${question.id}`} onClick={() => applyQuestion(question)}>
-                <span><CategoryDot category={question.category} /> {displayCategory(question.category)}</span>
-                <strong>{question.prompt}</strong>
+            <input
+              onChange={(event) => setSelectedDate(event.target.value)}
+              type="date"
+              value={selectedScheduleDailyKey}
+            />
+            <section className="adminScheduleSelected">
+              <PanelHeader label="Selected questions" meta={`${selectedPicks.length}/3`} />
+              {selectedPicks.map((pick, index) => (
+                <div className="adminSchedulePick" key={pick.qid}>
+                  <div>
+                    <strong>{index + 1}. {pick.prompt}</strong>
+                    <span>{pick.optA} / {pick.optB}</span>
+                    <label>
+                      Threshold
+                      <input
+                        min={1}
+                        onChange={(event) => {
+                          const threshold = Number(event.target.value);
+                          setSchedulePicks(selectedPicks.map((entry) =>
+                            entry.qid === pick.qid
+                              ? { ...entry, threshold: Number.isFinite(threshold) ? Math.round(threshold) : 1000 }
+                              : entry));
+                        }}
+                        type="number"
+                        value={pick.threshold}
+                      />
+                    </label>
+                  </div>
+                  <button onClick={() => setSchedulePicks(selectedPicks.filter((entry) => entry.qid !== pick.qid))}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {selectedPicks.length === 0 ? <p>No questions selected for this date.</p> : null}
+            </section>
+            <div className="adminSchedulePickerTop">
+              <input
+                onChange={(event) => {
+                  setScheduleQuestionSearch(event.target.value);
+                  setScheduleQuestionPage(0);
+                }}
+                placeholder="Search all bank questions"
+                value={scheduleQuestionSearch}
+              />
+              <span>{filteredQuestions.length} questions</span>
+            </div>
+            <section className="adminScheduleQuestionList">
+              {visibleQuestions.map((question) => {
+                const usage = worldQuestionUsage(question.id, scheduleWorldDays, todayKey);
+                return (
+                  <div className="adminScheduleQuestionRow" key={question.id}>
+                    <div>
+                      <strong>{question.prompt}</strong>
+                      <span>
+                        {question.optA} / {question.optB} · {displayCategory(question.tags[0] ?? "Uncategorized")} · {adminTierLabels[question.tier] ?? question.tier}
+                      </span>
+                      <em>{worldUsageLabel(usage)}</em>
+                    </div>
+                    <button
+                      disabled={selectedIds.has(question.id) || selectedPicks.length >= 3}
+                      onClick={() => addScheduleQuestion(question)}
+                    >
+                      {selectedIds.has(question.id) ? "Selected" : "Add"}
+                    </button>
+                  </div>
+                );
+              })}
+            </section>
+            <div className="adminSchedulePager">
+              <button
+                disabled={safeQuestionPage === 0}
+                onClick={() => setScheduleQuestionPage((page) => Math.max(0, page - 1))}
+              >
+                Previous
               </button>
-            ))}
+              <span>Page {safeQuestionPage + 1} of {pageCount}</span>
+              <button
+                disabled={safeQuestionPage >= pageCount - 1}
+                onClick={() => setScheduleQuestionPage((page) => Math.min(pageCount - 1, page + 1))}
+              >
+                Next
+              </button>
+            </div>
+            <button
+              className="adminBlueButton"
+              disabled={busyAction === "curateWorldDay" || selectedPicks.length !== 3}
+              onClick={() => runCallable("curateWorldDay", {
+                dailyKey: selectedScheduleDailyKey,
+                questions: selectedPicks.map((pick) => ({
+                  qid: pick.qid,
+                  threshold: pick.threshold,
+                })),
+              })}
+            >
+              {busyAction === "curateWorldDay" ? "Saving..." : `Save ${shortDailyKey(selectedScheduleDailyKey)}`}
+            </button>
           </aside>
         </div>
       </>
@@ -1022,24 +1322,29 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }
 
   function renderLibrary() {
-    const baseLibraryRows = devAdminPreview && questions.length === 0 ? sourceOrderedLibraryRows(rows) : rows;
+    const baseLibraryRows = bankQuestions;
     const libraryRows = baseLibraryRows.filter((question) => {
       if (libraryFilter === "All") return true;
-      if (libraryFilter === "Used") return question.status === "closed";
-      return question.status === libraryFilter.toLowerCase();
+      if (libraryFilter === "Active") return question.active;
+      if (libraryFilter === "Retired") return !question.active;
+      if (libraryFilter === "Used") return question.timesUsed > 0;
+      if (libraryFilter === "Work-safe") return question.tier === "work-safe";
+      if (libraryFilter === "Normal") return question.tier === "normal";
+      if (libraryFilter === "After Dark") return question.tier === "mature";
+      return true;
     });
     return (
       <>
         <div className="adminViewHead">
           <div>
             <h1 className="adminSerif">Question library</h1>
-            <p>{baseLibraryRows.length} questions · write, edit, and categorize.</p>
+            <p>{baseLibraryRows.length} bank questions · write, edit, and categorize.</p>
           </div>
           <button className="adminBlueButton" onClick={startNewQuestion}>+ New question</button>
         </div>
         {questionEditorOpen ? renderQuestionEditor() : null}
         <div className="adminFilterPills">
-          {(["All", "Live", "Scheduled", "Used", "Draft"] as LibraryFilter[]).map((label) => (
+          {(["All", "Active", "Retired", "Used", "Work-safe", "Normal", "After Dark"] as LibraryFilter[]).map((label) => (
             <button
               className={libraryFilter === label ? "active" : ""}
               key={label}
@@ -1054,23 +1359,28 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             <span>Question</span>
             <span>Category</span>
             <span>Status</span>
-            <span>World</span>
+            <span>Used</span>
           </div>
-          {libraryRows.map((question, index) => (
+          {libraryRows.map((question) => (
             <button
               className={question.id === activeQuestionId ? "active" : ""}
               key={question.id}
-              onClick={() => applyQuestion(question)}
+              onClick={() => applyBankQuestion(question)}
             >
               <span>{question.prompt}</span>
-              <span><CategoryDot category={question.category} /> {displayCategory(question.category)}</span>
-              <em data-status={question.status}>{displayStatus(question.status)}</em>
-              <span>
-                {questionWorldPct(question, overview) ??
-                  (devAdminPreview ? previewLibraryWorldPct(question) ?? (question.status === "closed" || question.status === "live" ? `${68 - index * 3}%` : "--") : "--")}
-              </span>
+              <span><CategoryDot category={question.tags[0] ?? ""} /> {displayCategory(question.tags[0] ?? "Uncategorized")}</span>
+              <em data-status={question.active ? "active" : "retired"}>{question.active ? "Active" : "Retired"}</em>
+              <span>{question.timesUsed}×</span>
             </button>
           ))}
+          {libraryRows.length === 0 ? (
+            <div className="adminTableRow">
+              <span>No bank questions match this filter.</span>
+              <span>--</span>
+              <span>--</span>
+              <span>--</span>
+            </div>
+          ) : null}
         </section>
       </>
     );
@@ -1078,7 +1388,14 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
 
   function renderAnalytics() {
     const metrics = overview?.metrics;
-    const bars = normalizedBars(overview?.dailyActivity.map((item) => item.value));
+    const completionRows: AdminDailyCompletionRow[] = overview?.completionRows.length
+      ? overview.completionRows
+      : devAdminPreview ? previewCompletionRows() : [];
+    const latestCompletion = completionRows[completionRows.length - 1] ?? null;
+    const bars = normalizedBars(completionRows.map((item) => item.completers));
+    const returningRows: Array<[string, number]> = completionRows
+      .slice(-7)
+      .map((row) => [shortDailyKey(row.label), row.returningPct]);
     const categoryRows: Array<[string, number]> = overview?.categoryRows.length
       ? overview.categoryRows.map((row) => [displayCategory(row.category), row.value] as [string, number])
       : devAdminPreview ? [
@@ -1106,9 +1423,17 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           </div>
         </div>
         <div className="adminMetricGrid adminAnalyticsMetrics">
-          <MetricCard label="Avg daily active" value={formatCount(metrics?.activeUsers, devAdminPreview ? "1,540" : "0")} detail={devAdminPreview ? "+18% MoM" : `${formatCount(metrics?.totalUsers)} total readers`} />
+          <MetricCard
+            label="Completers today"
+            value={formatCount(metrics?.dailyCompletersToday ?? latestCompletion?.completers, devAdminPreview ? "1,540" : "0")}
+            detail={`${formatCount(metrics?.returningCompletersToday ?? latestCompletion?.returningCompleters, devAdminPreview ? "1,104" : "0")} returning`}
+          />
+          <MetricCard
+            label="Returning today"
+            value={formatPercentValue(metrics?.returningCompleterPctToday ?? latestCompletion?.returningPct, devAdminPreview ? "72%" : "0%")}
+            detail="Completed on a prior day"
+          />
           <MetricCard label="D7 retention" value={formatPercentValue(retentionRows.find(([label]) => label === "D7")?.[1], devAdminPreview ? "38%" : "0%")} detail={devAdminPreview ? "+2.1 pts" : "Streak proxy"} />
-          <MetricCard label="Avg streak" value={metrics ? `${metrics.avgStreak.toFixed(1)} days` : "0.0 days"} detail={`${formatCount(metrics?.activeStreaks, devAdminPreview ? "1,203" : "0")} active streaks`} />
           <MetricCard
             label={overview ? "Push tokens" : "Party rounds"}
             value={formatCount(metrics?.notificationTokens, devAdminPreview ? "612" : "0")}
@@ -1116,7 +1441,12 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           />
         </div>
         <section className="adminDesignPanel">
-          <PanelHeader label="Daily active users" meta={overview ? `${formatCount(metrics?.activeUsers)} current active` : devAdminPreview ? "820 -> 1,892" : "No activity loaded"} />
+          <PanelHeader
+            label="Daily question completers"
+            meta={latestCompletion
+              ? `${formatCount(latestCompletion.completers)} total · ${formatCount(latestCompletion.returningCompleters)} returning today`
+              : "No completions loaded"}
+          />
           <div className="adminBarChart">
             {bars.map((height, index) => (
               <span key={index} style={{ height: `${height}%` }} />
@@ -1133,16 +1463,8 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
             />
           </section>
           <section className="adminDesignPanel">
-            <PanelHeader label="Retention curve" />
-            <div className="adminRetentionBars">
-              {retentionRows.map(([label, value]) => (
-                <div key={label}>
-                  <strong>{value}%</strong>
-                  <span style={{ height: `${Number(value) * 1.9}px` }} />
-                  <em>{label}</em>
-                </div>
-              ))}
-            </div>
+            <PanelHeader label="Returning completers" meta="Last 7 days" />
+            <ProgressRows rows={returningRows} colorForRow={() => "var(--blue)"} />
           </section>
         </div>
       </>
@@ -1352,44 +1674,56 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
   }
 
   function renderQuestionEditor() {
+    const similarQuestions = similarBankQuestions(prompt, bankQuestions, activeQuestionId);
     return (
       <section className="adminEditor" ref={questionEditorRef}>
         <div className="adminViewHead compact">
           <div>
-            <div className="adminKicker">Question editor</div>
-            <h2 className="adminSerif">{activeQuestionId ? "Edit question" : "New question"}</h2>
+            <div className="adminKicker">Bank editor</div>
+            <h2 className="adminSerif">{activeQuestionId ? "Edit bank question" : "New bank question"}</h2>
           </div>
           <button onClick={() => resetQuestionForm()}>Clear</button>
         </div>
         <div className="adminEditorGrid">
           <label>
-            Question ID
-            <input value={questionId} onChange={(event) => setQuestionId(event.target.value)} />
-          </label>
-          <label>
             Category
-            <input value={category} onChange={(event) => setCategory(event.target.value)} />
-          </label>
-          <label>
-            Daily key
-            <input value={dailyKey} onChange={(event) => setDailyKey(event.target.value)} />
-          </label>
-          <label>
-            Status
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="live">Live</option>
-              <option value="closed">Closed</option>
+            <select value={category} onChange={(event) => setCategory(event.target.value)}>
+              {adminCategories.map((cat) => (
+                <option key={cat} value={cat}>{displayCategory(cat)}</option>
+              ))}
             </select>
           </label>
           <label>
-            Publish at
-            <input value={publishAt} onChange={(event) => setPublishAt(event.target.value)} />
+            Tier
+            <select
+              value={bankTier}
+              onChange={(event) => setBankTier(event.target.value as BankQuestion["tier"])}
+            >
+              <option value="normal">Normal</option>
+              <option value="work-safe">Work-safe</option>
+              <option value="mature">After Dark</option>
+            </select>
           </label>
           <label>
-            Close at
-            <input value={closeAt} onChange={(event) => setCloseAt(event.target.value)} />
+            Shape
+            <select value={bankShape} onChange={(event) => setBankShape(event.target.value)}>
+              {bankShapes.map((shape) => (
+                <option key={shape} value={shape}>{displayCategory(shape)}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select
+              value={bankActive ? "active" : "retired"}
+              onChange={(event) => {
+                const nextActive = event.target.value === "active";
+                setBankActive(nextActive);
+              }}
+            >
+              <option value="active">Active</option>
+              <option value="retired">Retired</option>
+            </select>
           </label>
           <label className="wide">
             Prompt
@@ -1398,63 +1732,44 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           <div className="wide optionEditor">
             <div className="optionEditorTop">
               <span>Options</span>
-              <button
-                type="button"
-                onClick={() => setOptions((current) => [...current, { id: "", label: "" }])}
-              >
-                Add option
-              </button>
             </div>
-            {options.map((option, index) => (
+            {options.slice(0, 2).map((option, index) => (
               <div className="optionRow" key={index}>
-                <input
-                  aria-label={`Option ${index + 1} ID`}
-                  value={option.id}
-                  onChange={(event) => updateOption(index, "id", event.target.value)}
-                />
+                <span>{index === 0 ? "A" : "B"}</span>
                 <input
                   aria-label={`Option ${index + 1} label`}
                   value={option.label}
                   onChange={(event) => updateOption(index, "label", event.target.value)}
                 />
-                <button
-                  type="button"
-                  disabled={options.length <= 2}
-                  onClick={() =>
-                    setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index))
-                  }
-                >
-                  Remove
-                </button>
               </div>
             ))}
           </div>
         </div>
+        <section className="adminSimilarityPanel">
+          <PanelHeader
+            label="Similar questions"
+            meta={prompt.trim() ? `${similarQuestions.length} possible matches` : "Start typing to check duplicates"}
+          />
+          {similarQuestions.map((question) => (
+            <button key={question.id} type="button" onClick={() => applyBankQuestion(question)}>
+              <span>{question.prompt}</span>
+              <em>{question.score}% similar</em>
+            </button>
+          ))}
+          {prompt.trim().length >= 8 && similarQuestions.length === 0 ? (
+            <p>No close matches found.</p>
+          ) : null}
+        </section>
         <div className="adminActions">
           <button
             className="adminBlueButton"
             disabled={Boolean(busyAction)}
-            onClick={() => runCallable("upsertQuestion", questionPayload("draft"))}
+            onClick={() => runCallable("upsertBankQuestion", bankQuestionPayload(true))}
           >
-            <Save size={17} /> {busyAction === "upsertQuestion" ? "Saving..." : "Save draft"}
+            <Save size={17} /> {busyAction === "upsertBankQuestion" ? "Saving..." : "Save active"}
           </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("upsertQuestion", questionPayload("scheduled"))}>
-            <Save size={17} /> Schedule
-          </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("upsertQuestion", questionPayload("live"))}>
-            <Eye size={17} /> Make live
-          </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("seedInitialQuestions")}>
-            <UploadCloud size={17} /> Seed initial set
-          </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("closeQuestionNow", { questionId })}>
-            <CheckCircle2 size={17} /> Close now
-          </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("recomputeQuestion", { questionId })}>
-            Recompute
-          </button>
-          <button disabled={Boolean(busyAction)} onClick={() => runCallable("recomputeLeaderboardsNow")}>
-            Recompute leaderboard
+          <button disabled={Boolean(busyAction)} onClick={() => runCallable("upsertBankQuestion", bankQuestionPayload(false))}>
+            Retire
           </button>
         </div>
       </section>
@@ -1661,49 +1976,80 @@ function WaitlistPanel({
   );
 }
 
-function questionForDay(rows: AdminQuestion[], day: number) {
-  return rows.find((question) => {
-    const match = /-(\d{2})$/.exec(question.dailyKey);
-    return match ? Number(match[1]) === day : false;
-  });
+function defaultWorldScheduleKey() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
 }
 
-function calendarPreviewQuestions(rows: AdminQuestion[]) {
-  if (rows.length === 0) return [];
-  const scheduledRows = rows.filter((question) => question.dailyKey);
-  const generated = Array.from({ length: 27 }, (_, index) => {
-    const day = index + 1;
-    const existing = questionForDay(rows, day);
-    if (existing) return existing;
-    const base = scheduledRows[index % scheduledRows.length] ?? rows[0];
-    return {
-      ...base,
-      id: `preview-2026-06-${String(day).padStart(2, "0")}`,
-      dailyKey: `2026-06-${String(day).padStart(2, "0")}`,
-      status: day === 25 ? "live" : day > 25 ? "scheduled" : "closed",
-    };
-  });
-  return [...generated, ...rows.filter((question) => !question.dailyKey)];
+function monthCalendarCells(monthKey: string): Array<string | null> {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!match) return [];
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const firstDay = new Date(Date.UTC(year, monthIndex, 1));
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const cells: Array<string | null> = Array.from({ length: firstDay.getUTCDay() }, () => null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(`${monthKey}-${String(day).padStart(2, "0")}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
-function sourceOrderedLibraryRows(rows: AdminQuestion[]) {
-  const sourceOrder = [
-    "2026-06-25-philosophy-death-date",
-    "2026-06-26-culture-phones-dinner",
-    "2026-06-27-society-billionaires",
-    "2026-06-01-technology-ai-labels",
-    "2026-06-02-money-happiness",
-    "2026-06-03-culture-hot-dog",
-    "2026-06-04-society-social-media",
-    "2026-06-05-philosophy-free-will",
-    "draft-ethics-lie-feelings",
-    "draft-science-mars",
-    "draft-society-remote-office",
-    "draft-philosophy-luck-hard-work",
-  ];
-  return sourceOrder
-    .map((id) => rows.find((question) => question.id === id))
-    .filter((question): question is AdminQuestion => Boolean(question));
+function shiftMonthKey(monthKey: string, delta: number) {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!match) return defaultWorldScheduleKey().slice(0, 7);
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1 + delta, 1));
+  return date.toISOString().slice(0, 7);
+}
+
+function monthLabel(monthKey: string) {
+  const date = parseDailyKey(`${monthKey}-01`);
+  if (!date) return monthKey;
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function worldQuestionToSchedulePick(question: AdminWorldDayQuestion): WorldSchedulePick {
+  return {
+    qid: question.qid,
+    prompt: question.prompt,
+    optA: question.optA,
+    optB: question.optB,
+    tag: question.tag,
+    tier: question.tier,
+    threshold: question.threshold ?? 1000,
+  };
+}
+
+function worldQuestionUsage(
+  qid: string,
+  days: AdminWorldDay[],
+  todayKey: string,
+): { usedKeys: string[]; scheduledKeys: string[] } {
+  const usedKeys: string[] = [];
+  const scheduledKeys: string[] = [];
+  for (const day of days) {
+    if (!day.questions.some((question) => question.qid === qid)) continue;
+    if (day.dailyKey <= todayKey && day.status !== "scheduled") {
+      usedKeys.push(day.dailyKey);
+    } else {
+      scheduledKeys.push(day.dailyKey);
+    }
+  }
+  return { usedKeys, scheduledKeys };
+}
+
+function worldUsageLabel(usage: { usedKeys: string[]; scheduledKeys: string[] }) {
+  const latestUsed = usage.usedKeys[usage.usedKeys.length - 1];
+  if (latestUsed) {
+    return `Used in World ${usage.usedKeys.length}× · latest ${shortDailyKey(latestUsed)}`;
+  }
+  const nextScheduled = usage.scheduledKeys[0];
+  if (nextScheduled) return `Scheduled for World · ${shortDailyKey(nextScheduled)}`;
+  return "Never used in World";
 }
 
 function mergeAdminQuestions(...groups: AdminQuestion[][]) {
@@ -1749,6 +2095,50 @@ function questionFromSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): Ad
   };
 }
 
+function worldDayFromData(id: string, data: DocumentData | undefined): AdminWorldDay {
+  const record = objectValue(data);
+  return {
+    dailyKey: stringValue(record.dailyKey) || id,
+    status: stringValue(record.status) || "live",
+    answerCount: numberValue(record.answerCount),
+    answerCounts: numberRecord(record.answerCounts),
+    questions: arrayValue(record.questions).map(worldDayQuestionFromData),
+  };
+}
+
+function worldDayQuestionFromData(value: unknown): AdminWorldDayQuestion {
+  const record = objectValue(value);
+  return {
+    qid: stringValue(record.qid),
+    prompt: stringValue(record.prompt),
+    optA: stringValue(record.optA) || "Yes",
+    optB: stringValue(record.optB) || "No",
+    tag: stringValue(record.tag) || "Daily read",
+    tier: stringValue(record.tier) || "normal",
+    threshold: nullableNumber(record.threshold),
+    pulled: record.pulled === true,
+  };
+}
+
+function worldDayQuestionToAdminQuestion(
+  question: AdminWorldDayQuestion,
+  day: AdminWorldDay,
+): AdminQuestion {
+  return {
+    id: question.qid,
+    prompt: question.prompt,
+    category: question.tag,
+    status: day.status || "live",
+    dailyKey: day.dailyKey,
+    publishAt: "",
+    closeAt: revealAtForDailyKey(day.dailyKey) ?? "",
+    options: [
+      { id: "a", label: question.optA },
+      { id: "b", label: question.optB },
+    ],
+  };
+}
+
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : "";
 }
@@ -1786,6 +2176,7 @@ function adminOverviewFromData(value: unknown): AdminOverview {
     focusResult: record.focusResult == null ? null : adminResultFromData(record.focusResult),
     liveCounters: liveCountersFromData(record.liveCounters),
     dailyActivity: arrayValue(record.dailyActivity).map(labelValueFromData),
+    completionRows: arrayValue(record.completionRows).map(completionRowFromData),
     categoryRows: arrayValue(record.categoryRows).map(categoryRowFromData),
     retentionRows: arrayValue(record.retentionRows).map(labelValueFromData),
     audience: {
@@ -1842,6 +2233,9 @@ function metricSummaryFromData(value: unknown): AdminMetricSummary {
     leaderboardRows: numberValue(record.leaderboardRows),
     answersToday: numberValue(record.answersToday),
     predictionsLocked: numberValue(record.predictionsLocked),
+    dailyCompletersToday: numberValue(record.dailyCompletersToday),
+    returningCompletersToday: numberValue(record.returningCompletersToday),
+    returningCompleterPctToday: numberValue(record.returningCompleterPctToday),
     avgStreak: numberValue(record.avgStreak),
     activeStreaks: numberValue(record.activeStreaks),
   };
@@ -1872,6 +2266,17 @@ function categoryRowFromData(value: unknown) {
     category: stringValue(record.category),
     value: numberValue(record.value),
     answers: numberValue(record.answers),
+  };
+}
+
+function completionRowFromData(value: unknown): AdminDailyCompletionRow {
+  const record = objectValue(value);
+  return {
+    label: stringValue(record.label),
+    completers: numberValue(record.completers),
+    returningCompleters: numberValue(record.returningCompleters),
+    newCompleters: numberValue(record.newCompleters),
+    returningPct: numberValue(record.returningPct),
   };
 }
 
@@ -1926,29 +2331,6 @@ function resultForQuestion(questionId: string, overview: AdminOverview | null) {
   return overview?.results.find((result) => result.questionId === questionId) ?? null;
 }
 
-function questionWorldPct(question: AdminQuestion, overview: AdminOverview | null) {
-  const result = resultForQuestion(question.id, overview);
-  const source = result?.optionPcts ??
-    (overview?.liveCounters?.questionId === question.id ? overview.liveCounters.optionPcts : null);
-  if (!source) return null;
-  const firstOptionId = question.options[0]?.id ?? Object.keys(source)[0];
-  if (!firstOptionId) return null;
-  const value = source[firstOptionId];
-  return Number.isFinite(value) ? `${clampPercent(value)}%` : null;
-}
-
-function previewLibraryWorldPct(question: AdminQuestion) {
-  const values: Record<string, string> = {
-    "2026-06-25-philosophy-death-date": "68%",
-    "2026-06-01-technology-ai-labels": "84%",
-    "2026-06-02-money-happiness": "57%",
-    "2026-06-03-culture-hot-dog": "39%",
-    "2026-06-04-society-social-media": "62%",
-    "2026-06-05-philosophy-free-will": "71%",
-  };
-  return values[question.id] ?? null;
-}
-
 function donutForQuestion(question: AdminQuestion, overview: AdminOverview | null): DonutProps {
   const result = resultForQuestion(question.id, overview);
   if (result) return donutForResult(result);
@@ -1992,6 +2374,24 @@ function normalizedBars(values: number[] | undefined): number[] {
   if (!values || values.length === 0) return [];
   const max = Math.max(...values, 1);
   return values.map((value) => Math.max(8, Math.round((value / max) * 100)));
+}
+
+function previewCompletionRows(): AdminDailyCompletionRow[] {
+  const start = new Date(Date.UTC(2026, 5, 6));
+  return Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(start);
+    date.setUTCDate(start.getUTCDate() + index);
+    const completers = 820 + Math.round(index * 23 + Math.sin(index / 3) * 80);
+    const returningPct = clampPercent(54 + Math.round(index * 0.6 + Math.sin(index / 4) * 6));
+    const returningCompleters = Math.round((completers * returningPct) / 100);
+    return {
+      label: date.toISOString().slice(0, 10),
+      completers,
+      returningCompleters,
+      newCompleters: Math.max(0, completers - returningCompleters),
+      returningPct,
+    };
+  });
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -2073,6 +2473,16 @@ function shortDate(value: string | null) {
   }).format(date);
 }
 
+function shortDailyKey(value: string) {
+  const dailyKey = parseDailyKey(value);
+  if (!dailyKey) return value || "--";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(dailyKey);
+}
+
 function longDate(value: string) {
   const dailyKey = parseDailyKey(value);
   if (!dailyKey) return null;
@@ -2102,11 +2512,45 @@ function timeUntil(value: string) {
   return `${hours}h ${minutes}m`;
 }
 
-function makeDraftQuestionId() {
-  return `draft-${Date.now().toString(36)}`;
+function revealAtForDailyKey(dailyKey: string) {
+  const date = parseDailyKey(dailyKey);
+  if (!date) return null;
+  const nextDay = new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate() + 1,
+  ));
+  const offsetMinutes = easternOffsetMinutesForDate(nextDay);
+  const revealUtc = Date.UTC(
+    nextDay.getUTCFullYear(),
+    nextDay.getUTCMonth(),
+    nextDay.getUTCDate(),
+  ) - offsetMinutes * 60 * 1000;
+  return new Date(revealUtc).toISOString();
+}
+
+function easternOffsetMinutesForDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Toronto",
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+  }).formatToParts(date);
+  const offset = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(offset);
+  if (!match) return 0;
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0));
 }
 
 function validatePayload(name: string, payload: Record<string, unknown>) {
+  if (name === "upsertBankQuestion") {
+    if (!stringValue(payload.prompt)) return "Prompt is required.";
+    if (!stringValue(payload.category)) return "Category is required.";
+    if (!stringValue(payload.optA) || !stringValue(payload.optB)) {
+      return "Both response labels are required.";
+    }
+    return "";
+  }
   if (name !== "upsertQuestion") {
     if ((name === "closeQuestionNow" || name === "recomputeQuestion") && !stringValue(payload.questionId)) {
       return "Choose a question before running this action.";
@@ -2137,4 +2581,41 @@ function displayCategory(value: string) {
 function displayStatus(value: string) {
   if (value === "closed") return "Used";
   return displayCategory(value || "draft");
+}
+
+function normalizedPromptWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3);
+}
+
+function normalizedPromptKey(value: string): string {
+  return normalizedPromptWords(value).join(" ");
+}
+
+function similarBankQuestions(
+  prompt: string,
+  questions: BankQuestion[],
+  activeQuestionId: string,
+): Array<BankQuestion & { score: number }> {
+  const key = normalizedPromptKey(prompt);
+  if (key.length < 8) return [];
+  const words = new Set(normalizedPromptWords(prompt));
+  if (words.size === 0) return [];
+  return questions
+    .filter((question) => question.id !== activeQuestionId)
+    .map((question) => {
+      const questionKey = normalizedPromptKey(question.prompt);
+      if (questionKey === key) return { ...question, score: 100 };
+      const questionWords = new Set(normalizedPromptWords(question.prompt));
+      const overlap = [...words].filter((word) => questionWords.has(word)).length;
+      const denominator = Math.max(words.size, questionWords.size, 1);
+      const score = Math.round((overlap / denominator) * 100);
+      return { ...question, score };
+    })
+    .filter((question) => question.score >= 35)
+    .sort((a, b) => b.score - a.score || a.prompt.localeCompare(b.prompt))
+    .slice(0, 6);
 }

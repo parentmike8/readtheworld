@@ -6,6 +6,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'firestore_mappers.dart';
@@ -14,6 +15,9 @@ import 'scoring.dart';
 
 const _googleWebClientId = String.fromEnvironment('RTW_GOOGLE_WEB_CLIENT_ID');
 const _googleIosClientId = String.fromEnvironment('RTW_GOOGLE_IOS_CLIENT_ID');
+const _pushRegistrationChannel = MethodChannel(
+  'today.readtheworld.app/push_registration',
+);
 
 class RtwController extends ChangeNotifier {
   RtwController({required this.firebaseReady}) {
@@ -1655,6 +1659,7 @@ class RtwController extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      await _registerForAppleRemoteNotifications();
       await _ensureApplePushToken(messaging);
       final token = await messaging.getToken(
         vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
@@ -1680,7 +1685,7 @@ class RtwController extends ChangeNotifier {
             defaultTargetPlatform != TargetPlatform.macOS)) {
       return;
     }
-    for (var attempt = 0; attempt < 5; attempt++) {
+    for (var attempt = 0; attempt < 20; attempt++) {
       final token = await messaging.getAPNSToken();
       if (token != null && token.isNotEmpty) return;
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -1688,6 +1693,17 @@ class RtwController extends ChangeNotifier {
     throw StateError(
       'Apple push registration is not ready. Check APNs entitlements and Firebase Cloud Messaging setup.',
     );
+  }
+
+  Future<void> _registerForAppleRemoteNotifications() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    try {
+      final status = await _pushRegistrationChannel
+          .invokeMapMethod<String, Object?>('register');
+      debugPrint('Apple push registration requested: $status');
+    } catch (error) {
+      debugPrint('Apple push registration request failed: $error');
+    }
   }
 
   Future<void> _setCurrentNotificationTokenEnabled(bool enabled) async {

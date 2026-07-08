@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,7 @@ import 'models_v2.dart';
 import 'tokens_v2.dart';
 
 const worldRoomId = 'world';
+const int _partyPlayedLimit = 500;
 
 int? _timestampMillis(Object? value) {
   if (value is Timestamp) return value.millisecondsSinceEpoch;
@@ -559,10 +561,17 @@ class RoomsController extends ChangeNotifier {
     return deck;
   }
 
-  void enterToday() {
+  bool enterToday() {
     final deck = buildTodayDeck();
-    play = deck.isEmpty ? null : PlaySession(mode: 'today', deck: deck);
+    if (deck.isEmpty) {
+      if (play == null) return false;
+      play = null;
+      notifyListeners();
+      return false;
+    }
+    play = PlaySession(mode: 'today', deck: deck);
     notifyListeners();
+    return true;
   }
 
   void startRoomPlay(String roomId, {String? entryRoute}) {
@@ -1479,6 +1488,7 @@ class RoomsController extends ChangeNotifier {
   // ── party pool ────────────────────────────────────────────────────────
 
   List<PartyQuestion> _partyPool = [];
+  final ListQueue<String> _partyPlayedOrder = ListQueue<String>();
   final Set<String> _partyPlayed = {};
   bool partyPoolLoading = false;
   bool partyPoolLoadAttempted = false;
@@ -1486,6 +1496,7 @@ class RoomsController extends ChangeNotifier {
 
   List<PartyQuestion> get partyPool => _partyPool
       .where((question) => !dislikedQuestionIds.contains(question.qid))
+      .where((question) => !_partyPlayed.contains(question.qid))
       .toList();
 
   /// Fetch a fresh pool, optionally scoped to a spice level server-side so
@@ -1497,7 +1508,7 @@ class RoomsController extends ChangeNotifier {
     try {
       final result = await _callable('getPartyPool').call({
         'count': 60,
-        'excludeIds': _partyPlayed.take(500).toList(),
+        'excludeIds': _partyPlayedOrder.toList(),
         if (tier != null) 'tier': tier.wire,
       });
       final data = Map<String, dynamic>.from(result.data as Map);
@@ -1519,7 +1530,22 @@ class RoomsController extends ChangeNotifier {
   }
 
   void markPartyPlayed(Iterable<String> qids) {
-    _partyPlayed.addAll(qids);
+    for (final qid in qids) {
+      if (qid.isEmpty) continue;
+      if (_partyPlayed.remove(qid)) {
+        _partyPlayedOrder.remove(qid);
+      }
+      _partyPlayed.add(qid);
+      _partyPlayedOrder.add(qid);
+    }
+    while (_partyPlayedOrder.length > _partyPlayedLimit) {
+      _partyPlayed.remove(_partyPlayedOrder.removeFirst());
+    }
+  }
+
+  @visibleForTesting
+  void replacePartyPoolForTesting(List<PartyQuestion> questions) {
+    _partyPool = List.of(questions);
   }
 
   /// The World leaderboard: everyone you share a (non-World) room with, ranked
