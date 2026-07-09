@@ -1891,24 +1891,54 @@ class RtwController extends ChangeNotifier {
       if (firebaseReady) {
         await FirebaseAuth.instance.signOut();
       }
-      _clearUserSubscriptions();
-      _boundUid = null;
-      displayName = 'Reader';
-      email = '';
-      emailVerified = false;
-      phoneNumber = '';
-      phoneCodeSent = false;
-      dailyReminder = false;
-      avatarIndex = 0;
-      birthdate = null;
-      gender = null;
-      country = null;
-      _resetScoringData();
-      notifyListeners();
+      _resetLocalUserState();
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
     }
+  }
+
+  Future<bool> deleteAccount() async {
+    lastError = null;
+    if (!firebaseReady) {
+      lastError = 'Account deletion is unavailable right now.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('deleteMyAccount');
+      await callable.call();
+      await FirebaseAuth.instance.signOut();
+      _resetLocalUserState();
+      return true;
+    } on FirebaseFunctionsException catch (error) {
+      lastError = error.message ?? error.code;
+      notifyListeners();
+      return false;
+    } catch (error) {
+      lastError = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void _resetLocalUserState() {
+    _clearUserSubscriptions();
+    _boundUid = null;
+    displayName = 'Reader';
+    email = '';
+    emailVerified = false;
+    phoneNumber = '';
+    phoneCodeSent = false;
+    dailyReminder = false;
+    avatarIndex = 0;
+    birthdate = null;
+    gender = null;
+    country = null;
+    _resetScoringData();
+    notifyListeners();
   }
 
   Future<void> _logEvent(String name, [Map<String, Object>? parameters]) async {

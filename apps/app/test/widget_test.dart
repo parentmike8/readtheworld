@@ -115,6 +115,39 @@ void main() {
     expect(identical(container.read(rtwRouterProvider), router), isTrue);
   });
 
+  testWidgets('profile exposes a permanent account deletion flow', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/profile',
+      routes: [
+        GoRoute(path: '/profile', builder: (_, _) => const ProfileScreenV2()),
+        GoRoute(path: '/auth', builder: (_, _) => const Text('Signed out')),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseReadyProvider.overrideWithValue(false),
+          appSettingsProvider.overrideWithValue(AppSettings.defaults),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final deleteAccount = find.text('Delete account');
+    expect(deleteAccount, findsOneWidget);
+    await tester.ensureVisible(deleteAccount);
+    await tester.tap(deleteAccount);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Permanently delete your account?'), findsOneWidget);
+    expect(find.text('Delete my account'), findsOneWidget);
+    expect(find.text('Keep my account'), findsOneWidget);
+  });
+
   testWidgets('room play exit returns to that room detail', (tester) async {
     final rooms = _roomsWith([_binding(id: 'studio', name: 'The Studio')]);
     rooms.startRoomPlay('studio');

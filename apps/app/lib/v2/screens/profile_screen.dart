@@ -256,6 +256,12 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
                     color: RtwV2Colors.danger,
                     onTap: () => _confirmClear(context),
                   ),
+                  const V2Hairline(),
+                  _ProfileRow(
+                    label: 'Delete account',
+                    color: RtwV2Colors.danger,
+                    onTap: () => _confirmDelete(context),
+                  ),
                 ],
               ),
             ),
@@ -426,6 +432,86 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
             ),
           ),
         ],
+      );
+    });
+  }
+
+  void _confirmDelete(BuildContext context) {
+    var deleting = false;
+    String? error;
+    showV2Sheet(context, (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          Future<void> deleteAccount() async {
+            setSheetState(() {
+              deleting = true;
+              error = null;
+            });
+            final deleted = await ref
+                .read(rtwControllerProvider)
+                .deleteAccount();
+            if (!sheetContext.mounted) return;
+            if (!deleted) {
+              setSheetState(() {
+                deleting = false;
+                error = ref.read(rtwControllerProvider).lastError;
+              });
+              return;
+            }
+            Navigator.of(sheetContext).pop();
+            if (mounted) this.context.go('/auth');
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const V2Eyebrow('Delete account', color: RtwV2Colors.danger),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Permanently delete your account?',
+                  style: v2Serif(26, letterSpacing: -0.3),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'This permanently deletes your profile, answers, scores, room history, and sign-in details. There is no undo.',
+                  style: v2Sans(14, color: RtwV2Colors.subText, height: 1.55),
+                ),
+              ),
+              if (error != null && error!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(error!, style: v2Sans(13, color: RtwV2Colors.danger)),
+              ],
+              const SizedBox(height: 18),
+              V2Button(
+                deleting ? 'Deleting account...' : 'Delete my account',
+                background: RtwV2Colors.danger,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                radius: 16,
+                onPressed: deleting ? null : deleteAccount,
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton(
+                  onPressed: deleting
+                      ? null
+                      : () => Navigator.of(sheetContext).pop(),
+                  child: Text(
+                    'Keep my account',
+                    style: v2Sans(
+                      14,
+                      color: RtwV2Colors.subText,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       );
     });
   }

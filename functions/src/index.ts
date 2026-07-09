@@ -1852,8 +1852,7 @@ export const savePracticeAnswer = onCall(callableOptions, async (request) => {
   return { saved, officialPreserved: !saved, questionId, readAccuracy, predictionBias };
 });
 
-export const clearMyData = onCall(callableOptions, async (request) => {
-  const uid = requireUid(request.auth);
+async function clearUserData(uid: string) {
   const userRef = db.collection("users").doc(uid);
   const answersSnap = await userRef.collection("answers").get();
   const friendsSnap = await userRef.collection("friends").get();
@@ -1921,6 +1920,68 @@ export const clearMyData = onCall(callableOptions, async (request) => {
   };
   await recomputeGlobalLeaderboard();
   return { cleared: true, deleted };
+}
+
+export const clearMyData = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  return clearUserData(uid);
+});
+
+export const deleteMyAccount = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const userRef = db.collection("users").doc(uid);
+  const [userSnap, membershipsSnap] = await Promise.all([
+    userRef.get(),
+    userRef.collection("memberships").get(),
+  ]);
+  const profile = userSnap.data() ?? {};
+  const roomIds = membershipsSnap.docs
+    .map((doc) => String(doc.data().roomId ?? doc.id))
+    .filter((roomId) => roomId.length > 0);
+
+  for (const roomId of roomIds) {
+    await applyUserDislikesToRoom(uid, roomId, -1);
+    await removeAccountFromRoom(uid, roomId);
+  }
+
+  const reactionWrites: Array<(batch: WriteBatch) => void> = [];
+  const likedQuestionIds = Array.isArray(profile.likedQuestionIds)
+    ? profile.likedQuestionIds.map(String)
+    : [];
+  const dislikedQuestionIds = Array.isArray(profile.dislikedQuestionIds)
+    ? profile.dislikedQuestionIds.map(String)
+    : [];
+  for (const qid of likedQuestionIds) {
+    reactionWrites.push((batch) => batch.set(db.collection("questionFeedback").doc(qid), {
+      likedCount: FieldValue.increment(-1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  }
+  for (const qid of dislikedQuestionIds) {
+    reactionWrites.push((batch) => batch.set(db.collection("questionFeedback").doc(qid), {
+      dislikedCount: FieldValue.increment(-1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  }
+  await commitBatchedWrites(reactionWrites);
+
+  await clearUserData(uid);
+  const personalRefs = uniqueRefs((await Promise.all([
+    refsForQuery(db.collection("feedback").where("uid", "==", uid)),
+    refsForQuery(db.collection("waitlist").where("uid", "==", uid)),
+    refsForQuery(db.collection("flags").where("flaggedBy", "==", uid)),
+    refsForQuery(db.collection("flags").where("authorUid", "==", uid)),
+    refsForQuery(db.collection("authHandoffs").where("uid", "==", uid)),
+  ])).flat());
+  await commitBatchedWrites(personalRefs.map((ref) => (batch) => batch.delete(ref)));
+  await db.recursiveDelete(userRef);
+  await getAuth().deleteUser(uid);
+  logger.info("Deleted user account", {
+    uid,
+    rooms: roomIds.length,
+    personalDocuments: personalRefs.length,
+  });
+  return { deleted: true };
 });
 
 export const joinWaitlist = onCall(callableOptions, async (request) => {
@@ -3215,6 +3276,123 @@ function roomRef(roomId: string) {
 
 function roomDayRef(roomId: string, dailyKey: string) {
   return roomRef(roomId).collection("days").doc(dailyKey);
+}
+
+async function removeAccountRoomDayData(
+  uid: string,
+  dayRef: DocumentReference,
+): Promise<void> {
+  const answerRef = dayRef.collection("answers").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const [daySnap, answerSnap] = await Promise.all([
+      tx.get(dayRef),
+      tx.get(answerRef),
+    ]);
+    if (!daySnap.exists) return;
+
+    const day = daySnap.data() ?? {};
+    const questions = Array.isArray(day.questions)
+      ? (day.questions as RoomDayQuestion[])
+      : [];
+    const sanitizedQuestions = questions.map((question) =>
+      question.authorUid === uid
+        ? { ...question, authorUid: null, authorName: "Deleted user" }
+        : question);
+    const updates: Record<string, unknown> = {};
+    if (sanitizedQuestions.some((question, index) => question !== questions[index])) {
+      updates.questions = sanitizedQuestions;
+    }
+
+    if (answerSnap.exists) {
+      const answer = answerSnap.data() ?? {};
+      const picks = Array.isArray(answer.picks)
+        ? (answer.picks as Array<Record<string, unknown>>)
+        : [];
+      const answerCounts = { ...((day.answerCounts ?? {}) as Record<string, number>) };
+      for (const pick of picks) {
+        const qid = typeof pick.qid === "string" ? pick.qid : "";
+        if (!qid) continue;
+        answerCounts[qid] = Math.max(0, Number(answerCounts[qid] ?? 0) - 1);
+      }
+      updates.answerCount = Math.max(0, Number(day.answerCount ?? 0) - 1);
+      updates.answerCounts = answerCounts;
+      tx.delete(answerRef);
+    }
+    if (Object.keys(updates).length > 0) {
+      tx.set(dayRef, {
+        ...updates,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+  });
+}
+
+async function removeAccountFromRoom(uid: string, roomId: string): Promise<void> {
+  const targetRoomRef = roomRef(roomId);
+  const userMembershipRef = db.collection("users").doc(uid)
+    .collection("memberships").doc(roomId);
+  const [roomSnap, membersSnap, daysSnap, authoredQueueSnap] = await Promise.all([
+    targetRoomRef.get(),
+    targetRoomRef.collection("members").get(),
+    targetRoomRef.collection("days").get(),
+    targetRoomRef.collection("queue").where("authorUid", "==", uid).get(),
+  ]);
+  if (!roomSnap.exists) {
+    await userMembershipRef.delete();
+    return;
+  }
+
+  const room = roomSnap.data() ?? {};
+  const memberDoc = membersSnap.docs.find((doc) => doc.id === uid);
+  const member = memberDoc?.data() ?? {};
+  const others = membersSnap.docs.filter((doc) => doc.id !== uid);
+  if (room.isWorld !== true && memberDoc && others.length === 0) {
+    const batch = db.batch();
+    batch.delete(userMembershipRef);
+    const inviteCode = typeof room.inviteCode === "string" ? room.inviteCode : "";
+    if (inviteCode) batch.delete(db.collection("links").doc(inviteCode));
+    await batch.commit();
+    await db.recursiveDelete(targetRoomRef);
+    return;
+  }
+
+  for (const dayDoc of daysSnap.docs) {
+    await removeAccountRoomDayData(uid, dayDoc.ref);
+  }
+
+  const writes: Array<(batch: WriteBatch) => void> = [];
+  writes.push((batch) => batch.delete(userMembershipRef));
+  if (memberDoc) {
+    writes.push((batch) => batch.delete(memberDoc.ref));
+    writes.push((batch) => batch.set(targetRoomRef, {
+      memberCount: FieldValue.increment(-1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  }
+  authoredQueueSnap.docs.forEach((doc) => {
+    writes.push((batch) => batch.delete(doc.ref));
+  });
+
+  const deletingCreator = member.role === "creator" || room.createdBy === uid;
+  if (deletingCreator && others.length > 0) {
+    const successor = [...others].sort((a, b) => {
+      const aJoined = timestampDate(a.data().joinedAt)?.getTime() ?? 0;
+      const bJoined = timestampDate(b.data().joinedAt)?.getTime() ?? 0;
+      return aJoined - bJoined;
+    })[0];
+    writes.push((batch) => batch.set(successor.ref, { role: "creator" }, { merge: true }));
+    writes.push((batch) => batch.set(targetRoomRef, {
+      createdBy: successor.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+    const inviteCode = typeof room.inviteCode === "string" ? room.inviteCode : "";
+    if (inviteCode) {
+      writes.push((batch) => batch.set(db.collection("links").doc(inviteCode), {
+        createdBy: successor.id,
+      }, { merge: true }));
+    }
+  }
+  await commitBatchedWrites(writes);
 }
 
 async function roomDislikedQuestionIds(
