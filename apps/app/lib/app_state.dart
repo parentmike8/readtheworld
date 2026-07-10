@@ -725,19 +725,10 @@ class RtwController extends ChangeNotifier {
     try {
       final auth = FirebaseAuth.instance;
       if (creating) {
-        final credential = EmailAuthProvider.credential(
+        await auth.createUserWithEmailAndPassword(
           email: normalizedEmail,
           password: password,
         );
-        final user = auth.currentUser;
-        if (user != null && user.isAnonymous) {
-          await user.linkWithCredential(credential);
-        } else {
-          await auth.createUserWithEmailAndPassword(
-            email: normalizedEmail,
-            password: password,
-          );
-        }
       } else {
         await auth.signInWithEmailAndPassword(
           email: normalizedEmail,
@@ -1112,13 +1103,7 @@ class RtwController extends ChangeNotifier {
   }
 
   Future<void> _authenticateWithCredential(AuthCredential credential) async {
-    final auth = FirebaseAuth.instance;
-    final user = auth.currentUser;
-    if (user != null && user.isAnonymous) {
-      await user.linkWithCredential(credential);
-    } else {
-      await auth.signInWithCredential(credential);
-    }
+    await FirebaseAuth.instance.signInWithCredential(credential);
   }
 
   Future<bool> _authenticateWithProvider(AuthProvider provider) async {
@@ -1128,37 +1113,35 @@ class RtwController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    var phase = 'starting';
     try {
       final auth = FirebaseAuth.instance;
-      final user = auth.currentUser;
-      if (user != null && user.isAnonymous) {
-        if (kIsWeb) {
-          await user.linkWithPopup(provider);
-        } else {
-          await user.linkWithProvider(provider);
-        }
-      } else if (kIsWeb) {
+      if (kIsWeb) {
+        phase = 'signing in with popup';
         await auth.signInWithPopup(provider);
       } else {
+        phase = 'signing in with native provider';
         await auth.signInWithProvider(provider);
       }
       unawaited(_logEvent('login', {'method': provider.providerId}));
       return true;
-    } on FirebaseAuthException catch (error) {
-      if (error.code == 'credential-already-in-use' ||
-          error.code == 'provider-already-linked') {
-        if (kIsWeb) {
-          await FirebaseAuth.instance.signInWithPopup(provider);
-        } else {
-          await FirebaseAuth.instance.signInWithProvider(provider);
-        }
-        unawaited(_logEvent('login', {'method': provider.providerId}));
-        return true;
-      }
+    } on FirebaseAuthException catch (error, stackTrace) {
+      debugPrint(
+        'Federated auth failed during $phase: '
+        'provider=${provider.providerId} code=${error.code} '
+        'message=${error.message} plugin=${error.plugin}',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       lastError = _authMessage(error);
       notifyListeners();
       return false;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Federated auth failed during $phase: '
+        'provider=${provider.providerId} type=${error.runtimeType} '
+        'error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       lastError = error.toString();
       notifyListeners();
       return false;

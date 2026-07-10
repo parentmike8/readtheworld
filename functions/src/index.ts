@@ -139,6 +139,10 @@ const feedbackCallableOptions = {
   ...callableOptions,
   secrets: [postmarkServerToken],
 };
+// Account deletion must remain available to every authenticated user even if
+// App Check has not finished refreshing immediately after a new sign-in. The
+// handler still scopes all work to request.auth.uid.
+const accountDeletionCallableOptions = { enforceAppCheck: false };
 
 class ShortCodeCollisionError extends Error {}
 
@@ -1927,7 +1931,7 @@ export const clearMyData = onCall(callableOptions, async (request) => {
   return clearUserData(uid);
 });
 
-export const deleteMyAccount = onCall(callableOptions, async (request) => {
+export const deleteMyAccount = onCall(accountDeletionCallableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const userRef = db.collection("users").doc(uid);
   const [userSnap, membershipsSnap] = await Promise.all([
