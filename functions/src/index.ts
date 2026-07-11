@@ -128,6 +128,9 @@ const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
 const FEEDBACK_COOLDOWN_MS = 60 * 1000;
 const SUPPORT_CONTACT_COOLDOWN_MS = 60 * 1000;
+// App Store release: rooms use only the developer-curated question bank.
+// Keep this server-side gate so older clients cannot publish custom text.
+const USER_CREATED_QUESTIONS_ENABLED = false;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
 const authOnlyCallableOptions = callableOptions;
@@ -3631,7 +3634,7 @@ async function assembleRoomDay(
   const questions: RoomDayQuestion[] = [];
   const usedQueueRefs: DocumentReference[] = [];
 
-  if (room.customEnabled !== false && room.isWorld !== true) {
+  if (USER_CREATED_QUESTIONS_ENABLED && room.customEnabled !== false && room.isWorld !== true) {
     const queueSnap = await roomRef(roomId).collection("queue")
       .orderBy("createdAt", "asc")
       .get();
@@ -4041,7 +4044,7 @@ export const createRoom = onCall(callableOptions, async (request) => {
   } catch (error) {
     mapRoomValidationError(error);
   }
-  const customEnabled = request.data?.customEnabled !== false;
+  const customEnabled = false;
   const revealAnswersDefault = request.data?.revealAnswers !== false;
 
   const newRoomRef = db.collection("rooms").doc();
@@ -4250,7 +4253,7 @@ export const updateRoomSettings = onCall(callableOptions, async (request) => {
     if (request.data?.tier != null) updates.tier = normalizeRoomTier(request.data.tier);
     if (request.data?.color != null) updates.color = normalizeRoomColor(request.data.color);
     if (request.data?.cats != null) updates.cats = normalizeRoomCats(request.data.cats);
-    if (request.data?.customEnabled != null) updates.customEnabled = request.data.customEnabled === true;
+    if (request.data?.customEnabled != null) updates.customEnabled = false;
   } catch (error) {
     mapRoomValidationError(error);
   }
@@ -4593,6 +4596,9 @@ export const getWorldLeaderboard = onCall(callableOptions, async (request) => {
 
 export const queueCustomQuestion = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
+  if (!USER_CREATED_QUESTIONS_ENABLED) {
+    throw new HttpsError("failed-precondition", "User-created questions are not available.");
+  }
   const roomId = assertRoomId(request.data?.roomId);
   const { room } = await requireRoomAndMember(roomId, uid);
   if (room.isWorld === true || room.customEnabled === false) {

@@ -98,6 +98,37 @@ void main() {
     });
   });
 
+  group('App Store content safety', () {
+    test('user-created room questions never enter playable question lists', () {
+      const official = RoomDayQuestion(
+        qid: 'official',
+        prompt: 'Official question?',
+        optA: 'Yes',
+        optB: 'No',
+        tag: 'Social',
+        shape: 'TASTE',
+        custom: false,
+      );
+      const userCreated = RoomDayQuestion(
+        qid: 'custom-1',
+        prompt: 'User-created question?',
+        optA: 'Yes',
+        optB: 'No',
+        tag: 'Custom',
+        shape: 'CUSTOM',
+        custom: true,
+      );
+      const day = RoomDay(
+        dailyKey: '2026-07-11',
+        status: 'live',
+        questions: [official, userCreated],
+      );
+
+      expect(day.activeQuestions, [official]);
+      expect(day.answerableQuestions, [official]);
+    });
+  });
+
   test('app router stays stable across controller notifications', () {
     final container = ProviderContainer(
       overrides: [

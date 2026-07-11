@@ -14,6 +14,7 @@ const sections = [
     title: "Using Read the World",
     body: [
       "Read the World is a daily social prediction game. You answer questions, predict how rooms or groups will answer, and compare results when reveals and scoring are available.",
+      "Game questions in the iOS app are created and curated by Read the World. Players cannot publish posts, comments, images, messages, or free-form questions. Player answers and predictions use fixed choices and are shown only as aggregate results.",
       "You must be at least 13 years old to use the service. You are responsible for your account, your device, and the activity that happens through your account.",
     ],
   },
@@ -27,7 +28,7 @@ const sections = [
   {
     title: "Your content and activity",
     body: [
-      "You are responsible for the feedback, room names, questions, messages, answers, predictions, reactions, and other content you submit.",
+      "You are responsible for the feedback, room names, profile information, answers, predictions, and other information you submit.",
       "You grant us permission to host, store, process, display, and use that content as needed to provide, improve, promote, and protect the service.",
       "Do not submit content that is unlawful, abusive, harassing, hateful, invasive of another person's privacy, misleading, spam, or otherwise harmful.",
     ],

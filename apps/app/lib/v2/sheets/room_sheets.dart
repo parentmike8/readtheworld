@@ -100,7 +100,6 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   final nameController = TextEditingController();
   RoomTier tier = RoomTier.normal;
   List<String> cats = ['All'];
-  bool customEnabled = true;
   bool revealAnswers = true;
   bool submitting = false;
   String? error;
@@ -141,7 +140,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       tier: tier,
       colorToken: RtwV2Colors.roomColorByToken.keys.elementAt(2),
       cats: cats,
-      customEnabled: customEnabled,
+      customEnabled: false,
       revealAnswers: revealAnswers,
     );
     if (!mounted) return;
@@ -215,13 +214,6 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         _sheetEyebrow('Categories'),
         const SizedBox(height: 10),
         _CategoryChips(selected: cats, onToggle: _toggleCat),
-        const SizedBox(height: 18),
-        _SettingToggleRow(
-          title: 'Custom questions',
-          subtitle: 'Members can queue their own',
-          value: customEnabled,
-          onChanged: (next) => setState(() => customEnabled = next),
-        ),
         const SizedBox(height: 12),
         _SettingToggleRow(
           title: 'Reveal answers by default',
@@ -1160,13 +1152,11 @@ class _MenuRow extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.color = RtwV2Colors.inkSoft,
-    this.trailing,
   });
 
   final String label;
   final VoidCallback onTap;
   final Color color;
-  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1178,12 +1168,7 @@ class _MenuRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: v2Sans(15, color: color)),
-            Text(
-              trailing ?? '›',
-              style: trailing != null
-                  ? v2Mono(13, color: RtwV2Colors.muted)
-                  : v2Sans(16, color: RtwV2Colors.faint),
-            ),
+            Text('›', style: v2Sans(16, color: RtwV2Colors.faint)),
           ],
         ),
       ),
@@ -1255,6 +1240,10 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
   Widget build(BuildContext context) {
     final binding = rooms.bindingFor(widget.roomId);
     final today = binding?.today;
+    final officialQuestions = today?.questions
+            .where((question) => !question.custom)
+            .toList() ??
+        const <RoomDayQuestion>[];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1311,7 +1300,7 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
         _sheetEyebrow('Categories'),
         const SizedBox(height: 10),
         _CategoryChips(selected: cats, onToggle: _toggleCat),
-        if (today != null && today.questions.isNotEmpty) ...[
+        if (officialQuestions.isNotEmpty) ...[
           const SizedBox(height: 18),
           _sheetEyebrow("Today's questions"),
           const SizedBox(height: 10),
@@ -1324,7 +1313,7 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
             ),
             child: Column(
               children: [
-                for (final question in today.questions) ...[
+                for (final question in officialQuestions) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
                     child: Row(
@@ -1353,7 +1342,7 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
                       ],
                     ),
                   ),
-                  if (question != today.questions.last) const V2Hairline(),
+                  if (question != officialQuestions.last) const V2Hairline(),
                 ],
               ],
             ),
@@ -1369,15 +1358,6 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
           ),
           child: Column(
             children: [
-              StreamBuilder<List<QueueItem>>(
-                stream: rooms.queueStream(widget.roomId),
-                builder: (context, snapshot) => _MenuRow(
-                  label: 'Custom questions',
-                  trailing: '${snapshot.data?.length ?? 0} in queue ›',
-                  onTap: () => showCustomQSheet(context, rooms, widget.roomId),
-                ),
-              ),
-              const V2Hairline(),
               _MenuRow(
                 label: 'Invite members',
                 onTap: () => showInviteSheet(context, rooms, widget.roomId),

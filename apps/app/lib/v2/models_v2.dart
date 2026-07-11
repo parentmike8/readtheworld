@@ -173,12 +173,15 @@ class RoomDay {
   bool get isLive => status == 'live';
   bool get isClosed => status == 'closed';
   List<RoomDayQuestion> get activeQuestions =>
-      questions.where((question) => !question.pulled).toList();
+      questions.where((question) => !question.custom && !question.pulled).toList();
 
   /// Questions still open for answering (active and not yet revealed).
   List<RoomDayQuestion> get answerableQuestions => questions
       .where(
-        (question) => !question.pulled && !revealedQids.contains(question.qid),
+        (question) =>
+            !question.custom &&
+            !question.pulled &&
+            !revealedQids.contains(question.qid),
       )
       .toList();
 

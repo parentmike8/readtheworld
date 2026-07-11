@@ -42,7 +42,8 @@ RtwRoom roomFromFirestore(String id, Map<String, dynamic> data) {
     colorToken: _stringValue(data['color'], fallback: 'oklch(0.50 0.10 256)'),
     tier: RoomTierWire.parse(_nullableString(data['tier'])),
     cats: _stringList(data['cats']).isEmpty ? const ['All'] : _stringList(data['cats']),
-    customEnabled: data['customEnabled'] != false,
+    // User-created questions are intentionally disabled in the App Store app.
+    customEnabled: false,
     memberCount: _intValue(data['memberCount'], fallback: 1),
     isWorld: data['isWorld'] == true,
     worldGoal: _intValue(data['worldGoal'], fallback: 5000),
