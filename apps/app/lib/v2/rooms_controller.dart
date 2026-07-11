@@ -1423,19 +1423,30 @@ class RoomsController extends ChangeNotifier {
     String roomId,
     String text,
     String optA,
-    String optB,
-  ) => _simpleCall('queueCustomQuestion', {
+    String optB, {
+    required bool acceptedCommunityStandards,
+  }) => _simpleCall('queueCustomQuestion', {
     'roomId': roomId,
     'text': text,
     'optA': optA,
     'optB': optB,
+    'acceptedCommunityStandards': acceptedCommunityStandards,
   });
 
   Future<bool> deleteCustomQuestion(String roomId, String itemId) =>
       _simpleCall('deleteCustomQuestion', {'roomId': roomId, 'itemId': itemId});
 
-  Future<bool> flagQuestion(String roomId, String qid) =>
-      _simpleCall('flagRoomQuestion', {'roomId': roomId, 'qid': qid});
+  Future<bool> flagQuestion(
+    String roomId,
+    String qid, {
+    required String reason,
+    bool blockAuthor = false,
+  }) => _simpleCall('flagRoomQuestion', {
+    'roomId': roomId,
+    'qid': qid,
+    'reason': reason,
+    'blockAuthor': blockAuthor,
+  });
 
   Stream<List<QueueItem>> queueStream(String roomId) => _db
       .collection('rooms')

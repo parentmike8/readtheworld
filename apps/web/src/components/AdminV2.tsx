@@ -48,6 +48,10 @@ type FlagRow = {
   roomName: string;
   prompt: string;
   dailyKey: string;
+  authorName: string;
+  reason: string;
+  status: string;
+  reviewDueAt: string;
 };
 
 function stringOf(value: unknown, fallback = ""): string {
@@ -582,9 +586,17 @@ function defaultCurationKey(): string {
 
 // ── ROOMS OVERVIEW ─────────────────────────────────────────────────────
 
-export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }) {
+export function RoomsOverviewView({
+  firestore,
+  functions,
+}: {
+  firestore: Firestore | null;
+  functions: Functions | null;
+}) {
   const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [flags, setFlags] = useState<FlagRow[]>([]);
+  const [busyFlagId, setBusyFlagId] = useState("");
+  const [moderationMessage, setModerationMessage] = useState("");
 
   useEffect(() => {
     if (!firestore) return undefined;
@@ -627,6 +639,10 @@ export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }
             roomName: stringOf(data.roomName, "a room"),
             prompt: stringOf(data.prompt),
             dailyKey: stringOf(data.dailyKey),
+            authorName: stringOf(data.authorName, "Room member"),
+            reason: stringOf(data.reason, "other"),
+            status: stringOf(data.status, "open"),
+            reviewDueAt: data.reviewDueAt?.toDate?.()?.toISOString?.() ?? "",
           };
         }),
       );
@@ -636,6 +652,29 @@ export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }
   const totalMembers = rooms
     .filter((room) => !room.isWorld)
     .reduce((sum, room) => sum + room.memberCount, 0);
+  const openFlags = flags.filter((flag) => flag.status !== "resolved");
+
+  async function resolveFlag(flagId: string, action: "dismiss" | "disable-author") {
+    if (!functions) return;
+    if (
+      action === "disable-author" &&
+      !window.confirm("Disable this question author's Read the World account?")
+    ) {
+      return;
+    }
+    setBusyFlagId(flagId);
+    setModerationMessage("");
+    try {
+      await httpsCallable(functions, "resolveContentFlag")({ flagId, action });
+      setModerationMessage(
+        action === "disable-author" ? "Account disabled and report resolved." : "Report resolved.",
+      );
+    } catch (error) {
+      setModerationMessage(String(error));
+    } finally {
+      setBusyFlagId("");
+    }
+  }
 
   return (
     <>
@@ -645,7 +684,7 @@ export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }
           <h2 className="adminSerif">Rooms overview</h2>
           <p>
             {rooms.filter((room) => !room.isWorld).length} recent rooms · {totalMembers}{" "}
-            memberships across them · {flags.length} recent flags
+            memberships across them · {openFlags.length} open reports
           </p>
         </div>
       </div>
@@ -670,21 +709,38 @@ export function RoomsOverviewView({ firestore }: { firestore: Firestore | null }
 
       <div className="adminViewHead compact">
         <div>
-          <div className="adminKicker">Flagged custom questions</div>
+          <div className="adminKicker">Custom-question safety queue · 24h response</div>
         </div>
       </div>
+      {moderationMessage ? <p>{moderationMessage}</p> : null}
       <section className="adminQuestionList">
-        {flags.map((flag) => (
+        {openFlags.map((flag) => (
           <div className="adminQuestionRow" key={flag.id}>
             <div style={{ flex: 1 }}>
               <strong>{flag.prompt}</strong>
               <span>
-                {flag.roomName} · {flag.dailyKey}
+                {flag.roomName} · submitted by {flag.authorName} · {flag.reason} · {flag.dailyKey}
+                {flag.reviewDueAt
+                  ? ` · due ${new Date(flag.reviewDueAt).toLocaleString()}`
+                  : ""}
               </span>
             </div>
+            <button
+              disabled={busyFlagId === flag.id}
+              onClick={() => void resolveFlag(flag.id, "dismiss")}
+            >
+              Resolve
+            </button>
+            <button
+              className="adminDangerButton"
+              disabled={busyFlagId === flag.id}
+              onClick={() => void resolveFlag(flag.id, "disable-author")}
+            >
+              Disable author
+            </button>
           </div>
         ))}
-        {flags.length === 0 ? <p>No flags. Quiet so far.</p> : null}
+        {openFlags.length === 0 ? <p>No open reports.</p> : null}
       </section>
     </>
   );

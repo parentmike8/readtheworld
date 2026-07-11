@@ -694,11 +694,30 @@ bool _tapHitsReactionButtons(
   final cardLeft = (constraints.maxWidth - cardWidth) / 2;
   final cardTop = (constraints.maxHeight - cardHeight) / 2;
   return Rect.fromLTWH(
-    cardLeft + cardWidth - 96,
+    cardLeft + cardWidth - 136,
     cardTop + 12,
-    84,
+    124,
     48,
   ).contains(position);
+}
+
+class _CustomQuestionAttribution extends StatelessWidget {
+  const _CustomQuestionAttribution({required this.question});
+
+  final RoomDayQuestion question;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!question.custom) return const SizedBox.shrink();
+    final name = question.authorName?.trim();
+    return Padding(
+      padding: const EdgeInsets.only(top: 9),
+      child: Text(
+        'SUBMITTED BY ${name == null || name.isEmpty ? 'A ROOM MEMBER' : name.toUpperCase()}',
+        style: v2Mono(9.5, color: RtwV2Colors.muted, letterSpacing: 1.1),
+      ),
+    );
+  }
 }
 
 class _PickStage extends StatelessWidget {
@@ -872,6 +891,30 @@ class _PickStage extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    if (question.custom) ...[
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        tooltip: 'Report this question',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(
+                                          Icons.flag_outlined,
+                                          size: 18,
+                                          color: RtwV2Colors.danger,
+                                        ),
+                                        onPressed: () => showFlagSheet(
+                                          context,
+                                          rooms,
+                                          card.roomId,
+                                          question,
+                                          canBlockAuthor:
+                                              rooms
+                                                  .bindingFor(card.roomId)
+                                                  ?.me
+                                                  ?.isCreator ??
+                                              false,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                                 Expanded(
@@ -883,13 +926,23 @@ class _PickStage extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 18,
                                       ),
-                                      child: Text(
-                                        question.prompt,
-                                        style: v2Serif(
-                                          26,
-                                          height: 1.18,
-                                          letterSpacing: -0.3,
-                                        ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            question.prompt,
+                                            style: v2Serif(
+                                              26,
+                                              height: 1.18,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                          _CustomQuestionAttribution(
+                                            question: question,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -1046,6 +1099,7 @@ class _PredictStage extends StatelessWidget {
           question.prompt,
           style: v2Serif(27, height: 1.18, letterSpacing: -0.4),
         ),
+        _CustomQuestionAttribution(question: question),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -1206,6 +1260,7 @@ class _AnswerSavedStage extends ConsumerWidget {
           question.prompt,
           style: v2Serif(27, height: 1.18, letterSpacing: -0.4),
         ),
+        _CustomQuestionAttribution(question: question),
         const SizedBox(height: 12),
         Row(
           children: [

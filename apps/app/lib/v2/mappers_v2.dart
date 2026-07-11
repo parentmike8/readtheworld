@@ -41,9 +41,10 @@ RtwRoom roomFromFirestore(String id, Map<String, dynamic> data) {
     name: _stringValue(data['name'], fallback: 'Room'),
     colorToken: _stringValue(data['color'], fallback: 'oklch(0.50 0.10 256)'),
     tier: RoomTierWire.parse(_nullableString(data['tier'])),
-    cats: _stringList(data['cats']).isEmpty ? const ['All'] : _stringList(data['cats']),
-    // User-created questions are intentionally disabled in the App Store app.
-    customEnabled: false,
+    cats: _stringList(data['cats']).isEmpty
+        ? const ['All']
+        : _stringList(data['cats']),
+    customEnabled: data['customEnabled'] != false,
     memberCount: _intValue(data['memberCount'], fallback: 1),
     isWorld: data['isWorld'] == true,
     worldGoal: _intValue(data['worldGoal'], fallback: 5000),
@@ -97,7 +98,10 @@ RoomDay roomDayFromFirestore(String dailyKey, Map<String, dynamic> data) {
     questions: rawQuestions is List
         ? rawQuestions
               .whereType<Map>()
-              .map((raw) => roomDayQuestionFromData(Map<String, dynamic>.from(raw)))
+              .map(
+                (raw) =>
+                    roomDayQuestionFromData(Map<String, dynamic>.from(raw)),
+              )
               .where((question) => question.qid.isNotEmpty)
               .toList()
         : const [],
@@ -117,10 +121,14 @@ RoomDay roomDayFromFirestore(String dailyKey, Map<String, dynamic> data) {
         : const [],
     answerCount: _intValue(data['answerCount']),
     answerCounts: rawCounts is Map
-        ? rawCounts.map((key, value) => MapEntry(key.toString(), _intValue(value)))
+        ? rawCounts.map(
+            (key, value) => MapEntry(key.toString(), _intValue(value)),
+          )
         : const {},
     revealedQids: data['revealedQids'] is List
-        ? (data['revealedQids'] as List).map((value) => value.toString()).toList()
+        ? (data['revealedQids'] as List)
+              .map((value) => value.toString())
+              .toList()
         : const [],
   );
 }
@@ -150,7 +158,9 @@ RoomAnswer roomAnswerFromFirestore(Map<String, dynamic> data) {
     scoreDelta: _nullableIntValue(data['scoreDelta']),
     avgAccuracy: _nullableDoubleValue(data['avgAccuracy']),
     accuracies: rawAccuracies is Map
-        ? rawAccuracies.map((key, value) => MapEntry(key.toString(), _intValue(value)))
+        ? rawAccuracies.map(
+            (key, value) => MapEntry(key.toString(), _intValue(value)),
+          )
         : const {},
   );
 }
@@ -183,7 +193,9 @@ RoomDayDetailRow roomDayDetailRowFromData(Map<String, dynamic> data) {
     scoreDelta: _nullableIntValue(data['scoreDelta']),
     avgAccuracy: _nullableDoubleValue(data['avgAccuracy']),
     accuracies: rawAccuracies is Map
-        ? rawAccuracies.map((key, value) => MapEntry(key.toString(), _intValue(value)))
+        ? rawAccuracies.map(
+            (key, value) => MapEntry(key.toString(), _intValue(value)),
+          )
         : const {},
   );
 }

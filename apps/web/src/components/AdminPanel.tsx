@@ -907,7 +907,7 @@ export function AdminPanel({ initialView = "today" }: { initialView?: AdminView 
           />
         );
       case "rooms":
-        return <RoomsOverviewView firestore={firestore} />;
+        return <RoomsOverviewView firestore={firestore} functions={functions} />;
       case "schedule":
         return renderSchedule();
       case "library":

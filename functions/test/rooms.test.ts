@@ -4,6 +4,7 @@ import {
   RoomValidationError,
   catsAllowQuestion,
   customInjectionCount,
+  hasClearlyObjectionableContent,
   normalizeCustomOption,
   normalizeCustomQuestionText,
   normalizePrediction,
@@ -49,6 +50,19 @@ describe("room normalization", () => {
     expect(normalizePrediction(null)).toBeNull();
     expect(normalizePrediction(140)).toBe(100);
     expect(() => normalizePrediction("lots")).toThrow(RoomValidationError);
+  });
+
+  it("screens only clearly objectionable custom-question text", () => {
+    expect(hasClearlyObjectionableContent("This deadline is killing me. Swear words okay?"))
+      .toBe(false);
+    expect(hasClearlyObjectionableContent("Should politicians be allowed to lie?"))
+      .toBe(false);
+    expect(hasClearlyObjectionableContent("I will kill you tomorrow"))
+      .toBe(true);
+    expect(hasClearlyObjectionableContent("K1ll yourself"))
+      .toBe(true);
+    expect(hasClearlyObjectionableContent("underage porn"))
+      .toBe(true);
   });
 });
 

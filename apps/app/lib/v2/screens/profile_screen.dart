@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_state.dart';
 import '../../main.dart';
@@ -244,6 +245,11 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
                   ),
                   const V2Hairline(),
                   _ProfileRow(
+                    label: 'Safety & support',
+                    onTap: () => _showSafetySheet(context),
+                  ),
+                  const V2Hairline(),
+                  _ProfileRow(
                     label: 'Log out',
                     onTap: () async {
                       await ref.read(rtwControllerProvider).signOut();
@@ -277,6 +283,62 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
     await ref.read(rtwControllerProvider).sendVerificationEmail();
     if (!mounted) return;
     setState(() => sendingVerification = false);
+  }
+
+  void _showSafetySheet(BuildContext context) {
+    showV2Sheet(context, (sheetContext) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const V2Eyebrow('Safety & support'),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('We respond within 24 hours.', style: v2Serif(26)),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              'Custom questions are shared only inside private rooms and show '
+              'the submitter’s name. Use the flag on a custom question to '
+              'remove and report it immediately.',
+              style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'mike@readtheworld.today',
+            style: v2Sans(15, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 14),
+          V2Button(
+            'Email safety support',
+            onPressed: () => launchUrl(
+              Uri.parse(
+                'mailto:mike@readtheworld.today?subject=Read%20the%20World%20safety%20report',
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://readtheworld.today/terms'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Terms & community standards'),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              child: const Text('Done'),
+            ),
+          ),
+        ],
+      );
+    });
   }
 
   void _showFeedbackSheet(BuildContext context) {

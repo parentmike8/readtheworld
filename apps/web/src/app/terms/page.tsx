@@ -14,7 +14,6 @@ const sections = [
     title: "Using Read the World",
     body: [
       "Read the World is a daily social prediction game. You answer questions, predict how rooms or groups will answer, and compare results when reveals and scoring are available.",
-      "Game questions in the iOS app are created and curated by Read the World. Players cannot publish posts, comments, images, messages, or free-form questions. Player answers and predictions use fixed choices and are shown only as aggregate results.",
       "You must be at least 13 years old to use the service. You are responsible for your account, your device, and the activity that happens through your account.",
     ],
   },
@@ -28,9 +27,11 @@ const sections = [
   {
     title: "Your content and activity",
     body: [
-      "You are responsible for the feedback, room names, profile information, answers, predictions, and other information you submit.",
+      "You are responsible for the feedback, room names, questions, messages, answers, predictions, reactions, and other content you submit.",
       "You grant us permission to host, store, process, display, and use that content as needed to provide, improve, promote, and protect the service.",
-      "Do not submit content that is unlawful, abusive, harassing, hateful, invasive of another person's privacy, misleading, spam, or otherwise harmful.",
+      "Custom questions are visible only to authenticated members of the private, invite-only room where they were submitted. Each live custom question identifies the member who submitted it. Read the World does not provide a public custom-question feed, anonymous chat, or discovery of questions from strangers.",
+      "We have zero tolerance for content that is unlawful, threatening, abusive, harassing, hateful, sexually exploitative, invasive of another person's privacy, misleading, spam, or otherwise harmful. Do not submit it.",
+      "Room members may report a custom question, which removes it from the room immediately. Room creators may block a member from submitting additional custom questions. We review reports within 24 hours and may remove content, restrict features, suspend accounts, or terminate accounts that violate these terms.",
     ],
   },
   {
@@ -76,7 +77,7 @@ export default function TermsPage() {
       eyebrow="Terms"
       title="Terms of Use"
       intro="These terms govern your use of Read the World."
-      updated="July 5, 2026"
+      updated="July 11, 2026"
       sections={sections}
     />
   );

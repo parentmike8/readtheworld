@@ -207,6 +207,10 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
               _WorldProgressCard(room: room, rooms: rooms)
             else
               _ScoreCard(room: room, me: me),
+            if (!isWorld && room.customEnabled) ...[
+              const SizedBox(height: 16),
+              _AddQuestionButton(rooms: rooms, roomId: room.id),
+            ],
             if (!isWorld &&
                 reveal != null &&
                 (reveal!.myAnswer?.picks.isNotEmpty ?? false)) ...[
@@ -620,6 +624,59 @@ class _ScoreCard extends StatelessWidget {
   }
 }
 
+class _AddQuestionButton extends StatelessWidget {
+  const _AddQuestionButton({required this.rooms, required this.roomId});
+
+  final RoomsController rooms;
+  final String roomId;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<QueueItem>>(
+      stream: rooms.queueStream(roomId),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        return GestureDetector(
+          onTap: () => showCustomQSheet(context, rooms, roomId),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: RtwV2Colors.knobTrackOff, width: 1.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '+',
+                      style: v2Sans(17, color: RtwV2Colors.blue, height: 1),
+                    ),
+                    const SizedBox(width: 9),
+                    Text(
+                      'Add your own question',
+                      style: v2Sans(
+                        14,
+                        color: const Color(0xFF5C584F),
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '$count in the pool',
+                  style: v2Mono(11, letterSpacing: 0.5),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _YesterdayCard extends StatelessWidget {
   const _YesterdayCard({
     required this.question,
@@ -688,6 +745,13 @@ class _YesterdayCard extends StatelessWidget {
               question.prompt,
               style: v2Serif(18, color: const Color(0xFF2C2A24), height: 1.28),
             ),
+            if (question.custom) ...[
+              const SizedBox(height: 6),
+              Text(
+                'SUBMITTED BY ${(question.authorName ?? 'A ROOM MEMBER').toUpperCase()}',
+                style: v2Mono(9, color: RtwV2Colors.muted, letterSpacing: 1),
+              ),
+            ],
             const SizedBox(height: 13),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../main.dart';
 import '../models_v2.dart';
@@ -43,7 +44,10 @@ Widget _sheetTitle(String text) => Padding(
 
 Widget _sheetBody(String text) => Padding(
   padding: const EdgeInsets.only(top: 10),
-  child: Text(text, style: v2Sans(14, color: RtwV2Colors.subText, height: 1.55)),
+  child: Text(
+    text,
+    style: v2Sans(14, color: RtwV2Colors.subText, height: 1.55),
+  ),
 );
 
 InputDecoration _inputDecoration(String hint) => InputDecoration(
@@ -62,7 +66,10 @@ InputDecoration _inputDecoration(String hint) => InputDecoration(
   ),
 );
 
-Widget _ghostDoneButton(BuildContext context, {String label = 'Done'}) => Padding(
+Widget _ghostDoneButton(
+  BuildContext context, {
+  String label = 'Done',
+}) => Padding(
   padding: const EdgeInsets.only(top: 16),
   child: SizedBox(
     width: double.infinity,
@@ -100,6 +107,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   final nameController = TextEditingController();
   RoomTier tier = RoomTier.normal;
   List<String> cats = ['All'];
+  bool customEnabled = true;
   bool revealAnswers = true;
   bool submitting = false;
   String? error;
@@ -140,7 +148,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       tier: tier,
       colorToken: RtwV2Colors.roomColorByToken.keys.elementAt(2),
       cats: cats,
-      customEnabled: false,
+      customEnabled: customEnabled,
       revealAnswers: revealAnswers,
     );
     if (!mounted) return;
@@ -187,7 +195,11 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   'Have a code? ›',
-                  style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                  style: v2Sans(
+                    13,
+                    color: RtwV2Colors.blue,
+                    weight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -204,7 +216,10 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         const SizedBox(height: 18),
         _sheetEyebrow('Spice level'),
         const SizedBox(height: 10),
-        _TierSegment(value: tier, onChanged: (next) => setState(() => tier = next)),
+        _TierSegment(
+          value: tier,
+          onChanged: (next) => setState(() => tier = next),
+        ),
         const SizedBox(height: 9),
         Text(
           tierDescriptions[tier]!,
@@ -214,6 +229,13 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         _sheetEyebrow('Categories'),
         const SizedBox(height: 10),
         _CategoryChips(selected: cats, onToggle: _toggleCat),
+        const SizedBox(height: 18),
+        _SettingToggleRow(
+          title: 'Custom questions',
+          subtitle: 'Members can queue their own',
+          value: customEnabled,
+          onChanged: (next) => setState(() => customEnabled = next),
+        ),
         const SizedBox(height: 12),
         _SettingToggleRow(
           title: 'Reveal answers by default',
@@ -258,10 +280,15 @@ class _TierSegment extends StatelessWidget {
               child: GestureDetector(
                 onTap: () => onChanged(tier),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 11,
+                    horizontal: 6,
+                  ),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: value == tier ? RtwV2Colors.inkSoft : Colors.transparent,
+                    color: value == tier
+                        ? RtwV2Colors.inkSoft
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
@@ -304,7 +331,9 @@ class _CategoryChipsState extends State<_CategoryChips> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: on ? RtwV2Colors.blue.withValues(alpha: 0.10) : Colors.transparent,
+          color: on
+              ? RtwV2Colors.blue.withValues(alpha: 0.10)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: on ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
@@ -347,7 +376,9 @@ class _CategoryChipsState extends State<_CategoryChips> {
         for (final cat in ['All', ...roomCategoryOptions])
           _chip(
             cat,
-            on: cat == 'All' ? allOn : (!allOn && widget.selected.contains(cat)),
+            on: cat == 'All'
+                ? allOn
+                : (!allOn && widget.selected.contains(cat)),
             onTap: () => widget.onToggle(cat),
           ),
       ],
@@ -383,7 +414,14 @@ class _SettingToggleRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: v2Sans(
+                    15,
+                    color: RtwV2Colors.inkSoft,
+                    weight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(subtitle, style: v2Sans(12, color: RtwV2Colors.faint)),
               ],
@@ -426,9 +464,9 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
     });
     try {
       if (preview == null) {
-        final result = await FirebaseFunctions.instanceFor(region: 'us-central1')
-            .httpsCallable('joinRoom')
-            .call({'code': code, 'previewOnly': true});
+        final result = await FirebaseFunctions.instanceFor(
+          region: 'us-central1',
+        ).httpsCallable('joinRoom').call({'code': code, 'previewOnly': true});
         if (!mounted) return;
         setState(() {
           preview = Map<String, dynamic>.from(result.data as Map);
@@ -482,7 +520,9 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
       children: [
         _sheetEyebrow('Join a room'),
         _sheetTitle('Got an invite code?'),
-        _sheetBody('Enter the code a friend shared, or open their link to join instantly.'),
+        _sheetBody(
+          'Enter the code a friend shared, or open their link to join instantly.',
+        ),
         const SizedBox(height: 18),
         TextField(
           controller: codeController,
@@ -522,7 +562,10 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(preview!['name']?.toString() ?? 'Room', style: v2Serif(17)),
+                      Text(
+                        preview!['name']?.toString() ?? 'Room',
+                        style: v2Serif(17),
+                      ),
                       const SizedBox(height: 1),
                       Text.rich(
                         TextSpan(
@@ -559,19 +602,19 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           busy
               ? 'One moment…'
               : preview == null
-                  ? 'Find room'
-                  : preview!['alreadyMember'] == true
-                      ? 'Open room'
-                      : 'Join room',
+              ? 'Find room'
+              : preview!['alreadyMember'] == true
+              ? 'Open room'
+              : 'Join room',
           onPressed: busy
               ? null
               : preview?['alreadyMember'] == true
-                  ? () {
-                      final roomId = preview!['roomId']?.toString() ?? '';
-                      Navigator.of(context).pop();
-                      context.go('/rooms/$roomId');
-                    }
-                  : _lookupOrJoin,
+              ? () {
+                  final roomId = preview!['roomId']?.toString() ?? '';
+                  Navigator.of(context).pop();
+                  context.go('/rooms/$roomId');
+                }
+              : _lookupOrJoin,
           padding: const EdgeInsets.symmetric(vertical: 16),
           radius: 16,
         ),
@@ -634,8 +677,9 @@ class _InviteSheetState extends State<_InviteSheet> {
       ? _appDownloadLink()
       : 'https://$_shortLinkHost/${widget.code ?? ''}';
 
-  String get _display =>
-      widget.isWorld ? _link.replaceFirst('https://', '') : '$_shortLinkHost/${widget.code ?? '…'}';
+  String get _display => widget.isWorld
+      ? _link.replaceFirst('https://', '')
+      : '$_shortLinkHost/${widget.code ?? '…'}';
 
   // World link is always shareable; a room link needs its code first.
   bool get _shareable => widget.isWorld || widget.code != null;
@@ -651,13 +695,15 @@ class _InviteSheetState extends State<_InviteSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _sheetEyebrow('Invite friends'),
-        _sheetTitle(widget.isWorld ? 'Bring the world in.' : 'Bring your people in.'),
+        _sheetTitle(
+          widget.isWorld ? 'Bring the world in.' : 'Bring your people in.',
+        ),
         _sheetBody(
           widget.isWorld
               ? 'The more people playing, the sooner The World unlocks scoring '
-                  'for everyone. Share the game.'
+                    'for everyone. Share the game.'
               : 'They join your room and your leaderboard, and every new player '
-                  'gets the World closer to unlocking for everyone.',
+                    'gets the World closer to unlocking for everyone.',
         ),
         const SizedBox(height: 20),
         Container(
@@ -674,7 +720,11 @@ class _InviteSheetState extends State<_InviteSheet> {
                   _display,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: v2Mono(14, color: const Color(0xFF5C584F), letterSpacing: 0.5),
+                  style: v2Mono(
+                    14,
+                    color: const Color(0xFF5C584F),
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
               GestureDetector(
@@ -685,14 +735,21 @@ class _InviteSheetState extends State<_InviteSheet> {
                         if (mounted) setState(() => copied = true);
                       },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: RtwV2Colors.inkSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     copied ? 'Copied ✓' : 'Copy',
-                    style: v2Sans(13, color: Colors.white, weight: FontWeight.w600),
+                    style: v2Sans(
+                      13,
+                      color: Colors.white,
+                      weight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -715,14 +772,19 @@ class _InviteSheetState extends State<_InviteSheet> {
 
 // ── AFTER DARK CONSENT ─────────────────────────────────────────────────
 
-Future<bool?> showMatureConfirmSheet(BuildContext context, {bool party = false}) {
+Future<bool?> showMatureConfirmSheet(
+  BuildContext context, {
+  bool party = false,
+}) {
   return showV2Sheet<bool>(context, (context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         _sheetEyebrow('After Dark', color: RtwV2Colors.clay),
-        _sheetTitle(party ? 'Turn on After Dark?' : 'This room runs After Dark.'),
+        _sheetTitle(
+          party ? 'Turn on After Dark?' : 'This room runs After Dark.',
+        ),
         _sheetBody(
           party
               ? 'Still words-only, just edgier than the usual. You can switch back anytime.'
@@ -741,7 +803,11 @@ Future<bool?> showMatureConfirmSheet(BuildContext context, {bool party = false})
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(
               'Not now',
-              style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),
+              style: v2Sans(
+                14,
+                color: RtwV2Colors.subText,
+                weight: FontWeight.w600,
+              ),
             ),
           ),
         ),
@@ -756,41 +822,100 @@ Future<void> showFlagSheet(
   BuildContext context,
   RoomsController rooms,
   String roomId,
-  String qid,
-) {
-  return showV2Sheet(context, (context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _sheetEyebrow('Flag question', color: RtwV2Colors.danger),
-        _sheetTitle('Remove this for today?'),
-        _sheetBody(
-          'One flag pulls a custom question for the whole room today, no '
-          'questions asked. The author is notified.',
-        ),
-        const SizedBox(height: 18),
-        V2Button(
-          'Flag & remove for everyone',
-          background: RtwV2Colors.danger,
-          onPressed: () async {
-            Navigator.of(context).pop();
-            await rooms.flagQuestion(roomId, qid);
-          },
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          radius: 16,
-        ),
-        const SizedBox(height: 10),
-        Center(
-          child: TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),
+  RoomDayQuestion question, {
+  required bool canBlockAuthor,
+}) {
+  var reason = 'abuse';
+  var blockAuthor = false;
+  var submitting = false;
+  const reasons = {
+    'abuse': 'Harassment or abuse',
+    'hate': 'Hate or discrimination',
+    'sexual': 'Sexual content',
+    'threat': 'Threat or violence',
+    'spam': 'Spam',
+    'other': 'Something else',
+  };
+  return showV2Sheet(context, (sheetContext) {
+    return StatefulBuilder(
+      builder: (context, setSheetState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetEyebrow('Report question', color: RtwV2Colors.danger),
+          _sheetTitle('Remove this for today?'),
+          _sheetBody(
+            'Your report immediately removes this custom question for the '
+            'whole private room. We review every report within 24 hours.',
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: reason,
+            isExpanded: true,
+            decoration: _inputDecoration('Reason'),
+            items: reasons.entries
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
+                  ),
+                )
+                .toList(),
+            onChanged: submitting
+                ? null
+                : (next) => setSheetState(() => reason = next ?? reason),
+          ),
+          if (canBlockAuthor && question.authorUid != rooms.uid) ...[
+            const SizedBox(height: 14),
+            _SettingToggleRow(
+              title: 'Block ${question.authorName ?? 'this member'}',
+              subtitle: 'Prevent them from adding more questions to this room',
+              value: blockAuthor,
+              onChanged: (next) => setSheetState(() => blockAuthor = next),
+            ),
+          ],
+          const SizedBox(height: 18),
+          V2Button(
+            submitting ? 'Reporting…' : 'Report & remove for everyone',
+            background: RtwV2Colors.danger,
+            onPressed: submitting
+                ? null
+                : () async {
+                    setSheetState(() => submitting = true);
+                    final ok = await rooms.flagQuestion(
+                      roomId,
+                      question.qid,
+                      reason: reason,
+                      blockAuthor: blockAuthor,
+                    );
+                    if (sheetContext.mounted && ok) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                    if (sheetContext.mounted && !ok) {
+                      setSheetState(() => submitting = false);
+                    }
+                  },
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            radius: 16,
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: submitting
+                  ? null
+                  : () => Navigator.of(sheetContext).pop(),
+              child: Text(
+                'Cancel',
+                style: v2Sans(
+                  14,
+                  color: RtwV2Colors.subText,
+                  weight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   });
 }
@@ -802,7 +927,10 @@ Future<void> showCustomQSheet(
   RoomsController rooms,
   String roomId,
 ) {
-  return showV2Sheet(context, (context) => _CustomQSheet(rooms: rooms, roomId: roomId));
+  return showV2Sheet(
+    context,
+    (context) => _CustomQSheet(rooms: rooms, roomId: roomId),
+  );
 }
 
 class _CustomQSheet extends StatefulWidget {
@@ -820,16 +948,26 @@ class _CustomQSheetState extends State<_CustomQSheet> {
   final optAController = TextEditingController();
   final optBController = TextEditingController();
   bool busy = false;
+  bool acceptedCommunityStandards = false;
+  String? safetyError;
 
   Future<void> _add() async {
     final text = draftController.text.trim();
     if (text.isEmpty) return;
-    setState(() => busy = true);
+    if (!acceptedCommunityStandards) {
+      setState(() => safetyError = 'Agree to the custom-question rules first.');
+      return;
+    }
+    setState(() {
+      busy = true;
+      safetyError = null;
+    });
     final ok = await widget.rooms.queueCustomQuestion(
       widget.roomId,
       text,
       optAController.text.trim().isEmpty ? 'Yes' : optAController.text.trim(),
       optBController.text.trim().isEmpty ? 'No' : optBController.text.trim(),
+      acceptedCommunityStandards: acceptedCommunityStandards,
     );
     if (!mounted) return;
     if (ok) {
@@ -837,12 +975,18 @@ class _CustomQSheetState extends State<_CustomQSheet> {
       optAController.clear();
       optBController.clear();
     }
-    setState(() => busy = false);
+    setState(() {
+      busy = false;
+      if (!ok) {
+        safetyError = widget.rooms.lastError ?? 'Could not add this question.';
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final roomName = widget.rooms.bindingFor(widget.roomId)?.room?.name ?? 'Room';
+    final roomName =
+        widget.rooms.bindingFor(widget.roomId)?.room?.name ?? 'Room';
     final myUid = widget.rooms.uid;
     return StreamBuilder<List<QueueItem>>(
       stream: widget.rooms.queueStream(widget.roomId),
@@ -860,8 +1004,8 @@ class _CustomQSheetState extends State<_CustomQSheet> {
               padding: const EdgeInsets.only(top: 10),
               child: Text(
                 'Adding your own is completely optional. Anything you queue is '
-                'shuffled into the room. Your name only shows once a '
-                'question goes live.',
+                'shared only with this private room. Your name is shown as the '
+                'submitter when the question goes live.',
                 style: v2Sans(13.5, color: RtwV2Colors.subText, height: 1.55),
               ),
             ),
@@ -873,7 +1017,11 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                 _sheetEyebrow('In the queue'),
                 Text(
                   '${queue.length} of 10',
-                  style: v2Sans(13, color: const Color(0xFF3F3C35), weight: FontWeight.w600),
+                  style: v2Sans(
+                    13,
+                    color: const Color(0xFF3F3C35),
+                    weight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -912,19 +1060,31 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                           children: [
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: RtwV2Colors.card,
-                                border: Border.all(color: RtwV2Colors.borderStrong),
+                                border: Border.all(
+                                  color: RtwV2Colors.borderStrong,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(item.text, style: v2Sans(14, color: RtwV2Colors.inkSoft)),
+                              child: Text(
+                                item.text,
+                                style: v2Sans(14, color: RtwV2Colors.inkSoft),
+                              ),
                             ),
                             Padding(
                               padding: const EdgeInsets.only(top: 5, left: 2),
                               child: Text(
                                 '${item.optA} / ${item.optB}',
-                                style: v2Mono(10, color: RtwV2Colors.faint, letterSpacing: 0.5),
+                                style: v2Mono(
+                                  10,
+                                  color: RtwV2Colors.faint,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
                           ],
@@ -932,7 +1092,10 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () => widget.rooms.deleteCustomQuestion(widget.roomId, item.id),
+                        onTap: () => widget.rooms.deleteCustomQuestion(
+                          widget.roomId,
+                          item.id,
+                        ),
                         child: Container(
                           width: 42,
                           height: 42,
@@ -942,7 +1105,10 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                             border: Border.all(color: RtwV2Colors.border),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text('×', style: v2Sans(17, color: RtwV2Colors.danger)),
+                          child: Text(
+                            '×',
+                            style: v2Sans(17, color: RtwV2Colors.danger),
+                          ),
                         ),
                       ),
                     ],
@@ -952,7 +1118,10 @@ class _CustomQSheetState extends State<_CustomQSheet> {
             const SizedBox(height: 18),
             if (full)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: RtwV2Colors.hairline,
                   borderRadius: BorderRadius.circular(14),
@@ -992,9 +1161,67 @@ class _CustomQSheetState extends State<_CustomQSheet> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Two answers, like Yes / No or Good / Bad. Photos and GIFs coming soon.',
+                'Two answers, like Yes / No or Good / Bad.',
                 style: v2Sans(11.5, color: RtwV2Colors.faint, height: 1.45),
               ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: busy
+                    ? null
+                    : () => setState(
+                        () => acceptedCommunityStandards =
+                            !acceptedCommunityStandards,
+                      ),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: acceptedCommunityStandards,
+                        onChanged: busy
+                            ? null
+                            : (next) => setState(
+                                () => acceptedCommunityStandards = next == true,
+                              ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            'I agree to the Terms and zero-tolerance rule for '
+                            'threats, hate, harassment, and sexual exploitation.',
+                            style: v2Sans(
+                              12.5,
+                              color: RtwV2Colors.subText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://readtheworld.today/terms'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: const Text('Read the Terms'),
+                ),
+              ),
+              if (safetyError != null) ...[
+                Text(
+                  safetyError!,
+                  style: v2Sans(12.5, color: RtwV2Colors.danger),
+                ),
+                const SizedBox(height: 4),
+              ],
               const SizedBox(height: 12),
               V2Button(
                 busy ? 'Adding…' : 'Add to queue',
@@ -1019,85 +1246,87 @@ Future<void> showRoomMenuSheet(
   required VoidCallback onHistory,
 }) {
   return showV2Sheet(context, (context) {
-    return Consumer(builder: (context, ref, _) {
-      final rooms = ref.watch(roomsControllerProvider);
-      final binding = rooms.bindingFor(roomId);
-      final room = binding?.room;
-      final isCreator = binding?.me?.isCreator ?? false;
-      final revealMine = binding?.me?.revealMine ?? false;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sheetEyebrow('Room'),
-          _sheetTitle(room?.name ?? 'Room'),
-          const SizedBox(height: 18),
-          // "Show my answers" governs whether the room sees your picks on the
-          // reveal — meaningless for The World (its reveal is the global split).
-          if (room?.isWorld != true) ...[
-            _SettingToggleRow(
-              title: 'Show my answers',
-              subtitle: 'Let the room see your picks on the reveal',
-              value: revealMine,
-              onChanged: (next) => rooms.setAnswerVisibility(roomId, next),
-            ),
-            const SizedBox(height: 14),
-          ],
-          Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: RtwV2Colors.card,
-              border: Border.all(color: RtwV2Colors.border),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                _MenuRow(
-                  label: 'Room history',
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onHistory();
-                  },
-                ),
-                if (isCreator && room?.isWorld != true) ...[
-                  const V2Hairline(),
+    return Consumer(
+      builder: (context, ref, _) {
+        final rooms = ref.watch(roomsControllerProvider);
+        final binding = rooms.bindingFor(roomId);
+        final room = binding?.room;
+        final isCreator = binding?.me?.isCreator ?? false;
+        final revealMine = binding?.me?.revealMine ?? false;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetEyebrow('Room'),
+            _sheetTitle(room?.name ?? 'Room'),
+            const SizedBox(height: 18),
+            // "Show my answers" governs whether the room sees your picks on the
+            // reveal — meaningless for The World (its reveal is the global split).
+            if (room?.isWorld != true) ...[
+              _SettingToggleRow(
+                title: 'Show my answers',
+                subtitle: 'Let the room see your picks on the reveal',
+                value: revealMine,
+                onChanged: (next) => rooms.setAnswerVisibility(roomId, next),
+              ),
+              const SizedBox(height: 14),
+            ],
+            Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: RtwV2Colors.card,
+                border: Border.all(color: RtwV2Colors.border),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
                   _MenuRow(
-                    label: 'Room settings',
+                    label: 'Room history',
                     onTap: () {
                       Navigator.of(context).pop();
-                      showRoomSettingsSheet(context, ref, roomId);
+                      onHistory();
                     },
                   ),
-                ],
-                if (room?.isWorld != true) ...[
-                  const V2Hairline(),
-                  _MenuRow(
-                    label: 'Leave room',
-                    color: RtwV2Colors.danger,
-                    onTap: () async {
-                      final rooms = ref.read(roomsControllerProvider);
-                      final confirmed = await _confirmLeaveRoom(
-                        context,
-                        roomName: room?.name ?? 'this room',
-                        isCreator: isCreator,
-                        isLastMember: (room?.memberCount ?? 0) <= 1,
-                      );
-                      if (confirmed != true || !context.mounted) return;
-                      final ok = await rooms.leaveRoom(roomId);
-                      if (ok && context.mounted) {
+                  if (isCreator && room?.isWorld != true) ...[
+                    const V2Hairline(),
+                    _MenuRow(
+                      label: 'Room settings',
+                      onTap: () {
                         Navigator.of(context).pop();
-                        context.go('/rooms');
-                      }
-                    },
-                  ),
+                        showRoomSettingsSheet(context, ref, roomId);
+                      },
+                    ),
+                  ],
+                  if (room?.isWorld != true) ...[
+                    const V2Hairline(),
+                    _MenuRow(
+                      label: 'Leave room',
+                      color: RtwV2Colors.danger,
+                      onTap: () async {
+                        final rooms = ref.read(roomsControllerProvider);
+                        final confirmed = await _confirmLeaveRoom(
+                          context,
+                          roomName: room?.name ?? 'this room',
+                          isCreator: isCreator,
+                          isLastMember: (room?.memberCount ?? 0) <= 1,
+                        );
+                        if (confirmed != true || !context.mounted) return;
+                        final ok = await rooms.leaveRoom(roomId);
+                        if (ok && context.mounted) {
+                          Navigator.of(context).pop();
+                          context.go('/rooms');
+                        }
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          _ghostDoneButton(context),
-        ],
-      );
-    });
+            _ghostDoneButton(context),
+          ],
+        );
+      },
+    );
   });
 }
 
@@ -1110,8 +1339,8 @@ Future<bool?> _confirmLeaveRoom(
   final body = isLastMember
       ? 'You are the last member. Leaving will delete this room, its history, and its leaderboard. There is no undo.'
       : isCreator
-          ? 'You are the room creator. If you leave, creator status will move to the longest-standing remaining member.'
-          : 'You will lose access to this room, its questions, and its leaderboard.';
+      ? 'You are the room creator. If you leave, creator status will move to the longest-standing remaining member.'
+      : 'You will lose access to this room, its questions, and its leaderboard.';
   return showV2Sheet<bool>(context, (context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1152,11 +1381,13 @@ class _MenuRow extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.color = RtwV2Colors.inkSoft,
+    this.trailing,
   });
 
   final String label;
   final VoidCallback onTap;
   final Color color;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1168,7 +1399,12 @@ class _MenuRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: v2Sans(15, color: color)),
-            Text('›', style: v2Sans(16, color: RtwV2Colors.faint)),
+            Text(
+              trailing ?? '›',
+              style: trailing != null
+                  ? v2Mono(13, color: RtwV2Colors.muted)
+                  : v2Sans(16, color: RtwV2Colors.faint),
+            ),
           ],
         ),
       ),
@@ -1178,8 +1414,15 @@ class _MenuRow extends StatelessWidget {
 
 // ── ROOM SETTINGS (creator only) ───────────────────────────────────────
 
-Future<void> showRoomSettingsSheet(BuildContext context, WidgetRef ref, String roomId) {
-  return showV2Sheet(context, (context) => _RoomSettingsSheet(ref: ref, roomId: roomId));
+Future<void> showRoomSettingsSheet(
+  BuildContext context,
+  WidgetRef ref,
+  String roomId,
+) {
+  return showV2Sheet(
+    context,
+    (context) => _RoomSettingsSheet(ref: ref, roomId: roomId),
+  );
 }
 
 class _RoomSettingsSheet extends StatefulWidget {
@@ -1207,8 +1450,11 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
     final current = room;
     nameController = TextEditingController(text: current?.name ?? '');
     tier = current?.tier ?? RoomTier.normal;
-    colorToken = current?.colorToken ?? RtwV2Colors.roomColorByToken.keys.elementAt(2);
-    cats = [...(current?.cats ?? const ['All'])];
+    colorToken =
+        current?.colorToken ?? RtwV2Colors.roomColorByToken.keys.elementAt(2);
+    cats = [
+      ...(current?.cats ?? const ['All']),
+    ];
   }
 
   void _toggleCat(String cat) {
@@ -1228,7 +1474,9 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
   Future<void> _save() async {
     await rooms.updateRoomSettings(
       widget.roomId,
-      name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+      name: nameController.text.trim().isEmpty
+          ? null
+          : nameController.text.trim(),
       tier: tier,
       colorToken: colorToken,
       cats: cats,
@@ -1240,10 +1488,6 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
   Widget build(BuildContext context) {
     final binding = rooms.bindingFor(widget.roomId);
     final today = binding?.today;
-    final officialQuestions = today?.questions
-            .where((question) => !question.custom)
-            .toList() ??
-        const <RoomDayQuestion>[];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1279,7 +1523,9 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
                     color: entry.value,
                     borderRadius: BorderRadius.circular(11),
                     border: Border.all(
-                      color: colorToken == entry.key ? RtwV2Colors.card : Colors.transparent,
+                      color: colorToken == entry.key
+                          ? RtwV2Colors.card
+                          : Colors.transparent,
                       width: 3,
                     ),
                     boxShadow: colorToken == entry.key
@@ -1295,12 +1541,15 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
         const SizedBox(height: 18),
         _sheetEyebrow('Spice level'),
         const SizedBox(height: 10),
-        _TierSegment(value: tier, onChanged: (next) => setState(() => tier = next)),
+        _TierSegment(
+          value: tier,
+          onChanged: (next) => setState(() => tier = next),
+        ),
         const SizedBox(height: 18),
         _sheetEyebrow('Categories'),
         const SizedBox(height: 10),
         _CategoryChips(selected: cats, onToggle: _toggleCat),
-        if (officialQuestions.isNotEmpty) ...[
+        if (today != null && today.questions.isNotEmpty) ...[
           const SizedBox(height: 18),
           _sheetEyebrow("Today's questions"),
           const SizedBox(height: 10),
@@ -1313,19 +1562,36 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
             ),
             child: Column(
               children: [
-                for (final question in officialQuestions) ...[
+                for (final question in today.questions) ...[
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 13,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            question.prompt,
-                            style: v2Sans(
-                              13.5,
-                              color: question.pulled ? RtwV2Colors.faint : RtwV2Colors.inkSoft,
-                              height: 1.35,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                question.prompt,
+                                style: v2Sans(
+                                  13.5,
+                                  color: question.pulled
+                                      ? RtwV2Colors.faint
+                                      : RtwV2Colors.inkSoft,
+                                  height: 1.35,
+                                ),
+                              ),
+                              if (question.custom) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Submitted by ${question.authorName ?? 'a room member'}',
+                                  style: v2Mono(9.5, color: RtwV2Colors.muted),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1342,7 +1608,7 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
                       ],
                     ),
                   ),
-                  if (question != officialQuestions.last) const V2Hairline(),
+                  if (question != today.questions.last) const V2Hairline(),
                 ],
               ],
             ),
@@ -1358,6 +1624,15 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
           ),
           child: Column(
             children: [
+              StreamBuilder<List<QueueItem>>(
+                stream: rooms.queueStream(widget.roomId),
+                builder: (context, snapshot) => _MenuRow(
+                  label: 'Custom questions',
+                  trailing: '${snapshot.data?.length ?? 0} in queue ›',
+                  onTap: () => showCustomQSheet(context, rooms, widget.roomId),
+                ),
+              ),
+              const V2Hairline(),
               _MenuRow(
                 label: 'Invite members',
                 onTap: () => showInviteSheet(context, rooms, widget.roomId),
@@ -1392,7 +1667,11 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
                             onPressed: () => Navigator.of(context).pop(false),
                             child: Text(
                               'Keep the room',
-                              style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),
+                              style: v2Sans(
+                                14,
+                                color: RtwV2Colors.subText,
+                                weight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
@@ -1436,9 +1715,12 @@ Future<void> showQuestionDetailSheet(
   final rows = await rooms.loadDayDetail(roomId, dailyKey);
   if (!context.mounted) return;
   final result = day.resultFor(question.qid);
-  final sorted = [...rows]..sort(
-    (a, b) => (b.accuracies[question.qid] ?? -1).compareTo(a.accuracies[question.qid] ?? -1),
-  );
+  final sorted = [...rows]
+    ..sort(
+      (a, b) => (b.accuracies[question.qid] ?? -1).compareTo(
+        a.accuracies[question.qid] ?? -1,
+      ),
+    );
   await showV2Sheet(context, (context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1476,13 +1758,21 @@ Future<void> showQuestionDetailSheet(
                         Center(
                           child: Text(
                             '${question.optA.toUpperCase()} ${result.aPct}%',
-                            style: v2Mono(11, color: RtwV2Colors.card, letterSpacing: 1),
+                            style: v2Mono(
+                              11,
+                              color: RtwV2Colors.card,
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
                         Center(
                           child: Text(
                             question.optB.toUpperCase(),
-                            style: v2Mono(11, color: const Color(0xFF7A7466), letterSpacing: 1),
+                            style: v2Mono(
+                              11,
+                              color: const Color(0xFF7A7466),
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
                       ],
@@ -1559,7 +1849,11 @@ class _ReadItBestListState extends State<_ReadItBestList> {
               isDense: true,
               hintText: 'Search players',
               hintStyle: v2Sans(14, color: RtwV2Colors.faint),
-              prefixIcon: const Icon(Icons.search, size: 18, color: RtwV2Colors.muted),
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 18,
+                color: RtwV2Colors.muted,
+              ),
               filled: true,
               fillColor: RtwV2Colors.card,
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -1614,7 +1908,11 @@ class _ReadItBestListState extends State<_ReadItBestList> {
               alignment: Alignment.center,
               child: Text(
                 'Show ${(filtered.length - _limit).clamp(0, _pageSize)} more',
-                style: v2Sans(13.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                style: v2Sans(
+                  13.5,
+                  color: RtwV2Colors.blue,
+                  weight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -1653,31 +1951,43 @@ class _ReadItBestRow extends StatelessWidget {
               row.isMe ? 'You' : row.displayName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: v2Sans(15, color: RtwV2Colors.inkSoft, weight: FontWeight.w600),
+              style: v2Sans(
+                15,
+                color: RtwV2Colors.inkSoft,
+                weight: FontWeight.w600,
+              ),
             ),
           ),
           if (showsPick) ...[
-            Builder(builder: (context) {
-              final pick =
-                  row.picks.firstWhere((pick) => pick.qid == question.qid);
-              final isA = pick.side == 'a';
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(
-                  color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
-                      .withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  isA ? question.optA : question.optB,
-                  style: v2Sans(
-                    12,
-                    color: isA ? RtwV2Colors.blueTextDeep : RtwV2Colors.clayTextDeep,
-                    weight: FontWeight.w600,
+            Builder(
+              builder: (context) {
+                final pick = row.picks.firstWhere(
+                  (pick) => pick.qid == question.qid,
+                );
+                final isA = pick.side == 'a';
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 3,
                   ),
-                ),
-              );
-            }),
+                  decoration: BoxDecoration(
+                    color: (isA ? RtwV2Colors.meterBlue : RtwV2Colors.meterClay)
+                        .withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    isA ? question.optA : question.optB,
+                    style: v2Sans(
+                      12,
+                      color: isA
+                          ? RtwV2Colors.blueTextDeep
+                          : RtwV2Colors.clayTextDeep,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                );
+              },
+            ),
             const SizedBox(width: 10),
           ],
           SizedBox(
@@ -1737,8 +2047,8 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
     widget.rooms
         .loadRoomHistory(widget.room.id, includeLive: widget.room.isWorld)
         .then((days) {
-      if (mounted) setState(() => history = days);
-    });
+          if (mounted) setState(() => history = days);
+        });
   }
 
   DateTime _dateOf(RoomHistoryDay entry) =>
@@ -1751,7 +2061,8 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
       for (final entry in days)
         for (final question in entry.day.activeQuestions) question.tag,
     };
-    final activeMonth = viewMonth ??
+    final activeMonth =
+        viewMonth ??
         (days.isEmpty
             ? DateTime.now()
             : DateTime(_dateOf(days.first).year, _dateOf(days.first).month));
@@ -1763,11 +2074,26 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
       for (final entry in monthDays) _dateOf(entry).day: entry,
     };
     const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
-    final firstDow = DateTime(activeMonth.year, activeMonth.month, 1).weekday % 7;
-    final daysInMonth = DateTime(activeMonth.year, activeMonth.month + 1, 0).day;
+    final firstDow =
+        DateTime(activeMonth.year, activeMonth.month, 1).weekday % 7;
+    final daysInMonth = DateTime(
+      activeMonth.year,
+      activeMonth.month + 1,
+      0,
+    ).day;
 
     final cards = <({RoomHistoryDay entry, RoomDayQuestion question})>[
       for (final entry in monthDays)
@@ -1780,7 +2106,10 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('${widget.room.name} history', style: v2Serif(24, letterSpacing: -0.4)),
+        Text(
+          '${widget.room.name} history',
+          style: v2Serif(24, letterSpacing: -0.4),
+        ),
         const SizedBox(height: 16),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1790,19 +2119,28 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                 GestureDetector(
                   onTap: () => setState(() => catFilter = tag),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
-                      color: catFilter == tag ? RtwV2Colors.blue : Colors.transparent,
+                      color: catFilter == tag
+                          ? RtwV2Colors.blue
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: catFilter == tag ? RtwV2Colors.blue : RtwV2Colors.borderStrong,
+                        color: catFilter == tag
+                            ? RtwV2Colors.blue
+                            : RtwV2Colors.borderStrong,
                       ),
                     ),
                     child: Text(
                       tag,
                       style: v2Sans(
                         13,
-                        color: catFilter == tag ? Colors.white : RtwV2Colors.subText,
+                        color: catFilter == tag
+                            ? Colors.white
+                            : RtwV2Colors.subText,
                         weight: FontWeight.w600,
                       ),
                     ),
@@ -1828,8 +2166,12 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                 children: [
                   _MonthArrow(
                     label: '‹',
-                    onTap: () => setState(() => viewMonth =
-                        DateTime(activeMonth.year, activeMonth.month - 1)),
+                    onTap: () => setState(
+                      () => viewMonth = DateTime(
+                        activeMonth.year,
+                        activeMonth.month - 1,
+                      ),
+                    ),
                   ),
                   Text(
                     '${monthNames[activeMonth.month - 1]} ${activeMonth.year}',
@@ -1837,8 +2179,12 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                   ),
                   _MonthArrow(
                     label: '›',
-                    onTap: () => setState(() => viewMonth =
-                        DateTime(activeMonth.year, activeMonth.month + 1)),
+                    onTap: () => setState(
+                      () => viewMonth = DateTime(
+                        activeMonth.year,
+                        activeMonth.month + 1,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1854,61 +2200,76 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                     Center(
                       child: Text(
                         dow,
-                        style: v2Mono(10, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                        style: v2Mono(
+                          10,
+                          color: const Color(0xFFBCB6A8),
+                          letterSpacing: 0,
+                        ),
                       ),
                     ),
                   for (var i = 0; i < firstDow; i++) const SizedBox.shrink(),
                   for (var dayNumber = 1; dayNumber <= daysInMonth; dayNumber++)
-                    Builder(builder: (context) {
-                      final dayEntry = entriesByDay[dayNumber];
-                      final has = dayEntry != null;
-                      // Open ring = still has questions you can answer (World);
-                      // filled dot = a day you've engaged with.
-                      var hasOpen = false;
-                      if (has && widget.room.isWorld) {
-                        for (final q in dayEntry.day.answerableQuestions) {
-                          if (dayEntry.myAnswer?.pickFor(q.qid) == null) {
-                            hasOpen = true;
-                            break;
+                    Builder(
+                      builder: (context) {
+                        final dayEntry = entriesByDay[dayNumber];
+                        final has = dayEntry != null;
+                        // Open ring = still has questions you can answer (World);
+                        // filled dot = a day you've engaged with.
+                        var hasOpen = false;
+                        if (has && widget.room.isWorld) {
+                          for (final q in dayEntry.day.answerableQuestions) {
+                            if (dayEntry.myAnswer?.pickFor(q.qid) == null) {
+                              hasOpen = true;
+                              break;
+                            }
                           }
                         }
-                      }
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: has
-                              ? RtwV2Colors.meterBlue.withValues(alpha: 0.07)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '$dayNumber',
-                              style: v2Sans(
-                                13,
-                                color: has ? RtwV2Colors.inkSoft : const Color(0xFFC3BDAF),
-                                weight: has ? FontWeight.w600 : FontWeight.w400,
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: has
+                                ? RtwV2Colors.meterBlue.withValues(alpha: 0.07)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '$dayNumber',
+                                style: v2Sans(
+                                  13,
+                                  color: has
+                                      ? RtwV2Colors.inkSoft
+                                      : const Color(0xFFC3BDAF),
+                                  weight: has
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 3),
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: hasOpen
-                                    ? Colors.transparent
-                                    : (has ? RtwV2Colors.blue : Colors.transparent),
-                                border: hasOpen
-                                    ? Border.all(color: RtwV2Colors.blue, width: 1.5)
-                                    : null,
-                                shape: BoxShape.circle,
+                              const SizedBox(height: 3),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: hasOpen
+                                      ? Colors.transparent
+                                      : (has
+                                            ? RtwV2Colors.blue
+                                            : Colors.transparent),
+                                  border: hasOpen
+                                      ? Border.all(
+                                          color: RtwV2Colors.blue,
+                                          width: 1.5,
+                                        )
+                                      : null,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ],
@@ -1919,14 +2280,20 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Loading history…', style: v2Sans(14, color: RtwV2Colors.faint)),
+              child: Text(
+                'Loading history…',
+                style: v2Sans(14, color: RtwV2Colors.faint),
+              ),
             ),
           )
         else if (cards.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 24, 10, 24),
-              child: Text('No questions this month.', style: v2Sans(14, color: RtwV2Colors.faint)),
+              child: Text(
+                'No questions this month.',
+                style: v2Sans(14, color: RtwV2Colors.faint),
+              ),
             ),
           )
         else
@@ -2007,31 +2374,45 @@ class _HistoryQuestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final pick = entry.myAnswer?.pickFor(question.qid);
     final answered = pick != null;
-    final revealed =
-        isWorld ? entry.day.isRevealed(question.qid) : entry.day.isClosed;
+    final revealed = isWorld
+        ? entry.day.isRevealed(question.qid)
+        : entry.day.isClosed;
     final canAnswer = isWorld && !revealed && !answered;
     final result = entry.day.resultFor(question.qid);
     final score = entry.myAnswer?.accuracies[question.qid];
     final threshold = question.threshold ?? 1000;
-    final answers = entry.day.answerCounts[question.qid] ?? result?.answers ?? 0;
+    final answers =
+        entry.day.answerCounts[question.qid] ?? result?.answers ?? 0;
     final showProgress = isWorld && !revealed;
     final pct = (answers / threshold).clamp(0.0, 1.0);
 
-    final youLabel =
-        pick == null ? null : (pick.side == 'a' ? question.optA : question.optB);
+    final youLabel = pick == null
+        ? null
+        : (pick.side == 'a' ? question.optA : question.optB);
     final crowdPct = result == null
         ? null
         : (answered
-            ? (pick.side == 'a' ? result.aPct : 100 - result.aPct)
-            : result.aPct);
+              ? (pick.side == 'a' ? result.aPct : 100 - result.aPct)
+              : result.aPct);
 
     final date = DateTime.tryParse(entry.day.dailyKey);
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
-    final dateLabel =
-        date == null ? entry.day.dailyKey : '${months[date.month - 1]} ${date.day}';
+    final dateLabel = date == null
+        ? entry.day.dailyKey
+        : '${months[date.month - 1]} ${date.day}';
 
     return GestureDetector(
       onTap: canAnswer ? onAnswer : onReview,
@@ -2055,25 +2436,40 @@ class _HistoryQuestionCard extends StatelessWidget {
                   Text.rich(
                     TextSpan(
                       text: '$score',
-                      style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 0),
+                      style: v2Mono(
+                        11,
+                        color: RtwV2Colors.clay,
+                        letterSpacing: 0,
+                      ),
                       children: [
                         TextSpan(
                           text: '/100',
-                          style: v2Mono(11, color: const Color(0xFFBCB6A8), letterSpacing: 0),
+                          style: v2Mono(
+                            11,
+                            color: const Color(0xFFBCB6A8),
+                            letterSpacing: 0,
+                          ),
                         ),
                       ],
                     ),
                   )
                 else if (canAnswer)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: RtwV2Colors.blue.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Text(
                       'UNANSWERED',
-                      style: v2Mono(9, color: RtwV2Colors.blue, letterSpacing: 1.2),
+                      style: v2Mono(
+                        9,
+                        color: RtwV2Colors.blue,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
               ],
@@ -2091,7 +2487,10 @@ class _HistoryQuestionCard extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: RtwV2Colors.meterBlue.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(8),
@@ -2100,13 +2499,21 @@ class _HistoryQuestionCard extends StatelessWidget {
                       pick.prediction != null
                           ? 'You said $youLabel @ ${pick.prediction}%'
                           : 'You said $youLabel',
-                      style: v2Sans(12, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                      style: v2Sans(
+                        12,
+                        color: RtwV2Colors.blue,
+                        weight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   if (revealed && crowdPct != null)
                     Text(
                       'Crowd $crowdPct% agreed',
-                      style: v2Mono(11, color: RtwV2Colors.subText, letterSpacing: 0),
+                      style: v2Mono(
+                        11,
+                        color: RtwV2Colors.subText,
+                        letterSpacing: 0,
+                      ),
                     ),
                 ],
               )
@@ -2118,7 +2525,11 @@ class _HistoryQuestionCard extends StatelessWidget {
             else if (canAnswer)
               Text(
                 'Tap to make your read',
-                style: v2Sans(12.5, color: RtwV2Colors.blue, weight: FontWeight.w600),
+                style: v2Sans(
+                  12.5,
+                  color: RtwV2Colors.blue,
+                  weight: FontWeight.w600,
+                ),
               ),
             if (showProgress) ...[
               const SizedBox(height: 11),
@@ -2149,7 +2560,10 @@ class _HistoryQuestionCard extends StatelessWidget {
 
 // ── WORLD BROWSE (recent world questions beyond today) ─────────────────
 
-Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) async {
+Future<void> showWorldBrowseSheet(
+  BuildContext context,
+  RoomsController rooms,
+) async {
   final days = await rooms.loadWorldBrowse();
   if (!context.mounted) return;
   await showV2Sheet(context, (context) {
@@ -2188,77 +2602,95 @@ Future<void> showWorldBrowseSheet(BuildContext context, RoomsController rooms) a
                 ),
               ),
             for (final question in entry.day.activeQuestions) ...[
-              Builder(builder: (context) {
-                final revealed = entry.day.isRevealed(question.qid);
-                final result = entry.day.resultFor(question.qid);
-                final answers = entry.day.answerCounts[question.qid] ??
-                    result?.answers ??
-                    0;
-                final threshold = question.threshold ?? 1000;
-                final pick = entry.myAnswer?.pickFor(question.qid);
-                final pct = (answers / threshold).clamp(0.0, 1.0);
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 11),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: RtwV2Colors.card,
-                    border: Border.all(color: RtwV2Colors.border),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          V2Eyebrow(question.tag, letterSpacing: 1.2),
-                          if (pick != null)
-                            Text(
-                              'YOU SAID ${(pick.side == 'a' ? question.optA : question.optB).toUpperCase()}',
-                              style: v2Mono(10, color: RtwV2Colors.blue, letterSpacing: 1),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        question.prompt,
-                        style: v2Serif(17, color: const Color(0xFF2C2A24), height: 1.28),
-                      ),
-                      const SizedBox(height: 12),
-                      if (revealed && result != null) ...[
-                        Text(
-                          '${result.aPct}% ${question.optA} · '
-                          '${100 - result.aPct}% ${question.optB}',
-                          style: v2Sans(13, color: RtwV2Colors.blue, weight: FontWeight.w700),
+              Builder(
+                builder: (context) {
+                  final revealed = entry.day.isRevealed(question.qid);
+                  final result = entry.day.resultFor(question.qid);
+                  final answers =
+                      entry.day.answerCounts[question.qid] ??
+                      result?.answers ??
+                      0;
+                  final threshold = question.threshold ?? 1000;
+                  final pick = entry.myAnswer?.pickFor(question.qid);
+                  final pct = (answers / threshold).clamp(0.0, 1.0);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 11),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: RtwV2Colors.card,
+                      border: Border.all(color: RtwV2Colors.border),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            V2Eyebrow(question.tag, letterSpacing: 1.2),
+                            if (pick != null)
+                              Text(
+                                'YOU SAID ${(pick.side == 'a' ? question.optA : question.optB).toUpperCase()}',
+                                style: v2Mono(
+                                  10,
+                                  color: RtwV2Colors.blue,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Text(
-                          'Revealed · ${_thousandsSep(answers)} world answers',
-                          style: v2Sans(11.5, color: RtwV2Colors.muted),
-                        ),
-                      ] else ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: Container(
-                            height: 6,
-                            color: const Color(0xFFE6E0D3),
-                            alignment: Alignment.centerLeft,
-                            child: FractionallySizedBox(
-                              widthFactor: pct,
-                              child: Container(color: RtwV2Colors.blue),
-                            ),
+                          question.prompt,
+                          style: v2Serif(
+                            17,
+                            color: const Color(0xFF2C2A24),
+                            height: 1.28,
                           ),
                         ),
-                        const SizedBox(height: 7),
-                        Text(
-                          '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
-                          style: v2Sans(11.5, color: RtwV2Colors.muted),
-                        ),
+                        const SizedBox(height: 12),
+                        if (revealed && result != null) ...[
+                          Text(
+                            '${result.aPct}% ${question.optA} · '
+                            '${100 - result.aPct}% ${question.optB}',
+                            style: v2Sans(
+                              13,
+                              color: RtwV2Colors.blue,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Revealed · ${_thousandsSep(answers)} world answers',
+                            style: v2Sans(11.5, color: RtwV2Colors.muted),
+                          ),
+                        ] else ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: Container(
+                              height: 6,
+                              color: const Color(0xFFE6E0D3),
+                              alignment: Alignment.centerLeft,
+                              child: FractionallySizedBox(
+                                widthFactor: pct,
+                                child: Container(color: RtwV2Colors.blue),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            '${_thousandsSep(answers)} / ${_thousandsSep(threshold)} world answers',
+                            style: v2Sans(11.5, color: RtwV2Colors.muted),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                );
-              }),
+                    ),
+                  );
+                },
+              ),
             ],
           ],
         _ghostDoneButton(context),

@@ -98,8 +98,8 @@ void main() {
     });
   });
 
-  group('App Store content safety', () {
-    test('user-created room questions never enter playable question lists', () {
+  group('Private-room custom questions', () {
+    test('named custom questions remain playable until reported', () {
       const official = RoomDayQuestion(
         qid: 'official',
         prompt: 'Official question?',
@@ -117,6 +117,8 @@ void main() {
         tag: 'Custom',
         shape: 'CUSTOM',
         custom: true,
+        authorUid: 'member-1',
+        authorName: 'Taylor',
       );
       const day = RoomDay(
         dailyKey: '2026-07-11',
@@ -124,8 +126,9 @@ void main() {
         questions: [official, userCreated],
       );
 
-      expect(day.activeQuestions, [official]);
-      expect(day.answerableQuestions, [official]);
+      expect(day.activeQuestions, [official, userCreated]);
+      expect(day.answerableQuestions, [official, userCreated]);
+      expect(day.activeQuestions.last.authorName, 'Taylor');
     });
   });
 
@@ -1321,6 +1324,63 @@ void main() {
       expect(rooms.play!.side, isNull);
       expect(rooms.play!.stage, PlayStage.pick);
       expect(find.byIcon(Icons.thumb_up_alt), findsOneWidget);
+    });
+
+    testWidgets('custom questions show their author and a report path', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final binding = _binding(
+        id: 'studio',
+        name: 'The Studio',
+        qids: const [],
+      )..today = const RoomDay(
+          dailyKey: '2026-07-11',
+          status: 'live',
+          questions: [
+            RoomDayQuestion(
+              qid: 'custom-1',
+              prompt: 'Should we order pizza?',
+              optA: 'Yes',
+              optB: 'No',
+              tag: 'Custom',
+              shape: 'CUSTOM',
+              custom: true,
+              authorUid: 'member-1',
+              authorName: 'Taylor',
+            ),
+          ],
+        );
+      final rooms = _roomsWith([binding]);
+      rooms.startRoomPlay('studio');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: MaterialApp(home: PlaySurface(session: rooms.play!)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('SUBMITTED BY TAYLOR'), findsOneWidget);
+      await tester.tap(find.byTooltip('Report this question'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('REPORT QUESTION'), findsOneWidget);
+      expect(find.textContaining('private room'), findsOneWidget);
+      expect(find.text('Report & remove for everyone'), findsOneWidget);
+      expect(rooms.play!.side, isNull);
     });
   });
 }

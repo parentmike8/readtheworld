@@ -50,6 +50,7 @@ import {
   WORLD_PLAYER_GOAL,
   WORLD_ROOM_ID,
   customInjectionCount,
+  hasClearlyObjectionableContent,
   normalizeCustomOption,
   normalizeCustomQuestionText,
   normalizePrediction,
@@ -128,9 +129,8 @@ const ALLOWED_ADMIN_EMAIL = "mike@readtheworld.today";
 const AUTH_HANDOFF_TTL_MS = 5 * 60 * 1000;
 const FEEDBACK_COOLDOWN_MS = 60 * 1000;
 const SUPPORT_CONTACT_COOLDOWN_MS = 60 * 1000;
-// App Store release: rooms use only the developer-curated question bank.
-// Keep this server-side gate so older clients cannot publish custom text.
-const USER_CREATED_QUESTIONS_ENABLED = false;
+const CUSTOM_QUESTION_TERMS_VERSION = "2026-07-11";
+const CONTENT_REPORT_RESPONSE_MS = 24 * 60 * 60 * 1000;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
 const authOnlyCallableOptions = callableOptions;
@@ -3634,7 +3634,7 @@ async function assembleRoomDay(
   const questions: RoomDayQuestion[] = [];
   const usedQueueRefs: DocumentReference[] = [];
 
-  if (USER_CREATED_QUESTIONS_ENABLED && room.customEnabled !== false && room.isWorld !== true) {
+  if (room.customEnabled !== false && room.isWorld !== true) {
     const queueSnap = await roomRef(roomId).collection("queue")
       .orderBy("createdAt", "asc")
       .get();
@@ -4044,7 +4044,7 @@ export const createRoom = onCall(callableOptions, async (request) => {
   } catch (error) {
     mapRoomValidationError(error);
   }
-  const customEnabled = false;
+  const customEnabled = request.data?.customEnabled !== false;
   const revealAnswersDefault = request.data?.revealAnswers !== false;
 
   const newRoomRef = db.collection("rooms").doc();
@@ -4253,7 +4253,7 @@ export const updateRoomSettings = onCall(callableOptions, async (request) => {
     if (request.data?.tier != null) updates.tier = normalizeRoomTier(request.data.tier);
     if (request.data?.color != null) updates.color = normalizeRoomColor(request.data.color);
     if (request.data?.cats != null) updates.cats = normalizeRoomCats(request.data.cats);
-    if (request.data?.customEnabled != null) updates.customEnabled = false;
+    if (request.data?.customEnabled != null) updates.customEnabled = request.data.customEnabled === true;
   } catch (error) {
     mapRoomValidationError(error);
   }
@@ -4596,13 +4596,22 @@ export const getWorldLeaderboard = onCall(callableOptions, async (request) => {
 
 export const queueCustomQuestion = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
-  if (!USER_CREATED_QUESTIONS_ENABLED) {
-    throw new HttpsError("failed-precondition", "User-created questions are not available.");
-  }
   const roomId = assertRoomId(request.data?.roomId);
-  const { room } = await requireRoomAndMember(roomId, uid);
+  const { room, member } = await requireRoomAndMember(roomId, uid);
   if (room.isWorld === true || room.customEnabled === false) {
     throw new HttpsError("failed-precondition", "Custom questions are off in this room.");
+  }
+  if (member.customQuestionsBlocked === true) {
+    throw new HttpsError(
+      "permission-denied",
+      "The room creator has blocked this account from submitting custom questions.",
+    );
+  }
+  if (request.data?.acceptedCommunityStandards !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Agree to the custom-question rules before submitting.",
+    );
   }
   let text: string;
   let optA: string;
@@ -4611,6 +4620,11 @@ export const queueCustomQuestion = onCall(callableOptions, async (request) => {
     text = normalizeCustomQuestionText(request.data?.text);
     optA = normalizeCustomOption(request.data?.optA, "Yes");
     optB = normalizeCustomOption(request.data?.optB, "No");
+    if (hasClearlyObjectionableContent(`${text} ${optA} ${optB}`)) {
+      throw new RoomValidationError(
+        "This question may violate our community standards. Please revise it.",
+      );
+    }
   } catch (error) {
     mapRoomValidationError(error);
   }
@@ -4621,6 +4635,10 @@ export const queueCustomQuestion = onCall(callableOptions, async (request) => {
       `You can queue up to ${CUSTOM_QUEUE_CAP_PER_MEMBER} questions per room.`);
   }
   const displayName = await displayNameForUid(uid);
+  await db.collection("users").doc(uid).set({
+    customQuestionTermsVersion: CUSTOM_QUESTION_TERMS_VERSION,
+    customQuestionTermsAcceptedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
   const itemRef = await queueRef.add({
     text,
     optA,
@@ -4651,7 +4669,21 @@ export const flagRoomQuestion = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const roomId = assertRoomId(request.data?.roomId);
   const qid = assertString(request.data?.qid, "qid");
-  const { room } = await requireRoomAndMember(roomId, uid);
+  const { room, member } = await requireRoomAndMember(roomId, uid);
+  const allowedReasons = new Set(["abuse", "hate", "sexual", "threat", "spam", "other"]);
+  const reason = typeof request.data?.reason === "string"
+    ? request.data.reason.trim().toLowerCase()
+    : "other";
+  if (!allowedReasons.has(reason)) {
+    throw new HttpsError("invalid-argument", "Choose a valid report reason.");
+  }
+  const blockAuthor = request.data?.blockAuthor === true;
+  if (blockAuthor && member.role !== "creator") {
+    throw new HttpsError(
+      "permission-denied",
+      "Only the room creator can block a member from submitting questions.",
+    );
+  }
   const todayKey = dailyKeyForEasternDate(new Date());
   const dayRef = roomDayRef(roomId, todayKey);
 
@@ -4681,9 +4713,35 @@ export const flagRoomQuestion = onCall(callableOptions, async (request) => {
     qid,
     prompt: flagged.prompt,
     authorUid: flagged.authorUid,
+    authorName: flagged.authorName,
     flaggedBy: uid,
+    reason,
+    status: "open",
+    reviewDueAt: Timestamp.fromMillis(Date.now() + CONTENT_REPORT_RESPONSE_MS),
+    authorBlockedFromRoom: blockAuthor,
     createdAt: FieldValue.serverTimestamp(),
   });
+
+  if (blockAuthor && flagged.authorUid && flagged.authorUid !== uid) {
+    const authorUid = flagged.authorUid;
+    await roomRef(roomId).collection("members").doc(authorUid).set({
+      customQuestionsBlocked: true,
+      customQuestionsBlockedAt: FieldValue.serverTimestamp(),
+      customQuestionsBlockedBy: uid,
+    }, { merge: true });
+    await roomRef(roomId).collection("blockedQuestionAuthors").doc(authorUid).set({
+      authorUid,
+      blockedBy: uid,
+      sourceQid: qid,
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    const queuedByAuthor = await roomRef(roomId).collection("queue")
+      .where("authorUid", "==", authorUid)
+      .get();
+    await commitBatchedWrites(
+      queuedByAuthor.docs.map((doc) => (batch) => batch.delete(doc.ref)),
+    );
+  }
 
   // "The author is notified" — best-effort push, never blocks the pull.
   try {
@@ -4711,7 +4769,34 @@ export const flagRoomQuestion = onCall(callableOptions, async (request) => {
   } catch (error) {
     logger.warn("Flag notification failed", { roomId, qid, error: String(error) });
   }
-  return { flagged: true, qid };
+  return { flagged: true, qid, authorBlockedFromRoom: blockAuthor };
+});
+
+export const resolveContentFlag = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  await requireAdmin(uid);
+  const flagId = assertString(request.data?.flagId, "flagId");
+  const action = request.data?.action === "disable-author" ? "disable-author" : "dismiss";
+  const flagRef = db.collection("flags").doc(flagId);
+  const flagSnap = await flagRef.get();
+  if (!flagSnap.exists) throw new HttpsError("not-found", "Report not found.");
+  const flag = flagSnap.data() ?? {};
+
+  if (action === "disable-author") {
+    const authorUid = typeof flag.authorUid === "string" ? flag.authorUid : "";
+    if (!authorUid) {
+      throw new HttpsError("failed-precondition", "This report has no author account.");
+    }
+    await getAuth().updateUser(authorUid, { disabled: true });
+  }
+
+  await flagRef.set({
+    status: "resolved",
+    resolution: action,
+    resolvedAt: FieldValue.serverTimestamp(),
+    resolvedBy: uid,
+  }, { merge: true });
+  return { resolved: true, flagId, action };
 });
 
 export const getRoomDayDetail = onCall(callableOptions, async (request) => {

@@ -279,6 +279,39 @@ export function normalizeCustomOption(value: unknown, fallback: string): string 
   return label;
 }
 
+/**
+ * Deliberately narrow safety screen for member-written room questions.
+ * This is not a general profanity filter: ordinary swearing, politics, adult
+ * topics, and disagreement remain allowed. It catches only high-confidence
+ * threats, targeted self-harm instructions, sexual exploitation of minors,
+ * and a small set of unambiguous severe slurs.
+ */
+export function hasClearlyObjectionableContent(value: string): boolean {
+  const text = value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[0@]/g, "o")
+    .replace(/[1!|]/g, "i")
+    .replace(/[3]/g, "e")
+    .replace(/[4]/g, "a")
+    .replace(/[5$]/g, "s")
+    .replace(/[7]/g, "t")
+    .replace(/[^a-z\s']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const prohibitedPatterns = [
+    /\b(?:i(?:'m| am)? going to|i will|we will) (?:fucking )?(?:kill|murder|shoot|stab|rape) (?:you|him|her|them)\b/,
+    /\b(?:kill|hang|shoot) yourself\b/,
+    /\b(?:child|minor|underage) (?:porn|pornography|sexual abuse|sex video)\b/,
+    /\bn+i+g+e+r+s?\b/,
+    /\bk+i+k+e+s?\b/,
+    /\bch+i+n+k+s?\b/,
+    /\bsp+i+c+s?\b/,
+  ];
+  return prohibitedPatterns.some((pattern) => pattern.test(text));
+}
+
 export function normalizePrediction(value: unknown): number | null {
   if (value == null) return null;
   const parsed = Number(value);
