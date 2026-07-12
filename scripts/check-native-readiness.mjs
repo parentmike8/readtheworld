@@ -7,6 +7,7 @@ const ROOT = process.cwd();
 const IOS_DEPLOYMENT_MINIMUM = 15;
 const EXPECTED_BUNDLE_ID = "today.readtheworld.app";
 const EXPECTED_ANDROID_PACKAGE = "today.readtheworld.app";
+const EXPECTED_FIREBASE_IOS_AUTH_SCHEME = "app-1-863014025103-ios-b20d5ea02d9ec2c76bbdfa";
 
 const results = [];
 
@@ -139,6 +140,15 @@ function checkIosProjectFiles() {
       add("ok", "iOS bundle identifier", EXPECTED_BUNDLE_ID);
     } else {
       add("block", "iOS bundle identifier", `Expected ${EXPECTED_BUNDLE_ID}.`);
+    }
+    if (plist.includes(`<string>${EXPECTED_FIREBASE_IOS_AUTH_SCHEME}</string>`)) {
+      add("ok", "iOS Firebase phone auth URL scheme", EXPECTED_FIREBASE_IOS_AUTH_SCHEME);
+    } else {
+      add(
+        "block",
+        "iOS Firebase phone auth URL scheme",
+        `Expected ${EXPECTED_FIREBASE_IOS_AUTH_SCHEME} in Runner/Info.plist.`,
+      );
     }
   }
 

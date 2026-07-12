@@ -462,6 +462,18 @@ function checkEnvironment() {
     } else {
       add("block", "iOS Google URL scheme", "Replace REPLACE_WITH_GOOGLE_REVERSED_CLIENT_ID in Runner/Info.plist.");
     }
+    const firebaseIosScheme = env.RTW_FIREBASE_IOS_APP_ID
+      ? `app-${env.RTW_FIREBASE_IOS_APP_ID.replaceAll(":", "-")}`
+      : "";
+    if (firebaseIosScheme && plist.includes(`<string>${firebaseIosScheme}</string>`)) {
+      add("ok", "iOS Firebase phone auth URL scheme", "Configured in Runner/Info.plist.");
+    } else {
+      add(
+        "block",
+        "iOS Firebase phone auth URL scheme",
+        "Add the encoded Firebase iOS app ID URL scheme to Runner/Info.plist.",
+      );
+    }
   } else {
     add("block", "iOS Google URL scheme", "Missing apps/app/ios/Runner/Info.plist.");
   }
