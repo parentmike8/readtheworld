@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../main.dart';
 import '../models_v2.dart';
+import '../review_tools.dart';
 import '../rooms_controller.dart';
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
@@ -1087,25 +1088,32 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                                 ),
                               ),
                             ),
-                            if (kDebugMode)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    final router = GoRouter.of(context);
-                                    widget.rooms.startQueuedQuestionQaPreview(
-                                      widget.roomId,
-                                      item,
-                                    );
-                                    Navigator.of(context).pop();
-                                    router.go('/today/play');
-                                  },
-                                  icon: const Icon(Icons.bug_report_outlined),
-                                  label: const Text(
-                                    'Preview reporting flow as QA Guest',
+                            FutureBuilder<bool>(
+                              future: ReviewTools.available(),
+                              builder: (context, snapshot) {
+                                if (snapshot.data != true) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: () {
+                                      final router = GoRouter.of(context);
+                                      widget.rooms.startQueuedQuestionQaPreview(
+                                        widget.roomId,
+                                        item,
+                                      );
+                                      Navigator.of(context).pop();
+                                      router.go('/today/play');
+                                    },
+                                    icon: const Icon(Icons.flag_outlined),
+                                    label: const Text(
+                                      'Preview report & block flow',
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),

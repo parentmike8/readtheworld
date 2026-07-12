@@ -10,6 +10,7 @@ import 'package:read_the_world/scoring.dart';
 import 'package:read_the_world/v2/models_v2.dart';
 import 'package:read_the_world/v2/mappers_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
+import 'package:read_the_world/v2/review_tools.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/play_surface.dart';
@@ -99,6 +100,41 @@ void main() {
   });
 
   group('Private-room custom questions', () {
+    test('review tools are limited to debug or iOS TestFlight builds', () {
+      expect(
+        reviewToolsAvailableFor(
+          debugBuild: true,
+          isIos: false,
+          isTestFlight: false,
+        ),
+        isTrue,
+      );
+      expect(
+        reviewToolsAvailableFor(
+          debugBuild: false,
+          isIos: true,
+          isTestFlight: true,
+        ),
+        isTrue,
+      );
+      expect(
+        reviewToolsAvailableFor(
+          debugBuild: false,
+          isIos: true,
+          isTestFlight: false,
+        ),
+        isFalse,
+      );
+      expect(
+        reviewToolsAvailableFor(
+          debugBuild: false,
+          isIos: false,
+          isTestFlight: true,
+        ),
+        isFalse,
+      );
+    });
+
     test('named custom questions remain playable until reported', () {
       const official = RoomDayQuestion(
         qid: 'official',

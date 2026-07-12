@@ -156,6 +156,7 @@ class RoomsController extends ChangeNotifier {
   final List<StreamSubscription<dynamic>> _worldSubs = [];
   String? _boundUid;
   bool _crossedCommitThreshold = false;
+  bool _reviewPreviewActive = false;
 
   String? get uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -583,12 +584,12 @@ class RoomsController extends ChangeNotifier {
     _startDayPlay(room, day, binding?.myTodayAnswer);
   }
 
-  /// Debug-only play-card preview for exercising custom-question attribution,
+  /// Review-only play-card preview for exercising custom-question attribution,
   /// reporting, and creator blocking without changing the live room day.
   void startQueuedQuestionQaPreview(String roomId, QueueItem item) {
-    if (!kDebugMode) return;
     final room = bindingFor(roomId)?.room;
     if (room == null) return;
+    _reviewPreviewActive = true;
     _playEntryRoute = '/rooms/$roomId';
     play = PlaySession(
       mode: 'qa',
@@ -607,7 +608,7 @@ class RoomsController extends ChangeNotifier {
             prompt: item.text,
             optA: item.optA,
             optB: item.optB,
-            tag: 'QA preview',
+            tag: 'Review preview',
             shape: 'CUSTOM',
             custom: true,
             authorUid: 'qa-preview-member',
@@ -1479,7 +1480,8 @@ class RoomsController extends ChangeNotifier {
     required String reason,
     bool blockAuthor = false,
   }) async {
-    if (kDebugMode && qid.startsWith('qa-preview-')) {
+    if (_reviewPreviewActive && qid.startsWith('qa-preview-')) {
+      _reviewPreviewActive = false;
       play = null;
       pendingPlayExitRoute = '/rooms/$roomId';
       notifyListeners();

@@ -1,10 +1,12 @@
 import Flutter
 import FirebaseMessaging
+import StoreKit
 import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var pushRegistrationChannel: FlutterMethodChannel?
+  private var reviewEnvironmentChannel: FlutterMethodChannel?
   private var lastPushRegistrationError: String?
   private var lastPushRegistrationSucceededAt: TimeInterval?
 
@@ -34,6 +36,49 @@ import UIKit
         result(self?.pushRegistrationStatus() ?? [:])
       }
     }
+
+    let reviewChannel = FlutterMethodChannel(
+      name: "today.readtheworld.app/review_environment",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    reviewEnvironmentChannel = reviewChannel
+    reviewChannel.setMethodCallHandler { call, flutterResult in
+      guard call.method == "isTestFlight" else {
+        flutterResult(FlutterMethodNotImplemented)
+        return
+      }
+      self.resolveTestFlightEnvironment(flutterResult)
+    }
+  }
+
+  private func resolveTestFlightEnvironment(_ flutterResult: @escaping FlutterResult) {
+    if #available(iOS 16.0, *) {
+      Task {
+        do {
+          let verification = try await AppTransaction.shared
+          let transaction: AppTransaction
+          switch verification {
+          case .verified(let value):
+            transaction = value
+          case .unverified(let value, _):
+            transaction = value
+          }
+          await MainActor.run {
+            flutterResult(transaction.environment == .sandbox)
+          }
+        } catch {
+          await MainActor.run {
+            flutterResult(self.hasSandboxReceipt)
+          }
+        }
+      }
+      return
+    }
+    flutterResult(hasSandboxReceipt)
+  }
+
+  private var hasSandboxReceipt: Bool {
+    Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
   }
 
   override func application(
