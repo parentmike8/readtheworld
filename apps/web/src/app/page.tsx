@@ -46,7 +46,7 @@ const argueQuestions: PublicQuestion[] = [
 const faqs: Array<[string, string]> = [
   [
     "What exactly is a room?",
-    "Your crew: friends, family, coworkers, teammates. Everyone answers the same three questions privately, then predicts the group's final percentage split. The next morning, see the group result and whose predictions were closest.",
+    "Your crew: friends, family, coworkers, teammates. Everyone answers the same three questions privately, then predicts what percentage will choose each answer. The next morning, see how the group answered and whose predictions were closest.",
   ],
   [
     "Does everyone get the same questions?",
@@ -66,7 +66,7 @@ const faqs: Array<[string, string]> = [
   ],
   [
     "How is my Read Score calculated?",
-    "The closer your prediction is to the room's final percentage split, the more points you earn. Accurate reads move you up the room's leaderboard.",
+    "The closer your prediction is to the room's actual percentages, the more points you earn. Accurate reads move you up the room's leaderboard.",
   ],
   [
     "Is it free?",
@@ -379,8 +379,8 @@ export default function Home() {
           </h1>
           <p>
             Three shared questions a day. Choose your side, then predict what
-            percentage of the room will agree. Tomorrow, see the actual split
-            and how close your read was.
+            percentage of the room will agree. Tomorrow, see how the room
+            actually answered and how close your read was.
           </p>
         </div>
 
@@ -500,7 +500,7 @@ export default function Home() {
             <h2 className="serif">
               Three questions a day.
               <br />
-              Predict every split.
+              Predict how others will answer.
             </h2>
           </div>
           <div className="ritualGrid" data-reveal data-reveal-delay="1">
@@ -517,7 +517,7 @@ export default function Home() {
             <article>
               <b className="serif">03</b>
               <h3 className="serif">Score</h3>
-              <p>Tomorrow, see the room&apos;s combined split and how close your prediction was.</p>
+              <p>Tomorrow, see how the room answered and how close your prediction was.</p>
             </article>
           </div>
         </div>
@@ -529,8 +529,8 @@ export default function Home() {
           <h2 className="serif">Made for the people you know best.</h2>
           <p>
             A room is your crew: friends, family, teammates. Everyone answers
-            the same three questions privately, then predicts the group&apos;s final
-            split. The next morning, see the percentages and the sharpest reads.
+            the same three questions privately, then predicts what percentage
+            will choose each answer. The next morning, see the sharpest reads.
           </p>
         </div>
         <div className="lpRoomStack" data-reveal data-reveal-delay="1" aria-label="Example rooms">
@@ -577,8 +577,8 @@ export default function Home() {
             </article>
           </div>
           <p className="spiceFoot" data-reveal data-reveal-delay="2">
-            Every room picks its own spice level and topics. The office room
-            and the group chat never have to meet.
+            Every room picks its own spice level and topics.<br />
+            The office room and the group chat never have to meet.
           </p>
         </div>
       </section>
@@ -589,7 +589,7 @@ export default function Home() {
           <h2 className="serif">It&apos;s not about being right. It&apos;s about reading the room.</h2>
           <p>
             Points for accurate predictions, not popular opinions. Every room
-            has a leaderboard. Every final split scores your read.
+            has a leaderboard. Every result scores your read.
           </p>
         </div>
         <div className="leaderboard" data-reveal data-reveal-delay="1">
@@ -648,7 +648,7 @@ export default function Home() {
             <h2 className="serif">Pass the phone.</h2>
             <p>
               One phone, no accounts, instant group results. Take turns predicting
-              how the table will split. Sharpest read wins.
+              how the table will answer. Sharpest read wins.
             </p>
           </div>
           <div className="partyDeck" data-reveal data-reveal-delay="1" aria-label="Sample party mode question deck">

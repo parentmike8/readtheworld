@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Read the World",
     description:
-      "Three shared questions a day. Answer privately, predict the group split, and see how close your read was.",
+      "Three shared questions a day. Answer privately, predict how the group will answer, and see how close your read was.",
     url: "https://readtheworld.today",
     siteName: "Read the World",
     type: "website",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Read the World",
     description:
-      "Three shared questions a day. Answer privately, predict the group split, and see how close your read was.",
+      "Three shared questions a day. Answer privately, predict how the group will answer, and see how close your read was.",
   },
 };
 
