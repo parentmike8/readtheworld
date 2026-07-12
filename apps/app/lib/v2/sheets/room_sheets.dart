@@ -1225,7 +1225,7 @@ class _CustomQSheetState extends State<_CustomQSheet> {
               const SizedBox(height: 12),
               V2Button(
                 busy ? 'Adding…' : 'Add to queue',
-                onPressed: busy ? null : _add,
+                onPressed: busy || !acceptedCommunityStandards ? null : _add,
                 padding: const EdgeInsets.symmetric(vertical: 15),
               ),
             ],
