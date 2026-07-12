@@ -59,6 +59,7 @@ import {
   normalizeRoomName,
   normalizeRoomTier,
   roomDailyScoreDeltas,
+  roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
@@ -4008,10 +4009,19 @@ export const rolloverRooms = onSchedule({
   let closed = 0;
   let assigned = 0;
   for (const roomDoc of roomsSnap.docs) {
-    // The World is admin-curated and reveals per question at its threshold, so
-    // it is never closed or auto-assembled by the daily rollover [Mike].
-    if (roomDoc.id === WORLD_ROOM_ID) continue;
     try {
+      const rolloverPlan = roomRolloverPlan(roomDoc.id);
+      // The World keeps its threshold-based reveal behavior, but still needs a
+      // fresh set every day. A curated day is activated when present;
+      // otherwise assembleRoomDay deterministically selects three bank
+      // questions for the date.
+      if (!rolloverPlan.closePreviousDays) {
+        if (rolloverPlan.ensureToday &&
+          await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
+          assigned += 1;
+        }
+        continue;
+      }
       const liveDays = await roomDoc.ref.collection("days")
         .where("status", "==", "live")
         .get();
@@ -4020,7 +4030,8 @@ export const rolloverRooms = onSchedule({
         await closeRoomDay(roomDoc.id, dayDoc.id, dayDoc.data());
         closed += 1;
       }
-      if (await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
+      if (rolloverPlan.ensureToday &&
+        await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
         assigned += 1;
       }
     } catch (error) {

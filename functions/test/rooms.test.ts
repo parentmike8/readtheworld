@@ -12,6 +12,7 @@ import {
   normalizeRoomName,
   normalizeRoomTier,
   roomDailyScoreDeltas,
+  roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
@@ -94,6 +95,22 @@ describe("customInjectionCount", () => {
     expect(customInjectionCount(9)).toBe(2);
     expect(customInjectionCount(10)).toBe(3);
     expect(customInjectionCount(25)).toBe(3);
+  });
+});
+
+describe("roomRolloverPlan", () => {
+  it("always gives The World a fresh daily set without closing threshold-based days", () => {
+    expect(roomRolloverPlan("world")).toEqual({
+      closePreviousDays: false,
+      ensureToday: true,
+    });
+  });
+
+  it("closes prior days and creates today for private rooms", () => {
+    expect(roomRolloverPlan("studio")).toEqual({
+      closePreviousDays: true,
+      ensureToday: true,
+    });
   });
 });
 

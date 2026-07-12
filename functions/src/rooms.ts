@@ -14,6 +14,22 @@ export const ROOM_STARTING_SCORE = 1500;
 
 export const ROOM_TIERS: BankTier[] = ["work-safe", "normal", "mature"];
 
+export type RoomRolloverPlan = {
+  closePreviousDays: boolean;
+  ensureToday: boolean;
+};
+
+/**
+ * Every room must receive a fresh daily set. The World is the only room whose
+ * older days stay open because its questions reveal at answer thresholds.
+ */
+export function roomRolloverPlan(roomId: string): RoomRolloverPlan {
+  return {
+    closePreviousDays: roomId !== WORLD_ROOM_ID,
+    ensureToday: true,
+  };
+}
+
 /** Room colors from the v2 prototype (oklch strings the client maps 1:1). */
 export const ROOM_COLOR_OPTIONS = [
   "oklch(0.50 0.07 155)",
