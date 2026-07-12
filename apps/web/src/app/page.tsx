@@ -46,7 +46,7 @@ const argueQuestions: PublicQuestion[] = [
 const faqs: Array<[string, string]> = [
   [
     "What exactly is a room?",
-    "Your crew: friends, family, coworkers, teammates. Everyone gets the same three questions, answers for themselves, and predicts the split. Reveal the next morning.",
+    "Your crew: friends, family, coworkers, teammates. Everyone answers the same three questions privately, then predicts the group's final percentage split. The next morning, see the group result and whose predictions were closest.",
   ],
   [
     "Does everyone get the same questions?",
@@ -54,7 +54,7 @@ const faqs: Array<[string, string]> = [
   ],
   [
     "Why don't results show right away?",
-    "You commit your read first. Reveals land 24 hours later, with the next day's questions. No peeking, no herding.",
+    "Everyone locks a prediction before seeing how the room answered. The next morning, we show the room's combined percentages and score each prediction. Individual answers stay private.",
   ],
   [
     "Can I keep it work-safe?",
@@ -66,7 +66,7 @@ const faqs: Array<[string, string]> = [
   ],
   [
     "How is my Read Score calculated?",
-    "The closer your prediction lands to the real split, the more points you take from the reveal. Wins move you up the room's leaderboard.",
+    "The closer your prediction is to the room's final percentage split, the more points you earn. Accurate reads move you up the room's leaderboard.",
   ],
   [
     "Is it free?",
@@ -369,7 +369,7 @@ export default function Home() {
 
       <section className="lpWrap lpHero" id="play">
         <div className="lpPitch">
-          <div className="eyebrow clay">A daily game of public opinion</div>
+          <div className="eyebrow clay">A daily prediction game</div>
           <h1 className="serif">
             You know what you think.
             <br />
@@ -378,8 +378,9 @@ export default function Home() {
             the world?
           </h1>
           <p>
-            Three shared questions a day. Answer for yourself, then predict how
-            everyone else answers. Win by being the best at reading the room.
+            Three shared questions a day. Choose your side, then predict what
+            percentage of the room will agree. Tomorrow, see the actual split
+            and how close your read was.
           </p>
         </div>
 
@@ -436,7 +437,7 @@ export default function Home() {
                   </div>
                   <p>
                     Sign in or create a free account to save your reads, keep your
-                    streak going, and be first in when the world&apos;s answers unlock.
+                    streak going, and see the World&apos;s combined result when it unlocks.
                   </p>
                 </div>
                 {user ? (
@@ -499,24 +500,24 @@ export default function Home() {
             <h2 className="serif">
               Three questions a day.
               <br />
-              One shared reveal.
+              Predict every split.
             </h2>
           </div>
           <div className="ritualGrid" data-reveal data-reveal-delay="1">
             <article>
               <b className="serif">01</b>
               <h3 className="serif">Answer</h3>
-              <p>Pick your side on each question. It stays private.</p>
+              <p>Pick your side on each question. Your individual answers stay private.</p>
             </article>
             <article>
               <b className="serif">02</b>
               <h3 className="serif">Predict</h3>
-              <p>Guess what share of the room agrees with you. This is the real game.</p>
+              <p>Estimate what percentage of the room will agree with you. This is the real game.</p>
             </article>
             <article>
               <b className="serif">03</b>
               <h3 className="serif">Score</h3>
-              <p>Tomorrow the split reveals. The sharpest reads take the points.</p>
+              <p>Tomorrow, see the room&apos;s combined split and how close your prediction was.</p>
             </article>
           </div>
         </div>
@@ -527,9 +528,9 @@ export default function Home() {
           <div className="eyebrow clay">First, your people &middot; Rooms</div>
           <h2 className="serif">Made for the people you know best.</h2>
           <p>
-            A room is your crew: friends, family, teammates. Same three
-            questions, everyone predicts everyone, reveal the next morning.
-            Start one in seconds, invite with a link.
+            A room is your crew: friends, family, teammates. Everyone answers
+            the same three questions privately, then predicts the group&apos;s final
+            split. The next morning, see the percentages and the sharpest reads.
           </p>
         </div>
         <div className="lpRoomStack" data-reveal data-reveal-delay="1" aria-label="Example rooms">
@@ -545,7 +546,7 @@ export default function Home() {
             <span className="lpRoomAvatar" data-tone="clay">F</span>
             <span className="lpRoomMeta">
               <strong className="serif">Family</strong>
-              <small>4 players &middot; reveal tomorrow</small>
+              <small>4 players &middot; results tomorrow</small>
             </span>
             <span className="lpRoomPill">Locked in</span>
           </div>
@@ -588,7 +589,7 @@ export default function Home() {
           <h2 className="serif">It&apos;s not about being right. It&apos;s about reading the room.</h2>
           <p>
             Points for accurate predictions, not popular opinions. Every room
-            has a leaderboard. Every reveal moves it.
+            has a leaderboard. Every final split scores your read.
           </p>
         </div>
         <div className="leaderboard" data-reveal data-reveal-delay="1">
@@ -622,7 +623,7 @@ export default function Home() {
           <h2 className="serif">The question you&apos;ve been dying to ask.</h2>
           <p>
             Drop your own question into the pool. It shows up in a coming
-            day&apos;s three, with your name on the reveal.
+            day&apos;s three, with your name shown as the submitter.
           </p>
         </div>
         <div className="lpPoolColumn" data-reveal data-reveal-delay="1">
@@ -646,8 +647,8 @@ export default function Home() {
             <div className="eyebrow onDark">Then, the table &middot; Party mode</div>
             <h2 className="serif">Pass the phone.</h2>
             <p>
-              One phone, no accounts, instant reveals. Take turns predicting
-              the table. Sharpest read wins.
+              One phone, no accounts, instant group results. Take turns predicting
+              how the table will split. Sharpest read wins.
             </p>
           </div>
           <div className="partyDeck" data-reveal data-reveal-delay="1" aria-label="Sample party mode question deck">
@@ -812,7 +813,7 @@ export default function Home() {
             <a href="/support">Support</a>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
-            <span>&copy; 2026 &middot; A daily game of public opinion</span>
+            <span>&copy; 2026 &middot; A daily prediction game</span>
           </div>
         </div>
       </footer>
