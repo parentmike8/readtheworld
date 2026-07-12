@@ -1087,6 +1087,25 @@ class _CustomQSheetState extends State<_CustomQSheet> {
                                 ),
                               ),
                             ),
+                            if (kDebugMode)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    final router = GoRouter.of(context);
+                                    widget.rooms.startQueuedQuestionQaPreview(
+                                      widget.roomId,
+                                      item,
+                                    );
+                                    Navigator.of(context).pop();
+                                    router.go('/today/play');
+                                  },
+                                  icon: const Icon(Icons.bug_report_outlined),
+                                  label: const Text(
+                                    'Preview reporting flow as QA Guest',
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),

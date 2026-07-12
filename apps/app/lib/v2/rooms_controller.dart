@@ -583,6 +583,43 @@ class RoomsController extends ChangeNotifier {
     _startDayPlay(room, day, binding?.myTodayAnswer);
   }
 
+  /// Debug-only play-card preview for exercising custom-question attribution,
+  /// reporting, and creator blocking without changing the live room day.
+  void startQueuedQuestionQaPreview(String roomId, QueueItem item) {
+    if (!kDebugMode) return;
+    final room = bindingFor(roomId)?.room;
+    if (room == null) return;
+    _playEntryRoute = '/rooms/$roomId';
+    play = PlaySession(
+      mode: 'qa',
+      roomId: roomId,
+      dailyKey: room.currentDailyKey,
+      deck: [
+        TodayDeckCard.question(
+          roomId: roomId,
+          roomName: room.name,
+          roomColorToken: room.colorToken,
+          roomMembers: math.max(2, room.memberCount),
+          roomTotal: 1,
+          isWorld: false,
+          question: RoomDayQuestion(
+            qid: 'qa-preview-${item.id}',
+            prompt: item.text,
+            optA: item.optA,
+            optB: item.optB,
+            tag: 'QA preview',
+            shape: 'CUSTOM',
+            custom: true,
+            authorUid: 'qa-preview-member',
+            authorName: 'QA Guest',
+          ),
+          indexInRoom: 0,
+        ),
+      ],
+    );
+    notifyListeners();
+  }
+
   /// The World lets readers answer a past, not-yet-revealed day (instant lock,
   /// no 24h gap). Locks against that day's key.
   void startWorldDayPlay(RoomHistoryDay history, {String? entryRoute}) {
@@ -1441,12 +1478,20 @@ class RoomsController extends ChangeNotifier {
     String qid, {
     required String reason,
     bool blockAuthor = false,
-  }) => _simpleCall('flagRoomQuestion', {
-    'roomId': roomId,
-    'qid': qid,
-    'reason': reason,
-    'blockAuthor': blockAuthor,
-  });
+  }) async {
+    if (kDebugMode && qid.startsWith('qa-preview-')) {
+      play = null;
+      pendingPlayExitRoute = '/rooms/$roomId';
+      notifyListeners();
+      return true;
+    }
+    return _simpleCall('flagRoomQuestion', {
+      'roomId': roomId,
+      'qid': qid,
+      'reason': reason,
+      'blockAuthor': blockAuthor,
+    });
+  }
 
   Stream<List<QueueItem>> queueStream(String roomId) => _db
       .collection('rooms')

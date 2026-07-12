@@ -130,6 +130,42 @@ void main() {
       expect(day.answerableQuestions, [official, userCreated]);
       expect(day.activeQuestions.last.authorName, 'Taylor');
     });
+
+    test(
+      'debug preview exercises reporting without changing the live day',
+      () async {
+        final rooms = _roomsWith([_binding(id: 'studio', name: 'The Studio')]);
+        const queued = QueueItem(
+          id: 'queued-1',
+          text: 'Should we order pizza?',
+          optA: 'Yes',
+          optB: 'No',
+          authorUid: 'me',
+          authorName: 'Michael',
+        );
+
+        rooms.startQueuedQuestionQaPreview('studio', queued);
+
+        final preview = rooms.play?.card?.question;
+        expect(rooms.play?.mode, 'qa');
+        expect(preview?.prompt, queued.text);
+        expect(preview?.custom, isTrue);
+        expect(preview?.authorName, 'QA Guest');
+        expect(rooms.bindingFor('studio')?.today?.questions, hasLength(3));
+
+        final reported = await rooms.flagQuestion(
+          'studio',
+          preview!.qid,
+          reason: 'other',
+          blockAuthor: true,
+        );
+
+        expect(reported, isTrue);
+        expect(rooms.play, isNull);
+        expect(rooms.pendingPlayExitRoute, '/rooms/studio');
+        expect(rooms.bindingFor('studio')?.today?.questions, hasLength(3));
+      },
+    );
   });
 
   test('app router stays stable across controller notifications', () {
@@ -1334,11 +1370,8 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final binding = _binding(
-        id: 'studio',
-        name: 'The Studio',
-        qids: const [],
-      )..today = const RoomDay(
+      final binding = _binding(id: 'studio', name: 'The Studio', qids: const [])
+        ..today = const RoomDay(
           dailyKey: '2026-07-11',
           status: 'live',
           questions: [
