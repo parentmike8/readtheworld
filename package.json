@@ -22,6 +22,7 @@
     "data:seed": "npm run functions:build && node scripts/seed-production-data.mjs",
     "accounts:check": "scripts/check-personal-accounts.sh",
     "native:check": "node scripts/check-native-readiness.mjs",
+    "ios:release-check": "bash scripts/verify-ios-release.sh",
     "readiness:check": "node scripts/check-deployment-readiness.mjs",
     "rules:test": "npx -y firebase-tools@15.22.3 emulators:exec --only firestore \"vitest run firebase/test\"",
     "test": "npm run functions:test && npm run app:test",

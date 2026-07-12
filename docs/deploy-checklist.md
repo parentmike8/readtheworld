@@ -54,13 +54,21 @@ Not published yet, so first submission has one-time setup.
 - [ ] **App Check = App Attest**: enable App Attest for the iOS app in Firebase
       → App Check, or live callables return `unauthenticated`. (Debug tokens are
       simulator-only — see §7.)
-- [ ] Bump build number (`apps/app/ios/Runner` / pubspec) — last was 6.
-- [ ] Build + upload:
+- [ ] Bump the build number in `apps/app/pubspec.yaml`.
+- [ ] Create a signed archive. Do not export an unsigned Flutter archive for
+      upload: that path can silently omit Apple Sign-In, APNs, and associated
+      domain entitlements from the final app signature.
+- [ ] Before upload, verify the signed archive or exported IPA and its expected
+      build number:
   ```
-  cd apps/app && flutter build ipa   # signed release
+  npm run ios:release-check -- apps/app/build/ios/archive/Runner.xcarchive 19
+  # or
+  npm run ios:release-check -- "apps/app/build/ios/export/Read the World.ipa" 19
   ```
-  then upload via Transporter / `xcrun altool` / fastlane, and submit for review
-  (~1–3 days, human-gated).
+  This gate must report Apple Sign-In, production push notifications,
+  `applinks:rtw.codes`, and a valid distribution signature before upload.
+- [ ] Export/upload the verified signed archive with `xcodebuild
+      -exportArchive` and an App Store Connect export options plist.
 
 ## 6. Android (Play) — same shape
 - [ ] Play Console app + signing (Play App Signing), store listing.
