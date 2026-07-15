@@ -166,23 +166,33 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
   }, [services]);
 
   // Keep Firebase, Auth, App Check, and reCAPTCHA off the critical rendering
-  // path. They load after the page is settled, or immediately on interaction.
+  // path. Load them on the first interaction, or when live World counters enter
+  // view, instead of doing background work for someone who only reads the hero.
   useEffect(() => {
-    let timer = 0;
-    const schedule = () => {
-      timer = window.setTimeout(() => {
-        void loadFirebaseServices().then((loaded) => {
-          if (loaded) setServices(loaded);
-        });
-      }, 3500);
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      observer.disconnect();
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
+      void loadFirebaseServices().then((loaded) => {
+        if (loaded) setServices(loaded);
+      });
     };
+    const worldSection = document.getElementById("world");
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) start();
+    }, { rootMargin: "240px 0px" });
 
-    if (document.readyState === "complete") schedule();
-    else window.addEventListener("load", schedule, { once: true });
+    window.addEventListener("pointerdown", start, { once: true, passive: true });
+    window.addEventListener("keydown", start, { once: true });
+    if (worldSection) observer.observe(worldSection);
 
     return () => {
-      window.removeEventListener("load", schedule);
-      window.clearTimeout(timer);
+      observer.disconnect();
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
     };
   }, []);
 
