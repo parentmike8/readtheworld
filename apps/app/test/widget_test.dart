@@ -575,8 +575,12 @@ void main() {
           _question('w3'),
         ]);
         expect(rooms.play!.mode, 'intro');
+        expect(rooms.play!.card!.roomMembers, 0);
 
         rooms.commitSide('a');
+        expect(rooms.play!.pred, 50);
+        rooms.meterUpdate(0.51);
+        expect(rooms.play!.pred, 51);
         rooms.play!.pred = 70;
         await rooms.lockCurrent();
         rooms.commitSide('b');
@@ -690,10 +694,16 @@ void main() {
       party.cardDragUpdate(-80);
       party.cardDragEnd(0);
 
+      expect(party.sub, PartySub.revealPass);
+      expect(party.currentPlayerIndex, 0); // pass back to the reader
+      party.passContinue();
       expect(party.sub, PartySub.reveal);
       expect(party.readerRevealScore, 100); // |50-50|*1.3 = 0 off
       expect(party.scores[0], 100);
-      expect(party.tableYesPct, 67); // 2 of 3 said Yes
+      expect(party.otherPlayerCount, 2);
+      expect(party.othersYesCount, 1);
+      expect(party.othersYesPct, 50); // 1 of the other 2 said Yes
+      expect(party.readerAgreementPct, 50);
     });
 
     test(
@@ -1171,6 +1181,36 @@ void main() {
       expect(find.text('24 of 32 players'), findsOneWidget);
     });
 
+    testWidgets('intro prediction is clearly distinguished from a result', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: PredictionReadout(
+              percent: 50,
+              people: 0,
+              sideLabel: 'Yes',
+              sideColor: Colors.blue,
+              infinite: true,
+              eyebrow: 'NEXT: MAKE A PREDICTION',
+              prompt: 'What % of people do you think will also choose “Yes”?',
+              sideCaption: 'This is your prediction. Results come later.',
+              secondaryText: '',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('NEXT: MAKE A PREDICTION'), findsOneWidget);
+      expect(find.text('50%'), findsOneWidget);
+      expect(
+        find.text('This is your prediction. Results come later.'),
+        findsOneWidget,
+      );
+      expect(find.text('of people who answer'), findsNothing);
+    });
+
     testWidgets('prediction meter switches from notches to guide lines', (
       tester,
     ) async {
@@ -1276,6 +1316,74 @@ void main() {
       await tester.pumpAndSettle();
       expect(party.scores[1], 0);
       expect(party.playerName(1), 'Sam');
+    });
+
+    testWidgets('party reveal returns to reader before advancing', (
+      tester,
+    ) async {
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(1);
+      party.start([_partyQuestion('p1')]);
+
+      // The reader says Yes and predicts one of the other two will agree.
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      party.pred = 50;
+      party.lockTurn();
+
+      // The other players split Yes/No, so the reveal basis is 1 of 2.
+      party.passContinue();
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      party.passContinue();
+      party.cardDragStart();
+      party.cardDragUpdate(-80);
+      party.cardDragEnd(0);
+
+      expect(party.sub, PartySub.revealPass);
+      expect(party.currentPlayerIndex, 0);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            partyControllerProvider.overrideWith(
+              (_) => party,
+              disposeNotifier: false,
+            ),
+            roomsControllerProvider.overrideWith(
+              (_) => RoomsController(firebaseReady: false),
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pass back for the reveal.'), findsOneWidget);
+      expect(find.widgetWithText(V2Button, "I'm Player 1"), findsOneWidget);
+      expect(find.text('OTHER PLAYERS · 1 of 2 said Yes'), findsNothing);
+
+      await tester.tap(find.widgetWithText(V2Button, "I'm Player 1"));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OTHER PLAYERS · 1 of 2 said Yes'), findsOneWidget);
+      expect(find.textContaining('2 of 3 said Yes'), findsNothing);
+      expect(party.readerRevealScore, 100);
+
+      await tester.tap(find.widgetWithText(V2Button, 'Next question'));
+      await tester.pumpAndSettle();
+
+      expect(party.readerIndex, 1);
+      expect(party.currentPlayerIndex, 1);
+      expect(find.widgetWithText(V2Button, "I'm Player 2"), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      party.dispose();
     });
 
     testWidgets('party pick gutters choose the nearest side', (tester) async {

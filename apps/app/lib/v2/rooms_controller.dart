@@ -763,7 +763,10 @@ class RoomsController extends ChangeNotifier {
             roomId: 'intro',
             roomName: 'How it works',
             roomColorToken: 'oklch(0.50 0.10 256)',
-            roomMembers: 8, // forces the full pick → predict loop
+            // The tutorial predicts the share of all people, not a fictional
+            // room headcount. Intro mode still runs the full pick → predict
+            // loop, but its meter is continuous like The World.
+            roomMembers: 0,
             roomTotal: questions.length,
             isWorld: false,
             question: questions[i],
@@ -902,10 +905,12 @@ class RoomsController extends ChangeNotifier {
     return math.max(0, members - 1);
   }
 
-  /// Solo and The World read the prediction as a free share of everyone, so the
-  /// meter must NOT snap to the current (often tiny) member count.
+  /// Intro, Solo and The World read the prediction as a free share of everyone,
+  /// so the meter must NOT snap to a current (or fictional) member count.
   bool _predictionInfinite(PlaySession session) =>
-      (session.card?.isWorld ?? false) || _predictionPeople(session) <= 0;
+      session.mode == 'intro' ||
+      (session.card?.isWorld ?? false) ||
+      _predictionPeople(session) <= 0;
 
   int _boundedPrediction(int value) => value < 0
       ? 0

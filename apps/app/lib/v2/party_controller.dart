@@ -15,7 +15,7 @@ import 'tokens_v2.dart';
 /// tallies the table and scores the reader's read.
 enum PartyStage { setup, play, done }
 
-enum PartySub { pick, predict, pass, reveal }
+enum PartySub { pick, predict, pass, revealPass, reveal }
 
 class PartyTurnPick {
   const PartyTurnPick({required this.side, this.prediction});
@@ -78,8 +78,12 @@ class PartyController extends ChangeNotifier {
 
   bool get solo => players < 2;
   int get readerIndex => players > 0 ? idx % players : 0;
-  int get currentPlayerIndex =>
-      players > 0 ? (readerIndex + turn) % players : 0;
+  int get currentPlayerIndex {
+    if (players <= 0) return 0;
+    if (sub == PartySub.revealPass) return readerIndex;
+    return (readerIndex + turn) % players;
+  }
+
   PartyQuestion? get card => idx >= 0 && idx < deck.length ? deck[idx] : null;
   int get swapsLeft => math.max(0, maxSwaps - swapsUsed);
   bool get swapControlVisible =>
@@ -420,6 +424,13 @@ class PartyController extends ChangeNotifier {
   }
 
   void passContinue() {
+    if (sub == PartySub.revealPass) {
+      sub = PartySub.reveal;
+      revealT = 0;
+      notifyListeners();
+      _animateReveal();
+      return;
+    }
     sub = PartySub.pick;
     side = null;
     pred = 50;
@@ -433,18 +444,18 @@ class PartyController extends ChangeNotifier {
   /// reader's side; reader score = max(0, 100 − |pred − actual|×1.3).
   void _finalize() {
     final reader = turnPicks.first;
-    final others = turnPicks.skip(1).toList();
-    final agree = others.where((pick) => pick.side == reader.side).length;
-    final actual = others.isEmpty ? 0 : ((agree / others.length) * 100).round();
+    final actual = readerAgreementPct;
     final score = math.max(
       0,
       100 - (((reader.prediction ?? 0) - actual).abs() * 1.3).round(),
     );
     scores[readerIndex] += score;
-    sub = PartySub.reveal;
+    // The final voter must hand the phone back to the reader before any
+    // answers or scores are revealed. After the reader views the reveal,
+    // next() advances to the next reader's normal pass screen.
+    sub = PartySub.revealPass;
     revealT = 0;
     notifyListeners();
-    _animateReveal();
   }
 
   void _animateReveal() {
@@ -461,21 +472,36 @@ class PartyController extends ChangeNotifier {
     });
   }
 
-  int get tableYesPct {
-    if (turnPicks.isEmpty) return 0;
-    final yes = turnPicks.where((pick) => pick.side == 'a').length;
-    return ((yes / turnPicks.length) * 100).round();
+  int get otherPlayerCount => math.max(0, turnPicks.length - 1);
+
+  int get othersYesCount =>
+      turnPicks.skip(1).where((pick) => pick.side == 'a').length;
+
+  /// The reveal split mirrors the population the reader predicted: everyone
+  /// except the reader. Including the reader here makes a three-person game
+  /// look like it was scored out of three even though the score correctly uses
+  /// the other two votes.
+  int get othersYesPct => otherPlayerCount == 0
+      ? 0
+      : ((othersYesCount / otherPlayerCount) * 100).round();
+
+  int get readerAgreementPct {
+    final reader = turnPicks.isEmpty ? null : turnPicks.first;
+    if (reader == null || otherPlayerCount == 0) return 0;
+    final agree = turnPicks
+        .skip(1)
+        .where((pick) => pick.side == reader.side)
+        .length;
+    return ((agree / otherPlayerCount) * 100).round();
   }
 
   int get readerRevealScore {
     final reader = turnPicks.isEmpty ? null : turnPicks.first;
     if (reader == null) return 0;
-    final others = turnPicks.skip(1).toList();
-    final agree = others.where((pick) => pick.side == reader.side).length;
-    final actual = others.isEmpty ? 0 : ((agree / others.length) * 100).round();
     return math.max(
       0,
-      100 - (((reader.prediction ?? 0) - actual).abs() * 1.3).round(),
+      100 -
+          (((reader.prediction ?? 0) - readerAgreementPct).abs() * 1.3).round(),
     );
   }
 

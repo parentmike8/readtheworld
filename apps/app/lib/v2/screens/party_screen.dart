@@ -573,6 +573,7 @@ class _Play extends StatelessWidget {
                 ),
                 child: switch (party.sub) {
                   PartySub.pass => _PassScreen(party: party),
+                  PartySub.revealPass => _PassScreen(party: party),
                   PartySub.pick => _PickPanel(
                     party: party,
                     rooms: rooms,
@@ -1509,9 +1510,10 @@ class _PassScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final playerNumber = party.currentPlayerIndex + 1;
     final playerName = party.currentPlayerName;
+    final revealHandoff = party.sub == PartySub.revealPass;
     // turn 0 means this hand-off opens a fresh question with a new reader,
     // rather than passing between voters mid-question.
-    final newQuestion = party.turn == 0;
+    final newQuestion = !revealHandoff && party.turn == 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1542,7 +1544,11 @@ class _PassScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                newQuestion ? 'Next question, new reader.' : 'Pass it along.',
+                revealHandoff
+                    ? 'Pass back for the reveal.'
+                    : newQuestion
+                    ? 'Next question, new reader.'
+                    : 'Pass it along.',
                 textAlign: TextAlign.center,
                 style: v2Serif(32, letterSpacing: -0.5),
               ),
@@ -1563,7 +1569,9 @@ class _PassScreen extends StatelessWidget {
                         ),
                       ),
                       TextSpan(
-                        text: newQuestion
+                        text: revealHandoff
+                            ? '. Their prediction and score are ready.'
+                            : newQuestion
                             ? '. They answer first this round, then predict '
                                   'the table.'
                             : ", or set it down for them. Peeking's fine now, only "
@@ -1598,8 +1606,8 @@ class _RevealPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = party.revealT;
-    final yesPct = party.tableYesPct;
-    final yesCount = party.turnPicks.where((pick) => pick.side == 'a').length;
+    final yesPct = party.othersYesPct;
+    final yesCount = party.othersYesCount;
     final reader = party.turnPicks.isEmpty ? null : party.turnPicks.first;
     final isLast = party.idx + 1 >= party.deck.length;
 
@@ -1632,7 +1640,7 @@ class _RevealPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'THE ROOM · $yesCount of ${party.turnPicks.length} said ${card.optA}',
+                  'OTHER PLAYERS · $yesCount of ${party.otherPlayerCount} said ${card.optA}',
                   style: v2Mono(10, letterSpacing: 1),
                 ),
                 const SizedBox(height: 14),

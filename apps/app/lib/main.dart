@@ -278,11 +278,14 @@ class _RtwCupertinoPage extends Page<void> {
 }
 
 final rtwRouterProvider = Provider<GoRouter>((ref) {
+  const localPreview = bool.fromEnvironment('RTW_LOCAL_PREVIEW');
   final firebaseReady = ref.watch(firebaseReadyProvider);
   final appSettings = ref.watch(appSettingsProvider);
   final controller = ref.read(rtwControllerProvider);
   final roomsController = ref.read(roomsControllerProvider);
   final browserPath = Uri.base.path;
+  final isLocalPreviewPath =
+      localPreview && browserPath == '/review/onboarding';
   final isAppPath = [
     '/auth',
     '/onboarding',
@@ -298,7 +301,9 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
     '/profile',
   ].any((path) => browserPath == path || browserPath.startsWith('$path/'));
   final isShortCodePath = RegExp(r'^/[A-Za-z0-9]{4,16}$').hasMatch(browserPath);
-  final initialLocation = isAppPath || isShortCodePath ? browserPath : '/today';
+  final initialLocation = isAppPath || isShortCodePath || isLocalPreviewPath
+      ? browserPath
+      : '/today';
   return GoRouter(
     initialLocation: initialLocation,
     observers: firebaseReady
@@ -319,6 +324,7 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       final signedOut =
           firebaseReady && (currentUser == null || currentUser.isAnonymous);
       final path = state.uri.path;
+      if (localPreview && path == '/review/onboarding') return null;
       final authRequiredPath =
           path == '/onboarding' ||
           path == '/notifications' ||
@@ -342,6 +348,8 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/', redirect: (_, _) => '/today'),
+      if (localPreview)
+        _appRoute('/review/onboarding', (_, _) => const OnboardingScreenV2()),
       _appRoute('/auth', (_, _) => const AuthScreen()),
       _appRoute('/onboarding', (_, _) => const OnboardingScreenV2()),
       _appRoute(

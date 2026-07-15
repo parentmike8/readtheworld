@@ -1038,6 +1038,9 @@ class PredictionReadout extends StatelessWidget {
     this.primarySize = 80,
     this.primaryHeight = 1,
     this.infinite = false,
+    this.eyebrow,
+    this.sideCaption,
+    this.secondaryText,
   });
 
   static const countFirstThreshold = 25;
@@ -1050,6 +1053,9 @@ class PredictionReadout extends StatelessWidget {
   final double promptSize;
   final double primarySize;
   final double primaryHeight;
+  final String? eyebrow;
+  final String? sideCaption;
+  final String? secondaryText;
 
   /// Solo / World: no fixed room size, so read the prediction as a share of
   /// everyone who answers rather than a count of the current room [Mike].
@@ -1076,15 +1082,24 @@ class PredictionReadout extends StatelessWidget {
         : ((count / boundedPeople) * 100).round();
     final percentPrimary = infinite || boundedPeople > countFirstThreshold;
     final primary = percentPrimary ? '$boundedPercent%' : '$count';
-    final secondary = infinite
+    final defaultSecondary = infinite
         ? 'of people who answer'
         : percentPrimary
         ? '$count of $boundedPeople players'
         : '$countPercent% of the room';
+    final secondary = secondaryText ?? defaultSecondary;
     final predictionColor = RtwV2Colors.meterBlue;
 
     return Column(
       children: [
+        if (eyebrow != null) ...[
+          Text(
+            eyebrow!,
+            textAlign: TextAlign.center,
+            style: v2Mono(10, color: predictionColor, letterSpacing: 1.5),
+          ),
+          const SizedBox(height: 10),
+        ],
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 360),
           child: Text(
@@ -1107,18 +1122,22 @@ class PredictionReadout extends StatelessWidget {
           primaryHeight: primaryHeight,
           color: predictionColor,
         ),
-        const SizedBox(height: 10),
-        Text(
-          'Would pick “$sideLabel”',
-          textAlign: TextAlign.center,
-          style: v2Sans(14, color: predictionColor, weight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          secondary,
-          textAlign: TextAlign.center,
-          style: v2Sans(13, color: RtwV2Colors.muted),
-        ),
+        if ((sideCaption ?? 'Would pick “$sideLabel”').isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            sideCaption ?? 'Would pick “$sideLabel”',
+            textAlign: TextAlign.center,
+            style: v2Sans(14, color: predictionColor, weight: FontWeight.w700),
+          ),
+        ],
+        if (secondary.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            secondary,
+            textAlign: TextAlign.center,
+            style: v2Sans(13, color: RtwV2Colors.muted),
+          ),
+        ],
       ],
     );
   }

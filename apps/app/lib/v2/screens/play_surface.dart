@@ -1114,7 +1114,7 @@ class _PredictStage extends StatelessWidget {
             const SizedBox(width: 8),
             Text.rich(
               TextSpan(
-                text: 'You said ',
+                text: session.mode == 'intro' ? 'Your answer: ' : 'You said ',
                 style: v2Sans(14, color: RtwV2Colors.subText),
                 children: [
                   TextSpan(
@@ -1140,9 +1140,16 @@ class _PredictStage extends StatelessWidget {
                 people: others,
                 sideLabel: sideLabel,
                 sideColor: sideColor,
+                eyebrow: session.mode == 'intro'
+                    ? 'NEXT: MAKE A PREDICTION'
+                    : null,
                 prompt: session.mode == 'intro'
-                    ? 'What % of people would agree with you?'
+                    ? 'What % of people do you think will also choose “$sideLabel”?'
                     : 'How many will agree with you?',
+                sideCaption: session.mode == 'intro'
+                    ? 'This is your prediction. Results come later.'
+                    : null,
+                secondaryText: session.mode == 'intro' ? '' : null,
                 infinite: infinite,
               ),
               const SizedBox(height: 28),
@@ -1191,7 +1198,9 @@ String _saveLabel(PlaySession session, TodayDeckCard card) {
     return isLast ? 'Submit · all done →' : 'Submit · next →';
   }
   if (session.mode == 'intro') {
-    return isLast ? 'Submit →' : 'Submit · next →';
+    return isLast
+        ? 'Lock in ${session.pred}% →'
+        : 'Lock in ${session.pred}% · next →';
   }
   return isLast ? 'Submit answers →' : 'Submit · next →';
 }
