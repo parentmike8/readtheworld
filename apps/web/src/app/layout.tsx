@@ -22,11 +22,13 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://readtheworld.today"),
   title: {
-    default: "Read the World",
+    default: "Daily Prediction Game for Friends & Groups | Read the World",
     template: "%s · Read the World",
   },
   description:
-    "A daily game of public opinion. Answer for yourself, predict the world, and build your Read Score.",
+    "Answer three daily questions, predict how your friends or the world will answer, and score how accurately you read the group.",
+  applicationName: "Read the World",
+  category: "games",
   alternates: {
     canonical: "/",
   },
@@ -38,18 +40,18 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
   },
   openGraph: {
-    title: "Read the World",
+    title: "Daily Prediction Game for Friends & Groups | Read the World",
     description:
-      "Three shared questions a day. Answer privately, predict how the group will answer, and see how close your read was.",
+      "Answer three daily questions, predict how your friends or the world will answer, and score how accurately you read the group.",
     url: "https://readtheworld.today",
     siteName: "Read the World",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Read the World",
+    title: "Daily Prediction Game for Friends & Groups | Read the World",
     description:
-      "Three shared questions a day. Answer privately, predict how the group will answer, and see how close your read was.",
+      "Answer three daily questions, predict how your friends or the world will answer, and score how accurately you read the group.",
   },
 };
 
