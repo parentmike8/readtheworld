@@ -49,7 +49,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool phoneMode = false;
   bool obscure = true;
   bool authBusy = false;
-  bool handoffStarted = false;
+  bool handoffFailed = false;
+  String? handoffCode;
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final phoneController = TextEditingController();
@@ -72,10 +73,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       phoneMode = true;
       phoneController.text = phone;
     }
-    final handoffCode = Uri.base.queryParameters['handoff'];
-    if (handoffCode != null && handoffCode.trim().isNotEmpty) {
+    final nextHandoffCode = Uri.base.queryParameters['handoff']?.trim();
+    if (nextHandoffCode != null && nextHandoffCode.isNotEmpty) {
+      handoffCode = nextHandoffCode;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _redeemHandoff(handoffCode.trim());
+        if (mounted) _redeemHandoff();
       });
     }
   }
@@ -123,11 +125,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     );
   }
 
-  Future<void> _redeemHandoff(String code) async {
-    if (handoffStarted || authBusy) return;
+  Future<void> _redeemHandoff() async {
+    final code = handoffCode;
+    if (code == null || authBusy) return;
     setState(() {
-      handoffStarted = true;
       authBusy = true;
+      handoffFailed = false;
     });
     final route = await ref
         .read(rtwControllerProvider)
@@ -136,13 +139,32 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           fallbackRoute: Uri.base.queryParameters['next'],
         );
     if (!mounted) return;
-    setState(() => authBusy = false);
+    setState(() {
+      authBusy = false;
+      handoffFailed = route == null;
+    });
     if (route != null) context.go(route);
+  }
+
+  void _showSignIn() {
+    setState(() {
+      handoffCode = null;
+      handoffFailed = false;
+      authBusy = false;
+    });
+    context.go('/auth');
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(rtwControllerProvider);
+    if (handoffCode != null) {
+      return _AuthHandoffScreen(
+        busy: authBusy || !handoffFailed,
+        onRetry: _redeemHandoff,
+        onSignIn: _showSignIn,
+      );
+    }
     final size = MediaQuery.sizeOf(context);
     final width = size.width;
     final isWide = width >= 820;
@@ -453,6 +475,100 @@ class _AuthMiniSpectrum extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AuthHandoffScreen extends StatelessWidget {
+  const _AuthHandoffScreen({
+    required this.busy,
+    required this.onRetry,
+    required this.onSignIn,
+  });
+
+  final bool busy;
+  final VoidCallback onRetry;
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final failed = !busy;
+    return Scaffold(
+      backgroundColor: RtwColors.paper,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.fromLTRB(40, 44, 40, 40),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.58),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: RtwColors.border),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1428241C),
+                    blurRadius: 48,
+                    offset: Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const RtwLogo(),
+                  const SizedBox(height: 44),
+                  if (busy)
+                    const SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: CircularProgressIndicator(
+                        color: RtwColors.blue,
+                        strokeWidth: 3,
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: RtwColors.clay,
+                      size: 38,
+                    ),
+                  const SizedBox(height: 28),
+                  Text(
+                    failed
+                        ? 'We couldn\'t open your account.'
+                        : 'Opening Read the World',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineLarge!.copyWith(
+                      fontSize: 34,
+                      height: 1.08,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    failed
+                        ? 'The secure link may have expired. Try again or sign in instead.'
+                        : 'Signing you in securely.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  if (failed) ...[
+                    const SizedBox(height: 30),
+                    RtwButton(label: 'Try again', onPressed: onRetry),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: onSignIn,
+                      style: _authTextButtonStyle(),
+                      child: const Text('Sign in instead'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -148,6 +148,7 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
   const [footerEmail, setFooterEmail] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState<"" | "gate">("");
+  const [openingRoute, setOpeningRoute] = useState("");
   const [openFaq, setOpenFaq] = useState(0);
   const [worldQuestions, setWorldQuestions] = useState<WorldQuestion[]>(initialWorld.questions);
   const [worldDailyKey, setWorldDailyKey] = useState(initialWorld.dailyKey);
@@ -362,17 +363,26 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
   }
 
   async function enterApp(targetRoute: string) {
-    if (!user) {
-      window.location.href = `${appBaseUrl}/auth`;
-      return;
-    }
-    setSubmitting("gate");
+    setOpeningRoute(targetRoute);
     setSubmitError("");
     try {
+      // Firebase is intentionally lazy-loaded on the landing page. Resolve its
+      // persisted session before deciding that a returning user is signed out,
+      // otherwise their first nav click can race Auth initialization.
+      const activeServices = await ensureFirebaseServices();
+      if (!activeServices) {
+        window.location.href = `${appBaseUrl}/auth`;
+        return;
+      }
+      await activeServices.auth.authStateReady();
+      if (!activeServices.auth.currentUser) {
+        window.location.href = `${appBaseUrl}/auth`;
+        return;
+      }
       window.location.href = await createAppHandoff(targetRoute);
     } catch (error) {
       setSubmitError(errorMessage(error));
-      setSubmitting("");
+      setOpeningRoute("");
     }
   }
 
@@ -460,18 +470,20 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
                 className="textNavButton lpHideMobile"
                 type="button"
                 onClick={() => enterApp("/account")}
-                disabled={submitting === "gate"}
+                disabled={submitting === "gate" || openingRoute !== ""}
+                aria-busy={openingRoute === "/account"}
               >
-                Account
+                {openingRoute === "/account" ? "Opening..." : "Account"}
               </button>
             ) : null}
             <button
               className="darkButton"
               type="button"
-              onClick={() => enterApp(!user ? "/auth" : "/today")}
-              disabled={submitting === "gate"}
+              onClick={() => enterApp("/today")}
+              disabled={submitting === "gate" || openingRoute !== ""}
+              aria-busy={openingRoute === "/today"}
             >
-              {navCtaLabel} {"\u2192"}
+              {openingRoute === "/today" ? "Opening..." : `${navCtaLabel} \u2192`}
             </button>
           </div>
         </div>

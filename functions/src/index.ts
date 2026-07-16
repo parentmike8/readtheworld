@@ -146,6 +146,12 @@ const CONTENT_REPORT_RESPONSE_MS = 24 * 60 * 60 * 1000;
 // App Check is enforced in production; the emulator has no tokens.
 const callableOptions = { enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true" };
 const authOnlyCallableOptions = callableOptions;
+const authHandoffCallableOptions = {
+  ...callableOptions,
+  // The landing page and app call these functions sequentially. Keeping the
+  // tiny handoff workers warm avoids making users wait through two cold starts.
+  minInstances: 1,
+};
 const emailCallableOptions = {
   ...callableOptions,
   secrets: [postmarkServerToken],
@@ -1800,7 +1806,7 @@ export const submitPrediction = onCall(callableOptions, async (request) => {
   return result;
 });
 
-export const createAuthHandoff = onCall(callableOptions, async (request) => {
+export const createAuthHandoff = onCall(authHandoffCallableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const targetRoute = assertAppRoute(request.data?.targetRoute, "/today");
   const rawQuestionId = typeof request.data?.questionId === "string"
@@ -1863,7 +1869,7 @@ export const createAuthHandoff = onCall(callableOptions, async (request) => {
   };
 });
 
-export const redeemAuthHandoff = onCall(callableOptions, async (request) => {
+export const redeemAuthHandoff = onCall(authHandoffCallableOptions, async (request) => {
   const code = assertString(request.data?.code, "code").toUpperCase();
   let payload: AuthHandoffPayload | null = null;
 
