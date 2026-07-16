@@ -812,6 +812,7 @@ class RoomsController extends ChangeNotifier {
   void dismissSummaryTo(String route) {
     summaryRoomId = null;
     pendingPlayExitRoute = route;
+    _playEntryRoute = null;
     notifyListeners();
   }
 

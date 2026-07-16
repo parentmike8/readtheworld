@@ -1917,9 +1917,11 @@ class _VoteRow extends StatelessWidget {
             ),
           const SizedBox(width: 10),
           SizedBox(
-            width: 38,
+            width: 64,
             child: Text(
               '${party.scores[playerIndex].round()}',
+              maxLines: 1,
+              softWrap: false,
               textAlign: TextAlign.right,
               style: v2Serif(19),
             ),

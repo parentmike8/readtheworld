@@ -692,6 +692,7 @@ class _InviteSheet extends StatefulWidget {
 
 class _InviteSheetState extends State<_InviteSheet> {
   bool copied = false;
+  bool codeCopied = false;
 
   String get _link => widget.isWorld
       ? _appDownloadLink()
@@ -776,6 +777,52 @@ class _InviteSheetState extends State<_InviteSheet> {
             ],
           ),
         ),
+        if (!widget.isWorld) ...[
+          const SizedBox(height: 9),
+          Semantics(
+            button: true,
+            label: 'Copy room code',
+            child: InkWell(
+              key: const ValueKey('invite-room-code'),
+              onTap: widget.code == null
+                  ? null
+                  : () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: widget.code!.toUpperCase()),
+                      );
+                      if (mounted) setState(() => codeCopied = true);
+                    },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+                child: Row(
+                  children: [
+                    Text('ROOM CODE', style: v2Mono(10, letterSpacing: 1.3)),
+                    const SizedBox(width: 10),
+                    Text(
+                      widget.code?.toUpperCase() ?? '…',
+                      style: v2Mono(
+                        14,
+                        color: RtwV2Colors.blue,
+                        weight: FontWeight.w600,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      codeCopied ? 'Copied ✓' : 'Tap to copy',
+                      style: v2Sans(
+                        11,
+                        color: RtwV2Colors.blue,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         V2Button(
           widget.isWorld ? 'Share the game' : 'Share invite link',
@@ -1305,6 +1352,7 @@ Future<void> showRoomMenuSheet(
   String roomId, {
   required VoidCallback onHistory,
 }) {
+  final navigatorContext = Navigator.of(context).context;
   // Failed actions (toggle, leave) surface here instead of silently leaving
   // the sheet open with nothing moved.
   String? actionError;
@@ -1352,6 +1400,22 @@ Future<void> showRoomMenuSheet(
                 ),
                 child: Column(
                   children: [
+                    if (room?.isWorld != true) ...[
+                      _MenuRow(
+                        label: 'Invite people',
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          await Future<void>.delayed(Duration.zero);
+                          if (!navigatorContext.mounted) return;
+                          await showInviteSheet(
+                            navigatorContext,
+                            rooms,
+                            roomId,
+                          );
+                        },
+                      ),
+                      const V2Hairline(),
+                    ],
                     _MenuRow(
                       label: 'Room history',
                       onTap: () {

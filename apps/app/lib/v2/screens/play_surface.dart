@@ -1487,6 +1487,8 @@ class _RoundSummary extends ConsumerWidget {
     final room = binding?.room;
     final roomName = room?.name ?? 'your room';
     final isWorld = room?.isWorld ?? roomId == worldRoomId;
+    final entryRoute = rooms.playEntryRoute;
+    final returnsToHistory = entryRoute?.endsWith('/history') ?? false;
     final day = isWorld ? rooms.worldToday : binding?.today;
     final answer = binding?.myTodayAnswer;
     final worldGoal = _formatThousands(room?.worldGoal ?? 5000);
@@ -1573,8 +1575,10 @@ class _RoundSummary extends ConsumerWidget {
             ),
           ),
           V2Button(
-            'Back to $roomName',
-            onPressed: () => rooms.dismissSummaryTo('/rooms/$roomId'),
+            returnsToHistory ? 'Back' : 'Back to $roomName',
+            onPressed: () => rooms.dismissSummaryTo(
+              returnsToHistory ? entryRoute! : '/rooms/$roomId',
+            ),
             padding: const EdgeInsets.symmetric(vertical: 17),
             radius: 16,
             fontSize: 16,

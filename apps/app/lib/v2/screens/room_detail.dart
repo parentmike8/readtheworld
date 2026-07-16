@@ -240,29 +240,14 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
             ],
             if (hasBoard) ...[
               const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const V2Eyebrow(
-                    'Room leaderboard',
-                    size: 11,
-                    letterSpacing: 1.6,
-                  ),
-                  GestureDetector(
-                    onTap: () => showInviteSheet(context, rooms, room.id),
-                    child: Text(
-                      'Invite +',
-                      style: v2Sans(
-                        13,
-                        color: RtwV2Colors.blue,
-                        weight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              const V2Eyebrow('Room leaderboard', size: 11, letterSpacing: 1.6),
               const SizedBox(height: 13),
-              _Leaderboard(rooms: rooms, roomId: room.id, myUid: rooms.uid),
+              _Leaderboard(
+                rooms: rooms,
+                roomId: room.id,
+                myUid: me?.uid,
+                onInvite: () => showInviteSheet(context, rooms, room.id),
+              ),
             ],
           ],
         ),
@@ -837,11 +822,13 @@ class _Leaderboard extends StatefulWidget {
     required this.rooms,
     required this.roomId,
     required this.myUid,
+    required this.onInvite,
   });
 
   final RoomsController rooms;
   final String roomId;
   final String? myUid;
+  final VoidCallback onInvite;
 
   @override
   State<_Leaderboard> createState() => _LeaderboardState();
@@ -868,7 +855,6 @@ class _LeaderboardState extends State<_Leaderboard> {
       stream: _membersStream,
       builder: (context, snapshot) {
         final members = snapshot.data ?? const <RtwRoomMember>[];
-        if (members.isEmpty) return const SizedBox.shrink();
         return Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
@@ -925,8 +911,55 @@ class _LeaderboardState extends State<_Leaderboard> {
                     ],
                   ),
                 ),
-                if (index < members.length - 1) const V2Hairline(),
+                const V2Hairline(),
               ],
+              Semantics(
+                button: true,
+                label: 'Invite someone to this room',
+                child: InkWell(
+                  key: const ValueKey('room-invite-row'),
+                  onTap: widget.onInvite,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: RtwV2Colors.meterBlue.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_add_alt_1,
+                            size: 16,
+                            color: RtwV2Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Add someone',
+                            style: v2Sans(
+                              15,
+                              color: RtwV2Colors.blue,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.add,
+                          size: 20,
+                          color: RtwV2Colors.blue,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         );

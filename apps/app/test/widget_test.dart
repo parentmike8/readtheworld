@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +40,7 @@ RoomBinding _binding({
   required String name,
   int members = 5,
   bool isWorld = false,
+  String? inviteCode,
   List<String> qids = const ['q1', 'q2', 'q3'],
 }) {
   return RoomBinding()
@@ -50,6 +53,7 @@ RoomBinding _binding({
       customEnabled: true,
       memberCount: members,
       isWorld: isWorld,
+      inviteCode: inviteCode,
     )
     ..today = RoomDay(
       dailyKey: '2026-07-02',
@@ -58,8 +62,23 @@ RoomBinding _binding({
     );
 }
 
+class _TestRoomsController extends RoomsController {
+  _TestRoomsController() : super(firebaseReady: false);
+
+  @override
+  String? get uid => 'u1';
+
+  @override
+  Stream<List<QueueItem>> queueStream(String roomId) =>
+      Stream.value(const <QueueItem>[]);
+
+  @override
+  Stream<List<RtwRoomMember>> membersStream(String roomId) =>
+      Stream.value(const <RtwRoomMember>[]);
+}
+
 RoomsController _roomsWith(List<RoomBinding> bindings) {
-  final controller = RoomsController(firebaseReady: false);
+  final controller = _TestRoomsController();
   for (final binding in bindings) {
     controller.bindings[binding.room!.id] = binding;
   }
@@ -1300,6 +1319,153 @@ void main() {
       expect(find.text('Stay in room'), findsOneWidget);
     });
 
+    testWidgets('room leaderboard ends with a prominent invite row', (
+      tester,
+    ) async {
+      String? copiedText;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedText =
+                  (call.arguments as Map<Object?, Object?>)['text'] as String?;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final rooms = _roomsWith([
+        _binding(
+          id: 'studio',
+          name: 'The Studio',
+          members: 3,
+          inviteCode: 'ABC123',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: RoomDetailScreen(roomId: 'studio')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invite +'), findsNothing);
+      expect(find.text('Add someone'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Add someone'));
+      await tester.tap(find.byKey(const ValueKey('room-invite-row')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('INVITE FRIENDS'), findsOneWidget);
+      expect(find.text('ABC123'), findsOneWidget);
+      expect(find.text('Share invite link'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('invite-room-code')));
+      await tester.pump();
+      expect(copiedText, 'ABC123');
+      expect(find.text('Copied ✓'), findsOneWidget);
+    });
+
+    testWidgets('past World play returns to the history list', (tester) async {
+      final world = _binding(id: worldRoomId, name: 'The World', isWorld: true);
+      final rooms = _roomsWith([world])
+        ..worldRoom = world.room
+        ..worldToday = world.today;
+      rooms.startWorldDayPlay(
+        RoomHistoryDay(day: world.today!),
+        entryRoute: '/rooms/$worldRoomId/history',
+      );
+      rooms
+        ..play = null
+        ..summaryRoomId = worldRoomId;
+      final router = GoRouter(
+        initialLocation: '/today/play',
+        routes: [
+          GoRoute(
+            path: '/today/play',
+            builder: (_, _) => const RoomPlayScreen(),
+          ),
+          GoRoute(
+            path: '/rooms/:roomId/history',
+            builder: (_, _) => const Text('World history list'),
+          ),
+          GoRoute(
+            path: '/rooms/:roomId',
+            builder: (_, state) =>
+                Text('Room ${state.pathParameters['roomId']}'),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(V2Button, 'Back'), findsOneWidget);
+      expect(find.text('Back to The World'), findsNothing);
+
+      await tester.tap(find.widgetWithText(V2Button, 'Back'));
+      await tester.pumpAndSettle();
+
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        '/rooms/$worldRoomId/history',
+      );
+      expect(find.text('World history list'), findsOneWidget);
+    });
+
+    testWidgets('room overflow menu includes the invite flow', (tester) async {
+      final rooms = _roomsWith([
+        _binding(id: 'studio', name: 'The Studio', members: 3),
+      ]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: RoomDetailScreen(roomId: 'studio')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(find.text('Invite people'), findsOneWidget);
+
+      await tester.tap(find.text('Invite people'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('INVITE FRIENDS'), findsOneWidget);
+      expect(find.text('Share invite link'), findsOneWidget);
+    });
+
     testWidgets('prediction readout uses fractions for small rooms', (
       tester,
     ) async {
@@ -1622,6 +1788,57 @@ void main() {
       expect(party.readerIndex, 1);
       expect(party.currentPlayerIndex, 1);
       expect(find.widgetWithText(V2Button, "I'm Player 2"), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      party.dispose();
+    });
+
+    testWidgets('party reveal keeps three-digit scores on one line', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(1);
+      party.start([_partyQuestion('p1')]);
+      _playPartyQuestionToReveal(party);
+      party.scores = [300.0, 300.0, 300.0];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            partyControllerProvider.overrideWith(
+              (_) => party,
+              disposeNotifier: false,
+            ),
+            roomsControllerProvider.overrideWith(
+              (_) => RoomsController(firebaseReady: false),
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scores = find.text('300');
+      expect(scores, findsNWidgets(3));
+      for (var index = 0; index < 3; index++) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          scores.at(index),
+        );
+        expect(
+          paragraph.getBoxesForSelection(
+            const TextSelection(baseOffset: 0, extentOffset: 3),
+          ),
+          hasLength(1),
+        );
+      }
+      expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
       party.dispose();
