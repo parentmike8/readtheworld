@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,11 @@ class _TestRtwController extends RtwController {
     displayName = value;
     notifyListeners();
   }
+}
+
+class _TestFunctionsException extends FirebaseFunctionsException {
+  _TestFunctionsException(String code)
+    : super(message: 'Internal details', code: code);
 }
 
 void main() {
@@ -59,8 +65,7 @@ void main() {
     ) async {
       final profile = RtwController(firebaseReady: false)
         ..stashPendingInviteCode('ROOM42');
-      final rooms = RoomsController(firebaseReady: false)
-        ..loadingRooms = false;
+      final rooms = RoomsController(firebaseReady: false)..loadingRooms = false;
       final container = ProviderContainer(
         overrides: [
           firebaseReadyProvider.overrideWithValue(false),
@@ -97,9 +102,31 @@ void main() {
       expect(joinPreviewInitial(''), '?');
       expect(joinPreviewInitial('Studio'), 'S');
     });
+
+    test('preview failures never expose internal exception details', () {
+      expect(
+        joinPreviewErrorMessage(_TestFunctionsException('not-found')),
+        'This invite is not valid.',
+      );
+      expect(
+        joinPreviewErrorMessage(StateError('Internal stack trace')),
+        'Could not open this invite. Please try again.',
+      );
+    });
   });
 
   group('Legacy short links', () {
+    test('short-link failures never expose internal exception details', () {
+      expect(
+        shortLinkErrorMessage(_TestFunctionsException('unauthenticated')),
+        'Could not verify this link. Please try again.',
+      );
+      expect(
+        shortLinkErrorMessage(StateError('Internal stack trace')),
+        'Could not open this link. Please try again.',
+      );
+    });
+
     testWidgets('unsupported links show an honest dead-end', (tester) async {
       await tester.pumpWidget(
         ProviderScope(

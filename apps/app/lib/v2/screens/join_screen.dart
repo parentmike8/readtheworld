@@ -19,6 +19,17 @@ String joinPreviewInitial(String? name) {
   return name.substring(0, 1);
 }
 
+String joinPreviewErrorMessage(Object error) {
+  if (error is FirebaseFunctionsException) {
+    return switch (error.code) {
+      'not-found' => 'This invite is not valid.',
+      'failed-precondition' => 'This invite has expired.',
+      _ => 'Could not open this invite. Please try again.',
+    };
+  }
+  return 'Could not open this invite. Please try again.';
+}
+
 /// Landing for shared room links (`rtw.codes/CODE` → `/join/CODE`): shows
 /// the room preview, runs the After Dark consent when needed, and joins.
 /// Signed-out readers keep the invite: the code is stashed and resumes at
@@ -73,11 +84,11 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
           // after sign-in.
           ref.read(rtwControllerProvider).consumePendingInviteCode();
         }
-        setState(() => error = functionsError.message ?? functionsError.code);
+        setState(() => error = joinPreviewErrorMessage(functionsError));
       }
     } catch (genericError) {
       if (!mounted) return;
-      setState(() => error = genericError.toString());
+      setState(() => error = joinPreviewErrorMessage(genericError));
     }
   }
 
@@ -124,24 +135,34 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 text: 'read the world',
                 style: v2Serif(21, letterSpacing: -0.5),
                 children: [
-                  TextSpan(text: '.', style: v2Serif(21, color: RtwV2Colors.clay)),
+                  TextSpan(
+                    text: '.',
+                    style: v2Serif(21, color: RtwV2Colors.clay),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 40),
-            const V2Eyebrow('Room invite', color: RtwV2Colors.clay, letterSpacing: 1.6),
+            const V2Eyebrow(
+              'Room invite',
+              color: RtwV2Colors.clay,
+              letterSpacing: 1.6,
+            ),
             const SizedBox(height: 10),
             Text(
               error != null
                   ? 'This invite is unavailable.'
                   : preview == null && !needsAuth
-                      ? 'Opening your invite…'
-                      : "You're invited in.",
+                  ? 'Opening your invite…'
+                  : "You're invited in.",
               style: v2Serif(34, height: 1.08, letterSpacing: -0.6),
             ),
             if (error != null) ...[
               const SizedBox(height: 12),
-              Text(error!, style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5)),
+              Text(
+                error!,
+                style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+              ),
             ],
             if (error == null && needsAuth) ...[
               const SizedBox(height: 12),
@@ -153,7 +174,10 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
             if (preview != null) ...[
               const SizedBox(height: 24),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: RtwV2Colors.card,
                   border: Border.all(color: RtwV2Colors.border),
@@ -166,7 +190,9 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                       height: 46,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: RtwV2Colors.roomColor(preview!['color']?.toString()),
+                        color: RtwV2Colors.roomColor(
+                          preview!['color']?.toString(),
+                        ),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text(
@@ -179,7 +205,10 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(preview!['name']?.toString() ?? 'Room', style: v2Serif(19)),
+                          Text(
+                            preview!['name']?.toString() ?? 'Room',
+                            style: v2Serif(19),
+                          ),
                           const SizedBox(height: 2),
                           Row(
                             children: [
@@ -187,13 +216,10 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                                 TierChip(tier: tier),
                                 const SizedBox(width: 8),
                               ],
-                              Text(
-                                switch (preview!['memberCount'] ?? 0) {
-                                  1 => '1 member',
-                                  final n => '$n members',
-                                },
-                                style: v2Sans(12.5, color: RtwV2Colors.muted),
-                              ),
+                              Text(switch (preview!['memberCount'] ?? 0) {
+                                1 => '1 member',
+                                final n => '$n members',
+                              }, style: v2Sans(12.5, color: RtwV2Colors.muted)),
                             ],
                           ),
                         ],
@@ -218,13 +244,13 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 busy
                     ? 'Joining…'
                     : alreadyMember
-                        ? 'Open room →'
-                        : 'Join room →',
+                    ? 'Open room →'
+                    : 'Join room →',
                 onPressed: busy
                     ? null
                     : alreadyMember
-                        ? () => context.go('/rooms/${preview!['roomId']}')
-                        : _join,
+                    ? () => context.go('/rooms/${preview!['roomId']}')
+                    : _join,
                 padding: const EdgeInsets.symmetric(vertical: 17),
                 radius: 16,
                 fontSize: 16,
@@ -243,7 +269,11 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 },
                 child: Text(
                   error != null ? 'Back to your rooms' : 'Not now',
-                  style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),
+                  style: v2Sans(
+                    14,
+                    color: RtwV2Colors.subText,
+                    weight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),

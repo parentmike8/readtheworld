@@ -20,6 +20,19 @@ const _pushRegistrationChannel = MethodChannel(
   'today.readtheworld.app/push_registration',
 );
 
+String shortLinkErrorMessage(Object error) {
+  if (error is FirebaseFunctionsException) {
+    return switch (error.code) {
+      'not-found' => 'This link is not valid.',
+      'deadline-exceeded' => 'This link has expired.',
+      'unauthenticated' ||
+      'permission-denied' => 'Could not verify this link. Please try again.',
+      _ => 'Could not open this link. Please try again.',
+    };
+  }
+  return 'Could not open this link. Please try again.';
+}
+
 class RtwController extends ChangeNotifier {
   RtwController({required this.firebaseReady}) {
     if (firebaseReady) {
@@ -2002,7 +2015,7 @@ class RtwController extends ChangeNotifier {
       notifyListeners();
       return null;
     } catch (error) {
-      lastError = error.toString();
+      lastError = shortLinkErrorMessage(error);
       notifyListeners();
       return null;
     }
