@@ -29,9 +29,8 @@ firebase deploy --only functions
 - [ ] Watch logs for the first `rolloverRooms` / lock after deploy.
 
 ## 2. Firestore rules / indexes
-- **No rules changes this session** — existing rules already cover the new World
-  paths (day reads for members/world, own-answer owner reads, writes are
-  admin-SDK). Deploy only if `firebase/firestore.rules` actually changed:
+- **No rules or index changes this session.** Deploy these only if their files
+  actually change in a future release:
   ```
   firebase deploy --only firestore:rules,firestore:indexes
   ```
@@ -43,30 +42,36 @@ firebase deploy --only functions
 ## 4. Flutter web
 ```
 scripts/build-flutter-web.sh      # injects the RTW_* dart-defines from .env.local
-firebase deploy --only hosting
+firebase deploy --only hosting:app
 ```
 
 ## 5. iOS (App Store) — NOT one-command
-Not published yet, so first submission has one-time setup.
-- [ ] App Store Connect: app record, bundle id `today.readtheworld.app`,
-      screenshots, privacy labels, metadata.
+The App Store record already exists. This is a new build submission for the
+existing app.
 - [ ] Signing: distribution cert + provisioning profile (Apple Developer acct).
 - [ ] **App Check = App Attest**: enable App Attest for the iOS app in Firebase
       → App Check, or live callables return `unauthenticated`. (Debug tokens are
       simulator-only — see §7.)
 - [ ] Bump the build number in `apps/app/pubspec.yaml`.
-- [ ] Create a signed archive. Do not export an unsigned Flutter archive for
-      upload: that path can silently omit Apple Sign-In, APNs, and associated
-      domain entitlements from the final app signature.
+- [ ] Build the archive/IPA with `scripts/build-flutter-ios-release.sh`. Never
+      archive with bare `flutter build ipa` or from Xcode Organizer directly:
+      the archive inherits `DART_DEFINES` from whatever flutter command ran
+      last (a prior QA run bakes in the emulator config; a plain `flutter run`
+      bakes in nothing) and ships silently broken. The script validates
+      `.env.local`, injects the defines, and asserts they landed in the build.
+      Also do not export an unsigned Flutter archive for upload: that path can
+      silently omit Apple Sign-In, APNs, and associated domain entitlements
+      from the final app signature.
 - [ ] Before upload, verify the signed archive or exported IPA and its expected
-      build number:
+      build number (use the current build number from `apps/app/pubspec.yaml`):
   ```
-  npm run ios:release-check -- apps/app/build/ios/archive/Runner.xcarchive 19
+  npm run ios:release-check -- apps/app/build/ios/archive/Runner.xcarchive <build-number>
   # or
-  npm run ios:release-check -- "apps/app/build/ios/export/Read the World.ipa" 19
+  npm run ios:release-check -- apps/app/build/ios/ipa/*.ipa <build-number>
   ```
   This gate must report Apple Sign-In, production push notifications,
-  `applinks:rtw.codes`, and a valid distribution signature before upload.
+  `applinks:rtw.codes`, a valid distribution signature, and the production
+  Firebase config baked into the Dart snapshot before upload.
 - [ ] Export/upload the verified signed archive with `xcodebuild
       -exportArchive` and an App Store Connect export options plist.
 

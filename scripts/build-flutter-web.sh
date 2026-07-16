@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$ROOT_DIR/scripts/flutter-dart-defines.sh"
 
 rtw_load_flutter_env "$ROOT_DIR"
+rtw_require_web_flutter_defines
 dart_define_args=()
 while IFS= read -r arg; do
   dart_define_args+=("$arg")

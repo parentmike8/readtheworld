@@ -88,8 +88,41 @@ if [[ ! -f "$app_path/embedded.mobileprovision" ]]; then
   exit 1
 fi
 
+# The Dart AOT snapshot must contain the production dart-defines: a binary
+# built without them boots in the degraded "Firebase unavailable" mode with no
+# other symptom until it is on a user's phone.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+. "$script_dir/flutter-dart-defines.sh"
+rtw_load_flutter_env "$script_dir/.."
+expected_project_id="${RTW_FIREBASE_PROJECT_ID:-read-the-world-74f2a}"
+
+app_binary="$app_path/Frameworks/App.framework/App"
+if [[ ! -f "$app_binary" ]]; then
+  echo "Dart AOT snapshot not found at Frameworks/App.framework/App." >&2
+  exit 1
+fi
+
+# Dump once and grep the file: piping strings straight into grep -q can die
+# on SIGPIPE under pipefail, which would invert these gates.
+strings_dump="$temporary_dir/app-strings.txt"
+/usr/bin/strings "$app_binary" > "$strings_dump"
+
+if ! grep -qF "$expected_project_id" "$strings_dump"; then
+  echo "The Dart snapshot does not contain Firebase project '$expected_project_id'." >&2
+  echo "This binary was built without the production dart-defines. Do not ship it." >&2
+  exit 1
+fi
+
+if grep -qE '(^|[^0-9.])(127\.0\.0\.1|10\.0\.2\.2)([^0-9.]|$)' "$strings_dump"; then
+  echo "The Dart snapshot contains an emulator host (127.0.0.1/10.0.2.2)." >&2
+  echo "This binary looks like a QA/emulator build. Do not ship it." >&2
+  exit 1
+fi
+
 echo "iOS release verified: today.readtheworld.app build $build_number"
 echo "  Apple Sign-In: Default"
 echo "  Push notifications: production"
 echo "  Associated domain: applinks:rtw.codes"
 echo "  Distribution signature: valid"
+echo "  Firebase config: $expected_project_id baked into Dart snapshot, no emulator hosts"

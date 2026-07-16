@@ -205,6 +205,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				938F44AA50DB3D81FEA9DABD /* [CP] Embed Pods Frameworks */,
 				472CB3167EF2B99D5B74674A /* [CP] Copy Pods Resources */,
+				A7C9E1F2D4B6083A5C1D9E70 /* Upload Crashlytics dSYMs */,
 			);
 			buildRules = (
 			);
@@ -362,6 +363,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		A7C9E1F2D4B6083A5C1D9E70 /* Upload Crashlytics dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"$(SRCROOT)/$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Upload Crashlytics dSYMs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Firebase config is dart-define driven (no GoogleService-Info.plist), so pass the app id explicitly.\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  exit 0\nfi\n\"${PODS_ROOT}/FirebaseCrashlytics/run\" -ai 1:863014025103:ios:b20d5ea02d9ec2c76bbdfa\n";
 		};
 		F07FC9E4D0D05A3F701C287E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
