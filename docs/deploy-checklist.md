@@ -1,10 +1,10 @@
 # Deploy checklist
 
-Practical steps to ship the current `main`. Split by surface — backend/web are
+Practical steps to ship the current `main`. Split by surface. Backend/web are
 close to one-command; iOS/Android stores are a real release process.
 
 ## 0. Preflight
-- [ ] `git pull` on `main` (this session pushed 25 commits up to `e38d59a`).
+- [ ] `git pull` on `main` and confirm the worktree is clean.
 - [ ] Functions build + tests green:
   ```
   cd functions && npm ci && npx tsc --noEmit && npm test
@@ -32,11 +32,11 @@ cd .. && npm run deploy:functions
 - **No rules or index changes this session.** Deploy these only if their files
   actually change in a future release:
   ```
-  firebase deploy --only firestore:rules,firestore:indexes
+  npx -y firebase-tools@15.22.3 deploy --only firestore:rules,firestore:indexes
   ```
 
 ## 3. Remote Config (feature flags)
-- `feature_world_room_unlocked` stays **false** — World scoring auto-unlocks at
+- `feature_world_room_unlocked` stays **false**. World scoring auto-unlocks at
   5K users; the flag is a manual override for early testing only.
 
 ## 4. Flutter web
@@ -44,13 +44,21 @@ cd .. && npm run deploy:functions
 npm run deploy:app  # builds with production dart-defines, then deploys hosting:app
 ```
 
-## 5. iOS (App Store) — NOT one-command
+## 5. Admin and marketing web
+This App Hosting backend uses local-source rollouts, not a connected GitHub
+repository. A push to `main` does not deploy it.
+```
+npm run web:build
+npm run deploy:web-admin
+```
+
+## 6. iOS (App Store)
 The App Store record already exists. This is a new build submission for the
 existing app.
 - [ ] Signing: distribution cert + provisioning profile (Apple Developer acct).
 - [ ] **App Check = App Attest**: enable App Attest for the iOS app in Firebase
-      → App Check, or live callables return `unauthenticated`. (Debug tokens are
-      simulator-only — see §7.)
+      > App Check, or live callables return `unauthenticated`. Debug tokens are
+      simulator-only; see section 8.
 - [ ] Bump the build number in `apps/app/pubspec.yaml`.
 - [ ] Build the archive/IPA with `scripts/build-flutter-ios-release.sh`. Never
       archive with bare `flutter build ipa` or from Xcode Organizer directly:
@@ -80,21 +88,21 @@ existing app.
     -allowProvisioningUpdates
   ```
 
-## 6. Android (Play) — same shape
+## 7. Android (Play)
 - [ ] Play Console app + signing (Play App Signing), store listing.
-- [ ] `flutter build appbundle` → upload to a track → review.
+- [ ] `flutter build appbundle`, upload to a track, then submit for review.
 - [ ] App Check: Play Integrity provider enabled for the Android app in Firebase.
 
-## 7. Local iOS testing (not deploy, but the recurring gotcha)
+## 8. Local iOS testing
 - Run with `scripts/run-flutter-ios-live.sh <sim-udid>` (loads `RTW_*` from
   `.env.local`). A plain `flutter run` has no Firebase config and degrades
   silently.
 - Debug builds enforce App Check via the **Apple debug provider**. Register the
-  simulator's debug token in Firebase → App Check → iOS app → Manage debug
+  simulator's debug token in Firebase > App Check > iOS app > Manage debug
   tokens, or every callable (submit answers, verify email, create room + invite
   code, etc.) fails `unauthenticated`.
 
-## 8. Post-publish follow-ups (deferred)
+## 9. Post-publish follow-ups (deferred)
 - Swap the store URLs in `apps/app/lib/v2/sheets/room_sheets.dart`
   (`_iosStoreUrl` / `_androidStoreUrl`) and flip `_appDownloadLink()` off the
   marketing fallback.
