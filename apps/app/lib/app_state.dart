@@ -1743,7 +1743,9 @@ class RtwController extends ChangeNotifier {
 
   /// Startup/auth-ready re-registration: when the reminder is on and the OS
   /// permission is already granted, re-write the current token so rotation
-  /// between launches never orphans the reminder. Never prompts.
+  /// between launches never orphans the reminder. Never prompts or changes
+  /// the account-level reminder time zone. A different device should not
+  /// silently move the shared reminder just because it opened the app.
   Future<void> _syncNotificationTokenIfAuthorized() async {
     if (!firebaseReady) return;
     try {
@@ -1766,11 +1768,6 @@ class RtwController extends ChangeNotifier {
       );
       if (token == null || token.isEmpty) return;
       await _writeNotificationToken(token: token, enabled: true);
-      final timeZone = await _localTimeZoneIdentifier();
-      if (timeZone != null && timeZone != dailyReminderTimeZone) {
-        dailyReminderTimeZone = timeZone;
-        await _writeUserProfile({'dailyReminderTimeZone': timeZone});
-      }
     } catch (error) {
       debugPrint('Notification token sync skipped: $error');
     }

@@ -375,6 +375,69 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
       helpText: 'Choose reminder time',
       cancelText: 'Cancel',
       confirmText: 'Save',
+      builder: (context, child) {
+        final baseTheme = Theme.of(context);
+        final selectedFill = WidgetStateColor.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? RtwV2Colors.blue
+              : RtwV2Colors.paperAlt;
+        });
+        final selectedText = WidgetStateColor.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? Colors.white
+              : RtwV2Colors.inkSoft;
+        });
+        final pickerTheme = baseTheme.copyWith(
+          colorScheme: baseTheme.colorScheme.copyWith(
+            primary: RtwV2Colors.blue,
+            onPrimary: Colors.white,
+            surface: RtwV2Colors.card,
+            onSurface: RtwV2Colors.ink,
+          ),
+          timePickerTheme: TimePickerThemeData(
+            backgroundColor: RtwV2Colors.card,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+              side: const BorderSide(color: RtwV2Colors.borderStrong),
+            ),
+            helpTextStyle: v2Sans(15, color: RtwV2Colors.subText),
+            hourMinuteColor: selectedFill,
+            hourMinuteTextColor: selectedText,
+            hourMinuteTextStyle: v2Serif(54, weight: FontWeight.w500),
+            hourMinuteShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            dayPeriodColor: selectedFill,
+            dayPeriodTextColor: selectedText,
+            dayPeriodTextStyle: v2Sans(15, weight: FontWeight.w600),
+            dayPeriodBorderSide: const BorderSide(
+              color: RtwV2Colors.borderStrong,
+            ),
+            dayPeriodShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            dialBackgroundColor: RtwV2Colors.paperAlt,
+            dialHandColor: RtwV2Colors.blue,
+            dialTextColor: WidgetStateColor.resolveWith((states) {
+              return states.contains(WidgetState.selected)
+                  ? Colors.white
+                  : RtwV2Colors.inkSoft;
+            }),
+            dialTextStyle: v2Sans(16),
+            entryModeIconColor: RtwV2Colors.blue,
+            cancelButtonStyle: TextButton.styleFrom(
+              foregroundColor: RtwV2Colors.subText,
+              textStyle: v2Sans(14, weight: FontWeight.w600),
+            ),
+            confirmButtonStyle: TextButton.styleFrom(
+              foregroundColor: RtwV2Colors.blue,
+              textStyle: v2Sans(14, weight: FontWeight.w700),
+            ),
+          ),
+        );
+        return Theme(data: pickerTheme, child: child!);
+      },
     );
     if (selected == null) return;
     await ref

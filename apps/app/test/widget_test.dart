@@ -1080,6 +1080,45 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('profile reminder picker uses the v2 theme', (tester) async {
+      final profile = RtwController(firebaseReady: false)
+        ..displayName = 'Mike'
+        ..dailyReminder = true
+        ..dailyReminderMinutes = 8 * 60
+        ..lastError = null;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            rtwControllerProvider.overrideWith(
+              (_) => profile,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Reminder time'));
+      await tester.tap(find.text('Reminder time'));
+      await tester.pumpAndSettle();
+
+      final dialogContext = tester.element(find.byType(TimePickerDialog));
+      final theme = Theme.of(dialogContext);
+      expect(theme.colorScheme.primary, RtwV2Colors.blue);
+      expect(theme.timePickerTheme.backgroundColor, RtwV2Colors.card);
+      expect(theme.timePickerTheme.dialHandColor, RtwV2Colors.blue);
+      expect(
+        (theme.timePickerTheme.dayPeriodColor! as WidgetStateColor).resolve({
+          WidgetState.selected,
+        }),
+        RtwV2Colors.blue,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('submitted room card exposes a modify action', (tester) async {
       final room = _binding(id: 'studio', name: 'The Studio')
         ..myTodayAnswer = const RoomAnswer(
