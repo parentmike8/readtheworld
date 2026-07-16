@@ -24,6 +24,13 @@ while IFS= read -r arg; do
 done < <(rtw_flutter_dart_define_args)
 
 cd "$ROOT_DIR/apps/app"
+
+# Flutter native assets share build/native_assets/ios between device and
+# simulator builds. Without a clean, a simulator run can leave a fat
+# objective_c.framework behind and the next archive may silently package it.
+# App Store Connect rejects that binary even though codesign verification and
+# the top-level archive architecture both look correct.
+flutter clean
 flutter build ipa --release "${dart_define_args[@]}" "$@"
 
 # Confirm the defines that were just compiled in: DART_DEFINES in

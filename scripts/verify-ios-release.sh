@@ -57,6 +57,35 @@ fi
 
 /usr/bin/codesign --verify --deep --strict "$app_path"
 
+# Reject simulator-native assets before Apple does. Flutter code assets are
+# emitted as embedded frameworks and can retain simulator slices when release
+# and simulator builds reuse build/native_assets/ios.
+while IFS= read -r framework_path; do
+  framework_plist="$framework_path/Info.plist"
+  [[ -f "$framework_plist" ]] || continue
+  framework_executable=$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
+      "$framework_plist" 2>/dev/null || true
+  )
+  [[ -n "$framework_executable" ]] || continue
+  framework_binary="$framework_path/$framework_executable"
+  [[ -f "$framework_binary" ]] || continue
+
+  framework_architectures=$(lipo -archs "$framework_binary" 2>/dev/null || true)
+  if [[ " $framework_architectures " == *" x86_64 "* || \
+        " $framework_architectures " == *" i386 "* ]]; then
+    echo "Embedded framework contains simulator architecture: $framework_path ($framework_architectures)" >&2
+    exit 1
+  fi
+
+  framework_load_commands=$(otool -l "$framework_binary" 2>/dev/null || true)
+  if grep -Eq 'LC_VERSION_MIN_IPHONESIMULATOR|platform[[:space:]]+7([[:space:]]|$)' \
+    <<<"$framework_load_commands"; then
+    echo "Embedded framework targets the iOS Simulator: $framework_path" >&2
+    exit 1
+  fi
+done < <(find "$app_path/Frameworks" -type d -name '*.framework' -print)
+
 temporary_dir=${temporary_dir:-$(mktemp -d "${TMPDIR:-/tmp}/rtw-ios-release.XXXXXX")}
 entitlements_plist="$temporary_dir/entitlements.plist"
 /usr/bin/codesign -d --entitlements :- "$app_path" > "$entitlements_plist" 2>/dev/null
