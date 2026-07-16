@@ -183,7 +183,7 @@ Known project values:
 
 Required before public beta:
 
-- `RTW_RECAPTCHA_ENTERPRISE_SITE_KEY` for Firebase App Check on web. Use the Firebase Console App Check setup for the `Read the World Web` Firebase app and register the production web domains before enforcing App Check.
+- `RTW_RECAPTCHA_ENTERPRISE_SITE_KEY` for Firebase App Check on web. Use the Firebase Console App Check setup for the `Read the World Web` Firebase app and register `readtheworld.today`, `app.readtheworld.today`, `admin.readtheworld.today`, and the Firebase Hosting domain before enforcing App Check.
 - `RTW_WEB_PUSH_VAPID_KEY` for FCM web push tokens. Generate or copy it from Firebase Console > Project settings > Cloud Messaging > Web push certificates.
 - `APPLE_TEAM_ID` for Universal Links. Use the Apple Developer Team ID that owns the final `today.readtheworld.app` bundle ID.
 - `ANDROID_SHA256_CERT_FINGERPRINTS` for Android App Links once Android is enabled. Use the Play App Signing app-signing certificate SHA-256 fingerprint for production; add a debug or upload-key fingerprint separately only when needed for local testing.

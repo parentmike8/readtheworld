@@ -154,6 +154,14 @@ const authHandoffCallableOptions = {
   // tiny handoff workers warm avoids making users wait through two cold starts.
   minInstances: 1,
 };
+const createAuthHandoffCallableOptions = {
+  ...authHandoffCallableOptions,
+  // Creation already requires a valid Firebase Auth user and can only mint a
+  // short-lived handoff for that same uid. Do not let a temporarily rejected
+  // browser App Check token strand a signed-in reader on the marketing site.
+  // Redemption remains App Check protected on the app domain.
+  enforceAppCheck: false,
+};
 const emailCallableOptions = {
   ...callableOptions,
   secrets: [postmarkServerToken],
@@ -1883,7 +1891,7 @@ export const submitPrediction = onCall(callableOptions, async (request) => {
   return result;
 });
 
-export const createAuthHandoff = onCall(authHandoffCallableOptions, async (request) => {
+export const createAuthHandoff = onCall(createAuthHandoffCallableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const targetRoute = assertAppRoute(request.data?.targetRoute, "/today");
   const rawQuestionId = typeof request.data?.questionId === "string"

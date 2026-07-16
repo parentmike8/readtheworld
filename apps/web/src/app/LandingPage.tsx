@@ -149,6 +149,7 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState<"" | "gate">("");
   const [openingRoute, setOpeningRoute] = useState("");
+  const [navError, setNavError] = useState("");
   const [openFaq, setOpenFaq] = useState(0);
   const [worldQuestions, setWorldQuestions] = useState<WorldQuestion[]>(initialWorld.questions);
   const [worldDailyKey, setWorldDailyKey] = useState(initialWorld.dailyKey);
@@ -364,6 +365,7 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
 
   async function enterApp(targetRoute: string) {
     setOpeningRoute(targetRoute);
+    setNavError("");
     setSubmitError("");
     try {
       // Firebase is intentionally lazy-loaded on the landing page. Resolve its
@@ -381,7 +383,10 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
       }
       window.location.href = await createAppHandoff(targetRoute);
     } catch (error) {
-      setSubmitError(errorMessage(error));
+      const message = errorMessage(error);
+      console.error("Could not open the app", error);
+      setSubmitError(message);
+      setNavError(message);
       setOpeningRoute("");
     }
   }
@@ -482,8 +487,13 @@ export default function LandingPage({ initialWorld }: { initialWorld: WorldToday
               onClick={() => enterApp("/today")}
               disabled={submitting === "gate" || openingRoute !== ""}
               aria-busy={openingRoute === "/today"}
+              title={navError || undefined}
             >
-              {openingRoute === "/today" ? "Opening..." : `${navCtaLabel} \u2192`}
+              {openingRoute === "/today"
+                ? "Opening..."
+                : navError
+                  ? "Try again \u2192"
+                  : `${navCtaLabel} \u2192`}
             </button>
           </div>
         </div>
