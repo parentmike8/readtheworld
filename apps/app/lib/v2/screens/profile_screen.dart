@@ -812,7 +812,7 @@ class _CompactSettingRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Flexible(
+          Expanded(
             flex: 2,
             child: Text(
               value,
