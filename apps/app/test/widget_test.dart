@@ -1080,6 +1080,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('profile scroll surface spans a wide browser', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final profile = RtwController(firebaseReady: false)
+        ..displayName = 'Mike'
+        ..dailyReminder = true
+        ..lastError = null;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            rtwControllerProvider.overrideWith(
+              (_) => profile,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byKey(const ValueKey('profile-scroll-view'))).width,
+        1200,
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('profile-content'))).width,
+        560,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('profile reminder picker uses the v2 theme', (tester) async {
       final profile = RtwController(firebaseReady: false)
         ..displayName = 'Mike'

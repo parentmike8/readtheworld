@@ -96,8 +96,8 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
 
     return V2Scaffold(
       location: '/profile',
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      wideWidth: double.infinity,
+      child: _ProfileScrollSurface(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -736,6 +736,29 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
         },
       );
     });
+  }
+}
+
+class _ProfileScrollSurface extends StatelessWidget {
+  const _ProfileScrollSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      key: const ValueKey('profile-scroll-view'),
+      child: Center(
+        child: ConstrainedBox(
+          key: const ValueKey('profile-content'),
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+            child: child,
+          ),
+        ),
+      ),
+    );
   }
 }
 
