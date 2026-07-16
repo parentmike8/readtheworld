@@ -1343,6 +1343,11 @@ void main() {
       );
       await tester.pump();
       expect(rooms.play, isNotNull);
+      expect(rooms.play!.deck.map((card) => card.question?.prompt).toList(), [
+        'Can money buy happiness?',
+        "Is it ever okay to lie to protect someone's feelings?",
+        'Would the world be better without social media?',
+      ]);
 
       for (var i = 0; i < 3; i++) {
         rooms.commitSide('a');

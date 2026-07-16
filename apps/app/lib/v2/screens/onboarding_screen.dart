@@ -12,7 +12,7 @@ import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 
 /// ONBOARDING: three beats, about 30 seconds, using a focused teaching surface:
-///  1. Today's three World questions with the real swipe and prediction
+///  1. Three fixed practice questions with the real swipe and prediction
 ///     mechanics, without the surrounding gameplay controls.
 ///  2. Lightweight scoring explainer.
 ///  3. "3 ways to play" closer with room CTAs.
@@ -25,34 +25,34 @@ class OnboardingScreenV2 extends ConsumerStatefulWidget {
   ConsumerState<OnboardingScreenV2> createState() => _OnboardingScreenV2State();
 }
 
-/// Crowd-pleasers for when there's no live world day (offline, first boot
-/// before curation). Answers to these are local-only.
-const _fallbackQuestions = [
+/// A fixed, local-only practice deck. These never depend on the current World
+/// day, and the answers and predictions are never written to Firestore.
+const _tutorialQuestions = [
   RoomDayQuestion(
-    qid: 'intro-hotdog',
-    prompt: 'Is a hot dog a sandwich?',
+    qid: 'tutorial-money-happiness',
+    prompt: 'Can money buy happiness?',
     optA: 'Yes',
     optB: 'No',
-    tag: 'Food',
-    shape: 'TASTE',
+    tag: 'Money',
+    shape: 'BELIEF',
     custom: false,
   ),
   RoomDayQuestion(
-    qid: 'intro-early',
-    prompt: 'Would you rather always be 10 minutes early or never rushed?',
-    optA: 'Early',
-    optB: 'Never rushed',
-    tag: 'Lifestyle',
-    shape: 'TASTE',
+    qid: 'tutorial-kind-lie',
+    prompt: "Is it ever okay to lie to protect someone's feelings?",
+    optA: 'Yes',
+    optB: 'No',
+    tag: 'Ethics',
+    shape: 'GREY',
     custom: false,
   ),
   RoomDayQuestion(
-    qid: 'intro-texts',
-    prompt: 'Do you re-read your own texts after sending them?',
-    optA: 'Always',
-    optB: 'Never',
-    tag: 'Honest',
-    shape: 'HABIT',
+    qid: 'tutorial-no-social-media',
+    prompt: 'Would the world be better without social media?',
+    optA: 'Yes',
+    optB: 'No',
+    tag: 'Technology',
+    shape: 'BELIEF',
     custom: false,
   ),
 ];
@@ -60,34 +60,8 @@ const _fallbackQuestions = [
 class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
   bool _started = false;
   bool _sawIntroSession = false;
-  bool _worldWaitOver = false;
   bool _sawScoringBeat = false;
-  List<RoomDayQuestion>? _questions;
   List<RoomPick>? _picks;
-
-  @override
-  void initState() {
-    super.initState();
-    // Give the world day stream a beat to arrive before falling back.
-    Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) setState(() => _worldWaitOver = true);
-    });
-  }
-
-  List<RoomDayQuestion>? _resolveQuestions(RoomsController rooms) {
-    if (_questions != null) return _questions;
-    final world =
-        rooms.worldToday?.activeQuestions ?? const <RoomDayQuestion>[];
-    if (world.length >= 3) {
-      _questions = world.take(3).toList();
-      return _questions;
-    }
-    if (!rooms.firebaseReady || _worldWaitOver) {
-      _questions = _fallbackQuestions;
-      return _questions;
-    }
-    return null; // still waiting on the stream
-  }
 
   void _startIntro(RoomsController rooms, List<RoomDayQuestion> questions) {
     _started = true;
@@ -140,8 +114,7 @@ class _OnboardingScreenV2State extends ConsumerState<OnboardingScreenV2> {
       );
     }
 
-    final questions = _resolveQuestions(rooms);
-    if (questions != null && !_started) _startIntro(rooms, questions);
+    if (!_started) _startIntro(rooms, _tutorialQuestions);
     _consumeIntroResult(rooms);
 
     return V2Scaffold(

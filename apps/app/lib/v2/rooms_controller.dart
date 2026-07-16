@@ -745,9 +745,9 @@ class RoomsController extends ChangeNotifier {
     }
   }
 
-  /// First-run intro: today's World questions on the real play surface with
+  /// First-run intro: fixed tutorial questions on the real play surface with
   /// the real swipe and prediction meter. The session stays practice-only;
-  /// neither answers nor predictions are submitted.
+  /// neither answers nor predictions are submitted or persisted.
   void startIntroSession(List<RoomDayQuestion> questions) {
     introPicks = null;
     play = PlaySession(
