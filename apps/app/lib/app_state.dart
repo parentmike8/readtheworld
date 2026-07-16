@@ -43,6 +43,7 @@ class RtwController extends ChangeNotifier {
   String phoneNumber = '';
   bool phoneCodeSent = false;
   bool dailyReminder = false;
+  bool notificationsDenied = false;
   int avatarIndex = 0;
   DateTime? birthdate;
   String? gender;
@@ -68,6 +69,8 @@ class RtwController extends ChangeNotifier {
   Timer? _profileWriteDebounce;
   Future<void>? _googleSignInInitialization;
   StreamSubscription<User?>? _authSub;
+  StreamSubscription<String>? _tokenRefreshSub;
+  bool _notificationTokenSynced = false;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _liveQuestionSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _todayCounterSub;
   final List<StreamSubscription<dynamic>> _userSubscriptions = [];
@@ -86,6 +89,7 @@ class RtwController extends ChangeNotifier {
   String? _phoneVerificationId;
   int? _phoneResendToken;
   String? _postOnboardingRoute;
+  String? _pendingInviteCode;
   final Map<String, Future<String?>> _handoffRedemptions = {};
   final Map<String, String?> _redeemedHandoffRoutes = {};
   static const _historyCategoryOrder = [
@@ -114,6 +118,23 @@ class RtwController extends ChangeNotifier {
       return route;
     }
     return hasPendingTodaySubmission ? '/today/predict' : '/today';
+  }
+
+  /// Room invite code from a join link that arrived signed out. Survives the
+  /// trip through auth (and onboarding for brand-new accounts) so the invite
+  /// resumes at /join/CODE instead of dead-ending.
+  String? get pendingInviteCode => _pendingInviteCode;
+
+  void stashPendingInviteCode(String code) {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return;
+    _pendingInviteCode = normalized;
+  }
+
+  String? consumePendingInviteCode() {
+    final code = _pendingInviteCode;
+    _pendingInviteCode = null;
+    return code;
   }
 
   List<String> get categories {
@@ -257,6 +278,26 @@ class RtwController extends ChangeNotifier {
     _authSub = FirebaseAuth.instance.userChanges().listen((user) {
       _bindUser(user);
     });
+
+    // FCM rotates tokens; a stale doc means reminders silently stop. Keep the
+    // registration current for readers who opted in.
+    _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen(
+      (token) {
+        if (!dailyReminder || FirebaseAuth.instance.currentUser == null) {
+          return;
+        }
+        unawaited(
+          _writeNotificationToken(token: token, enabled: true).catchError((
+            Object error,
+          ) {
+            debugPrint('Notification token refresh write failed: $error');
+          }),
+        );
+      },
+      onError: (Object error) {
+        debugPrint('Notification token refresh stream failed: $error');
+      },
+    );
   }
 
   void _bindQuestionCounter(String questionId) {
@@ -287,6 +328,7 @@ class RtwController extends ChangeNotifier {
     }
     _clearUserSubscriptions();
     _boundUid = uid;
+    _notificationTokenSynced = false;
     _answerCache.clear();
     _answerDraftCache.clear();
     _scoreHistoryCache.clear();
@@ -323,6 +365,10 @@ class RtwController extends ChangeNotifier {
             authPhoneNumber ??
             phoneNumber;
         dailyReminder = data['dailyReminder'] as bool? ?? dailyReminder;
+        if (dailyReminder && !_notificationTokenSynced) {
+          _notificationTokenSynced = true;
+          unawaited(_syncNotificationTokenIfAuthorized());
+        }
         avatarIndex = _avatarIndexFromColor(
           _optimisticProfileValues['avatarColor'] ?? data['avatarColor'],
         );
@@ -911,7 +957,9 @@ class RtwController extends ChangeNotifier {
   }
 
   /// v2: returning members (any room membership) land on their rooms;
-  /// brand-new accounts get the onboarding demo first.
+  /// brand-new accounts get the onboarding demo first. A stashed invite code
+  /// resumes at /join/CODE for members; new accounts keep the stash so the
+  /// router resumes it once onboarding hands off to the home tabs.
   Future<String> postAuthRoute() async {
     if (!firebaseReady) return '/onboarding';
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -923,7 +971,9 @@ class RtwController extends ChangeNotifier {
           .collection('memberships')
           .limit(1)
           .get();
-      return memberships.docs.isEmpty ? '/onboarding' : '/rooms';
+      if (memberships.docs.isEmpty) return '/onboarding';
+      final inviteCode = consumePendingInviteCode();
+      return inviteCode == null ? '/rooms' : '/join/$inviteCode';
     } catch (error) {
       lastError = error.toString();
       notifyListeners();
@@ -1191,17 +1241,17 @@ class RtwController extends ChangeNotifier {
       }
       return;
     }
-    await user.reload();
-    final refreshed = FirebaseAuth.instance.currentUser;
-    emailVerified = refreshed?.emailVerified ?? emailVerified;
-    if (emailVerified) {
-      if (!silent) {
-        lastError = 'Email is already verified.';
-        notifyListeners();
-      }
-      return;
-    }
     try {
+      await user.reload();
+      final refreshed = FirebaseAuth.instance.currentUser;
+      emailVerified = refreshed?.emailVerified ?? emailVerified;
+      if (emailVerified) {
+        if (!silent) {
+          lastError = 'Email is already verified.';
+          notifyListeners();
+        }
+        return;
+      }
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
       ).httpsCallable('sendVerificationEmail');
@@ -1213,6 +1263,11 @@ class RtwController extends ChangeNotifier {
     } on FirebaseFunctionsException catch (error) {
       if (!silent) {
         lastError = error.message ?? error.code;
+        notifyListeners();
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!silent) {
+        lastError = _authMessage(error);
         notifyListeners();
       }
     } catch (error) {
@@ -1638,10 +1693,15 @@ class RtwController extends ChangeNotifier {
       if (settings.authorizationStatus != AuthorizationStatus.authorized &&
           settings.authorizationStatus != AuthorizationStatus.provisional) {
         dailyReminder = false;
+        // Denied means the OS sheet will never show again; the UI offers the
+        // way back in through Settings.
+        notificationsDenied =
+            settings.authorizationStatus == AuthorizationStatus.denied;
         lastError = 'Notifications were not enabled.';
         notifyListeners();
         return;
       }
+      notificationsDenied = false;
       await _registerForAppleRemoteNotifications();
       await _ensureApplePushToken(messaging);
       final token = await messaging.getToken(
@@ -1659,6 +1719,37 @@ class RtwController extends ChangeNotifier {
       dailyReminder = false;
       lastError = error.toString();
       notifyListeners();
+    }
+  }
+
+  /// Startup/auth-ready re-registration: when the reminder is on and the OS
+  /// permission is already granted, re-write the current token so rotation
+  /// between launches never orphans the reminder. Never prompts.
+  Future<void> _syncNotificationTokenIfAuthorized() async {
+    if (!firebaseReady) return;
+    try {
+      const webVapidKey = String.fromEnvironment('RTW_WEB_PUSH_VAPID_KEY');
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.getNotificationSettings();
+      final denied =
+          settings.authorizationStatus == AuthorizationStatus.denied;
+      if (denied != notificationsDenied) {
+        notificationsDenied = denied;
+        notifyListeners();
+      }
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
+      await _registerForAppleRemoteNotifications();
+      await _ensureApplePushToken(messaging);
+      final token = await messaging.getToken(
+        vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
+      );
+      if (token == null || token.isEmpty) return;
+      await _writeNotificationToken(token: token, enabled: true);
+    } catch (error) {
+      debugPrint('Notification token sync skipped: $error');
     }
   }
 
@@ -1851,12 +1942,12 @@ class RtwController extends ChangeNotifier {
       if (route != null && route.startsWith('/')) return route;
 
       final type = data['type']?.toString();
-      final targetId = data['targetId']?.toString();
-      if (type == 'invite') {
-        return '/invite/${Uri.encodeComponent(normalizedCode)}';
-      }
-      if (type == 'result' && targetId != null && targetId.isNotEmpty) {
-        return '/reveal/${Uri.encodeComponent(targetId)}?code=${Uri.encodeComponent(normalizedCode)}';
+      if (type == 'invite' || type == 'result') {
+        // Legacy v1 links (friend invites, result shares) have no v2 home;
+        // an honest dead-end beats routing into a misleading failure.
+        lastError = 'This link is no longer supported.';
+        notifyListeners();
+        return null;
       }
       lastError = 'This link is not valid.';
       notifyListeners();
@@ -1889,13 +1980,17 @@ class RtwController extends ChangeNotifier {
       return false;
     }
     try {
+      // Deletion walks every room-day the account touched; the server allows
+      // itself 9 minutes (timeoutSeconds: 540). The plugin's ~70s default
+      // would report failure mid-deletion and leave the app signed in
+      // against an account being erased.
       final callable = FirebaseFunctions.instanceFor(
         region: 'us-central1',
-      ).httpsCallable('deleteMyAccount');
+      ).httpsCallable(
+        'deleteMyAccount',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 540)),
+      );
       await callable.call();
-      await FirebaseAuth.instance.signOut();
-      _resetLocalUserState();
-      return true;
     } on FirebaseFunctionsException catch (error) {
       lastError = error.message ?? error.code;
       notifyListeners();
@@ -1905,6 +2000,15 @@ class RtwController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // The server account is gone; a local sign-out hiccup must not read as a
+    // failed deletion.
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (error) {
+      debugPrint('Sign-out after account deletion failed: $error');
+    }
+    _resetLocalUserState();
+    return true;
   }
 
   void _resetLocalUserState() {
@@ -2057,6 +2161,7 @@ class RtwController extends ChangeNotifier {
     _profileWriteDebounce?.cancel();
     _draftWriteDebounce?.cancel();
     _authSub?.cancel();
+    _tokenRefreshSub?.cancel();
     _liveQuestionSub?.cancel();
     _todayCounterSub?.cancel();
     _clearUserSubscriptions();

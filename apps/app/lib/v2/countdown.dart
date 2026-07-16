@@ -38,14 +38,31 @@ Duration easternUtcOffset(DateTime instantUtc) {
 }
 
 /// The UTC instant of the next 00:00 America/New_York (the daily reveal).
+///
+/// The offset must be sampled AT the target midnight, not now — on DST
+/// transition days the current offset is an hour off for the next midnight.
+/// Mirrors the backend's easternMidnightUtcForDailyKey
+/// (functions/src/seedQuestions.ts): sample the offset near the target
+/// instant, form a candidate, then correct once with the offset at the
+/// candidate itself.
 DateTime nextEasternMidnightUtc(DateTime nowUtc) {
   final now = nowUtc.toUtc();
-  final offset = easternUtcOffset(now);
-  final etWall = now.subtract(offset); // ET wall clock carried in UTC fields
-  final nextMidnightWall =
-      DateTime.utc(etWall.year, etWall.month, etWall.day)
-          .add(const Duration(days: 1));
-  return nextMidnightWall.add(offset);
+  final etWall =
+      now.subtract(easternUtcOffset(now)); // ET wall clock in UTC fields
+  final nextEtDate = DateTime.utc(etWall.year, etWall.month, etWall.day)
+      .add(const Duration(days: 1));
+  // 05:00 UTC on the target date is midnight EST / 01:00 EDT — always on the
+  // same side of the 02:00 ET transition as the target midnight (same probe
+  // the backend uses).
+  final offset = easternUtcOffset(
+    DateTime.utc(nextEtDate.year, nextEtDate.month, nextEtDate.day, 5),
+  );
+  var candidate = nextEtDate.add(offset);
+  final sampledAtCandidate = easternUtcOffset(candidate);
+  if (sampledAtCandidate != offset) {
+    candidate = nextEtDate.add(sampledAtCandidate);
+  }
+  return candidate;
 }
 
 /// "Reveal in 7h 04m" / "Reveal in 42m 18s" / "Revealing now".

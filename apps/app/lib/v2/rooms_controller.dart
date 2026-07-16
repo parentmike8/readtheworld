@@ -92,7 +92,6 @@ class PlaySession {
   int pred = 50;
   double dragX = 0;
   bool dragging = false;
-  String? answerSavedReason; // 'world' | 'solo'
 
   /// Accumulated picks per room; a room's picks submit when its block ends.
   final Map<String, List<RoomPick>> results = {};
@@ -308,10 +307,14 @@ class RoomsController extends ChangeNotifier {
         .snapshots()
         .listen((snapshot) {
           final current = snapshot.docs.map((doc) => doc.id).toSet();
+          // The World is bound once by _bindWorld; a memberships/world doc
+          // must neither double-bind it nor unbind it here.
           for (final roomId in bindings.keys.toList()) {
+            if (roomId == worldRoomId) continue;
             if (!current.contains(roomId)) _unbindRoom(roomId);
           }
           for (final doc in snapshot.docs) {
+            if (doc.id == worldRoomId) continue;
             if (!bindings.containsKey(doc.id)) _bindRoom(doc.id, uid);
           }
           final joinedAtByRoom = {
@@ -742,16 +745,9 @@ class RoomsController extends ChangeNotifier {
     }
   }
 
-  /// Intro answers lock straight to The World (auto-enrolls on first
-  /// answer server-side; double-locks are a no-op).
-  Future<void> lockIntroWorldAnswers(List<RoomPick> picks) async {
-    if (!firebaseReady || picks.isEmpty) return;
-    await _submitRoomPicks(worldRoomId, picks);
-  }
-
-  /// First-run intro: today's World questions on the real play surface —
-  /// real swipe, real prediction meter. Nothing submits until the
-  /// onboarding closer locks the sides.
+  /// First-run intro: today's World questions on the real play surface with
+  /// the real swipe and prediction meter. The session stays practice-only;
+  /// neither answers nor predictions are submitted.
   void startIntroSession(List<RoomDayQuestion> questions) {
     introPicks = null;
     play = PlaySession(
@@ -993,7 +989,6 @@ class RoomsController extends ChangeNotifier {
     session.idx -= 1;
     session.dragX = 0;
     session.dragging = false;
-    session.answerSavedReason = null;
     final card = session.card;
     final qid = card?.question?.qid;
     RoomPick? saved;
@@ -1038,7 +1033,6 @@ class RoomsController extends ChangeNotifier {
     // editable prediction step — even a legacy answer-only pick gets a default
     // to adjust, rather than the old "saved" dead-end screen.
     session.stage = PlayStage.predict;
-    session.answerSavedReason = null;
   }
 
   void setDuoPrediction(bool matched) {
@@ -1097,7 +1091,6 @@ class RoomsController extends ChangeNotifier {
     session.side = null;
     session.pred = 50;
     session.dragX = 0;
-    session.answerSavedReason = null;
     _restoreCurrentSavedPick(session);
     notifyListeners();
   }
@@ -1114,7 +1107,6 @@ class RoomsController extends ChangeNotifier {
     session.side = null;
     session.pred = 50;
     session.dragX = 0;
-    session.answerSavedReason = null;
     if (session.atEnd) {
       if (session.mode == 'room' && session.roomId != null) {
         summaryRoomId = session.roomId;
@@ -1615,23 +1607,32 @@ class RoomsController extends ChangeNotifier {
   /// by their World Read Score. Empty until the first World questions reveal.
   Future<List<WorldLeaderRow>> loadWorldLeaderboard() async {
     if (!firebaseReady) return const [];
-    final result = await _callable('getWorldLeaderboard').call({});
-    final data = Map<String, dynamic>.from(result.data as Map);
-    return (data['rows'] as List? ?? const [])
-        .whereType<Map>()
-        .map((raw) => Map<String, dynamic>.from(raw))
-        .map(
-          (row) => WorldLeaderRow(
-            rank: (row['rank'] as num?)?.toInt() ?? 0,
-            uid: row['uid']?.toString() ?? '',
-            displayName: row['displayName']?.toString() ?? 'Reader',
-            avatarColor: row['avatarColor']?.toString() ?? 'blue',
-            readScore: (row['readScore'] as num?)?.toInt() ?? 1500,
-            questionsScored:
-                (row['officialQuestionsAnswered'] as num?)?.toInt() ?? 0,
-          ),
-        )
-        .toList();
+    try {
+      final result = await _callable('getWorldLeaderboard').call({});
+      final data = Map<String, dynamic>.from(result.data as Map);
+      return (data['rows'] as List? ?? const [])
+          .whereType<Map>()
+          .map((raw) => Map<String, dynamic>.from(raw))
+          .map(
+            (row) => WorldLeaderRow(
+              rank: (row['rank'] as num?)?.toInt() ?? 0,
+              uid: row['uid']?.toString() ?? '',
+              displayName: row['displayName']?.toString() ?? 'Reader',
+              avatarColor: row['avatarColor']?.toString() ?? 'blue',
+              readScore: (row['readScore'] as num?)?.toInt() ?? 1500,
+              questionsScored:
+                  (row['officialQuestionsAnswered'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList();
+    } catch (error) {
+      // Rethrow so the screen can show a real error state (an empty board
+      // here would read as "no peers yet", which is a different truth). The
+      // FutureBuilder owns presentation — do NOT set lastError here, or the
+      // play surface's submit-error slot would paint a stale leaderboard
+      // failure next to the Submit button.
+      rethrow;
+    }
   }
 
   @override

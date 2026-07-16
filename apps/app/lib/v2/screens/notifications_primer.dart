@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../main.dart';
 import '../tokens_v2.dart';
@@ -21,14 +23,33 @@ class NotificationsPrimerScreen extends ConsumerStatefulWidget {
 class _NotificationsPrimerScreenState
     extends ConsumerState<NotificationsPrimerScreen> {
   bool _busy = false;
+  bool _denied = false;
+  String? _error;
+
+  static bool get _canOpenSettings =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> _enable() async {
     if (_busy) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     final controller = ref.read(rtwControllerProvider);
     // Only turn on if it isn't already (this triggers the OS permission sheet).
     if (!controller.dailyReminder) {
       await controller.toggleReminder();
+    }
+    // Any failed enable stays on this screen. Permission denial gets the
+    // Settings path; token or network failures remain retryable and visible
+    // instead of silently advancing with reminders still off.
+    if (mounted && !controller.dailyReminder) {
+      setState(() {
+        _busy = false;
+        _denied = controller.notificationsDenied;
+        _error = controller.lastError ?? 'Notifications could not be enabled.';
+      });
+      return;
     }
     _finish();
   }
@@ -73,18 +94,43 @@ class _NotificationsPrimerScreenState
             ),
             const SizedBox(height: 14),
             Text(
-              'Get a nudge the moment new questions are live.',
+              _denied
+                  ? (_canOpenSettings
+                        ? 'Notifications are off for Read the World. Turn them on in iOS Settings to get the nudge.'
+                        : 'Notifications are off for Read the World. Turn them on in your device settings to get the nudge.')
+                  : 'Get a nudge the moment new questions are live.',
               textAlign: TextAlign.center,
               style: v2Sans(16, color: RtwV2Colors.subText, height: 1.5),
             ),
+            if (_error != null && !_denied) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: v2Sans(13, color: RtwV2Colors.danger, height: 1.45),
+              ),
+            ],
             const Spacer(),
-            V2Button(
-              _busy ? 'Turning on…' : 'Turn on notifications',
-              onPressed: _busy ? null : () => unawaited(_enable()),
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              radius: 16,
-              fontSize: 16,
-            ),
+            if (_denied && _canOpenSettings)
+              V2Button(
+                'Open iOS Settings',
+                onPressed: () => launchUrl(Uri.parse('app-settings:')),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                radius: 16,
+                fontSize: 16,
+              )
+            else if (!_denied)
+              V2Button(
+                _busy
+                    ? 'Turning on…'
+                    : _error == null
+                    ? 'Turn on notifications'
+                    : 'Try again',
+                onPressed: _busy ? null : () => unawaited(_enable()),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                radius: 16,
+                fontSize: 16,
+              ),
             const SizedBox(height: 8),
             Center(
               child: GestureDetector(

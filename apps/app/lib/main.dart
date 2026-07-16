@@ -156,7 +156,19 @@ Future<AppSettings> _configureFirebaseServices() async {
       ),
     );
     await remoteConfig.setDefaults(AppSettings.remoteConfigDefaults);
-    await remoteConfig.fetchAndActivate();
+    // Cold start must not hang on the network: activate last launch's fetch
+    // instantly, then give a live fetch a short window to land so kill
+    // switches and flag flips still apply to this session on a healthy
+    // connection. If it misses the window it keeps running for next launch.
+    await remoteConfig.activate();
+    final freshFetch = remoteConfig.fetchAndActivate().catchError((Object error) {
+      debugPrint('Firebase Remote Config fetch failed: $error');
+      return false;
+    });
+    await Future.any<Object?>([
+      freshFetch,
+      Future<Object?>.delayed(const Duration(seconds: 3)),
+    ]);
     settings = AppSettings.fromRemoteConfig(remoteConfig);
   } catch (error) {
     debugPrint('Firebase Remote Config setup skipped: $error');
@@ -166,6 +178,19 @@ Future<AppSettings> _configureFirebaseServices() async {
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
   } catch (error) {
     debugPrint('Firebase Messaging setup skipped: $error');
+  }
+
+  if (!kIsWeb) {
+    try {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    } catch (error) {
+      debugPrint('Firebase Messaging foreground setup skipped: $error');
+    }
   }
   return settings;
 }
@@ -344,6 +369,16 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       if (gatedTabs.contains(state.uri.path) && roomsController.needsOnboarding) {
         return '/onboarding';
       }
+      // A join link that arrived signed out resumes once the reader is signed
+      // in and past onboarding, instead of losing the invite.
+      final pendingInvite = controller.pendingInviteCode;
+      if (pendingInvite != null &&
+          !signedOut &&
+          !roomsController.needsOnboarding &&
+          (path == '/rooms' || path == '/today')) {
+        controller.consumePendingInviteCode();
+        return '/join/$pendingInvite';
+      }
       return null;
     },
     routes: [
@@ -364,12 +399,27 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/insights', redirect: (_, _) => '/rooms'),
       GoRoute(path: '/account', redirect: (_, _) => '/profile'),
       GoRoute(path: '/reveal', redirect: (_, _) => '/rooms'),
-      GoRoute(path: '/reveal/:questionId', redirect: (_, _) => '/rooms'),
+      // Legacy v1 share/invite links: an honest dead-end instead of routing
+      // into a misleading join failure or a silent rooms landing.
+      _appRoute(
+        '/reveal/:questionId',
+        (_, state) => ShortLinkScreen(
+          code: state.uri.queryParameters['code'] ??
+              state.pathParameters['questionId'] ??
+              '',
+          unsupported: true,
+        ),
+        mobileSlide: true,
+      ),
       GoRoute(path: '/today/predict', redirect: (_, _) => '/today'),
       GoRoute(path: '/today/locked', redirect: (_, _) => '/today'),
-      GoRoute(
-        path: '/invite/:code',
-        redirect: (_, state) => '/join/${state.pathParameters['code'] ?? ''}',
+      _appRoute(
+        '/invite/:code',
+        (_, state) => ShortLinkScreen(
+          code: state.pathParameters['code'] ?? '',
+          unsupported: true,
+        ),
+        mobileSlide: true,
       ),
       // ── v2 rooms routes.
       _appRoute('/rooms', (_, _) => const RoomsHomeScreen(), mainFade: true),

@@ -172,11 +172,9 @@ class PlaySurface extends ConsumerWidget {
           unawaited(rooms.lockCurrent());
           return KeyEventResult.handled;
         }
+      // answerSaved is a dead stage — nothing sets it since every room took
+      // on predictions (the enum value lives on in models_v2 for now).
       case PlayStage.answerSaved:
-        if (key == LogicalKeyboardKey.enter) {
-          unawaited(rooms.lockCurrent(answerOnly: true));
-          return KeyEventResult.handled;
-        }
       case PlayStage.reveal:
         break;
     }
@@ -237,11 +235,9 @@ class PlaySurface extends ConsumerWidget {
                             card: card,
                             rooms: rooms,
                           ),
-                          PlayStage.answerSaved => _AnswerSavedStage(
-                            session: session,
-                            card: card,
-                            rooms: rooms,
-                          ),
+                          // answerSaved is a dead stage — nothing sets it
+                          // since every room took on predictions.
+                          PlayStage.answerSaved ||
                           PlayStage.reveal => const SizedBox.shrink(),
                         },
                 ),
@@ -646,14 +642,19 @@ class _IntroCard extends StatelessWidget {
 }
 
 /// Reveal chip label per prototype: yesterday / weekday / date.
-String revealLabelFor(String? dailyKey) {
+///
+/// Daily keys are US-Eastern calendar dates (the rollover timezone), so the
+/// day-diff must use today's ET date too — device-local dates put readers
+/// east of ET a day ahead and mislabel yesterday's reveal.
+String revealLabelFor(String? dailyKey, {DateTime? nowUtc}) {
   if (dailyKey == null) return "YESTERDAY'S REVEAL";
   final date = DateTime.tryParse(dailyKey);
   if (date == null) return "YESTERDAY'S REVEAL";
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final now = (nowUtc ?? DateTime.now()).toUtc();
+  final etWall = now.subtract(easternUtcOffset(now));
+  final today = DateTime.utc(etWall.year, etWall.month, etWall.day);
   final diff = today
-      .difference(DateTime(date.year, date.month, date.day))
+      .difference(DateTime.utc(date.year, date.month, date.day))
       .inDays;
   if (diff <= 1) return "YESTERDAY'S REVEAL";
   const weekdays = [
@@ -1223,198 +1224,6 @@ class _PlaySubmitError extends StatelessWidget {
         textAlign: TextAlign.center,
         style: v2Sans(13, color: RtwV2Colors.danger, weight: FontWeight.w600),
       ),
-    );
-  }
-}
-
-// ── ANSWER SAVED (solo / locked world) ──────────────────────────────────
-
-class _AnswerSavedStage extends ConsumerWidget {
-  const _AnswerSavedStage({
-    required this.session,
-    required this.card,
-    required this.rooms,
-  });
-
-  final PlaySession session;
-  final TodayDeckCard card;
-  final RoomsController rooms;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final question = card.question!;
-    final sideA = session.side == 'a';
-    final sideLabel = sideA ? question.optA : question.optB;
-    final sideColor = sideA ? RtwV2Colors.blue : RtwV2Colors.clay;
-    final isWorld = session.answerSavedReason == 'world';
-    final threshold = question.threshold ?? 1000;
-    final existingPick = rooms
-        .bindingFor(card.roomId)
-        ?.myTodayAnswer
-        ?.pickFor(question.qid);
-    final answers =
-        (rooms.worldToday?.answerCounts[question.qid] ?? 0) +
-        (existingPick == null ? 1 : 0);
-    final pct = (answers / threshold).clamp(0.0, 1.0);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          question.tag.toUpperCase(),
-          style: v2Mono(11, color: RtwV2Colors.clay, letterSpacing: 1.6),
-        ),
-        const SizedBox(height: 11),
-        Text(
-          question.prompt,
-          style: v2Serif(27, height: 1.18, letterSpacing: -0.4),
-        ),
-        _CustomQuestionAttribution(question: question),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: sideColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text.rich(
-              TextSpan(
-                text: 'You said ',
-                style: v2Sans(14, color: RtwV2Colors.subText),
-                children: [
-                  TextSpan(
-                    text: sideLabel,
-                    style: v2Sans(
-                      14,
-                      color: sideColor,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: RtwV2Colors.blue.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check,
-                    size: 24,
-                    color: RtwV2Colors.blue,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (isWorld) ...[
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Text(
-                      'Saved. Predicting opens once this question crosses ${_formatThousands(threshold)} answers.',
-                      textAlign: TextAlign.center,
-                      style: v2Serif(
-                        22,
-                        color: const Color(0xFF2C2A24),
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            height: 8,
-                            color: const Color(0xFFE6E0D3),
-                            alignment: Alignment.centerLeft,
-                            child: FractionallySizedBox(
-                              widthFactor: pct,
-                              child: Container(color: RtwV2Colors.blue),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_formatThousands(answers)} / ${_formatThousands(threshold)} world answers',
-                          style: v2Sans(12.5, color: RtwV2Colors.muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ] else ...[
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Text(
-                      'Saved. No one else here yet, so no prediction to make.',
-                      textAlign: TextAlign.center,
-                      style: v2Serif(
-                        22,
-                        color: const Color(0xFF2C2A24),
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    child: Text(
-                      "Invite someone into this room and you'll both start predicting each other.",
-                      textAlign: TextAlign.center,
-                      style: v2Sans(
-                        13.5,
-                        color: RtwV2Colors.faint,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        V2Button(
-          rooms.submitting ? 'Submitting...' : _saveLabel(session, card),
-          onPressed: rooms.submitting
-              ? null
-              : () => unawaited(rooms.lockCurrent(answerOnly: true)),
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          radius: 16,
-          fontSize: 16,
-        ),
-        _PlaySubmitError(error: rooms.lastError),
-        const SizedBox(height: 8),
-        Center(
-          child: GestureDetector(
-            onTap: rooms.changeAnswer,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: const V2LeadingArrowLabel(
-                'Change my answer',
-                color: RtwV2Colors.subText,
-                fontSize: 13,
-                weight: FontWeight.w400,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

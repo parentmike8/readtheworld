@@ -76,6 +76,15 @@ class _WorldLeaderboardScreenState
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
+                  // A failed fetch is not "no peers yet" — show the error
+                  // with a retry that actually refetches.
+                  if (snapshot.hasError) {
+                    return _BoardError(
+                      onRetry: () => setState(() {
+                        _future = rooms.loadWorldLeaderboard();
+                      }),
+                    );
+                  }
                   final rows = snapshot.data ?? const <WorldLeaderRow>[];
                   if (rows.isEmpty) {
                     return _EmptyBoard();
@@ -214,6 +223,41 @@ class _EmptyBoard extends StatelessWidget {
         'No peers yet. Join or invite people into a room, and you\'ll see how '
         'your World reads stack up against theirs here.',
         style: v2Sans(14, color: const Color(0xFF5C584F), height: 1.5),
+      ),
+    );
+  }
+}
+
+class _BoardError extends StatelessWidget {
+  const _BoardError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.card,
+        border: Border.all(color: RtwV2Colors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Could not load the board. Check your connection and try again.',
+            style: v2Sans(14, color: const Color(0xFF5C584F), height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          V2Button(
+            'Try again →',
+            fontSize: 14,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            radius: 13,
+            onPressed: onRetry,
+          ),
+        ],
       ),
     );
   }

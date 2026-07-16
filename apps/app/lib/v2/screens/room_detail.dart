@@ -624,20 +624,39 @@ class _ScoreCard extends StatelessWidget {
   }
 }
 
-class _AddQuestionButton extends StatelessWidget {
+class _AddQuestionButton extends StatefulWidget {
   const _AddQuestionButton({required this.rooms, required this.roomId});
 
   final RoomsController rooms;
   final String roomId;
 
   @override
+  State<_AddQuestionButton> createState() => _AddQuestionButtonState();
+}
+
+class _AddQuestionButtonState extends State<_AddQuestionButton> {
+  // Cached per roomId: creating a fresh stream on every rebuild tears down
+  // and re-creates the Firestore listener (visible flicker + wasted reads).
+  late Stream<List<QueueItem>> _queueStream = widget.rooms.queueStream(
+    widget.roomId,
+  );
+
+  @override
+  void didUpdateWidget(_AddQuestionButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.roomId != oldWidget.roomId) {
+      _queueStream = widget.rooms.queueStream(widget.roomId);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<QueueItem>>(
-      stream: rooms.queueStream(roomId),
+      stream: _queueStream,
       builder: (context, snapshot) {
         final count = snapshot.data?.length ?? 0;
         return GestureDetector(
-          onTap: () => showCustomQSheet(context, rooms, roomId),
+          onTap: () => showCustomQSheet(context, widget.rooms, widget.roomId),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
             decoration: BoxDecoration(
@@ -813,7 +832,7 @@ class _YesterdayCard extends StatelessWidget {
   }
 }
 
-class _Leaderboard extends StatelessWidget {
+class _Leaderboard extends StatefulWidget {
   const _Leaderboard({
     required this.rooms,
     required this.roomId,
@@ -825,9 +844,28 @@ class _Leaderboard extends StatelessWidget {
   final String? myUid;
 
   @override
+  State<_Leaderboard> createState() => _LeaderboardState();
+}
+
+class _LeaderboardState extends State<_Leaderboard> {
+  // Cached per roomId: creating a fresh stream on every rebuild tears down
+  // and re-creates the Firestore listener (visible flicker + wasted reads).
+  late Stream<List<RtwRoomMember>> _membersStream = widget.rooms.membersStream(
+    widget.roomId,
+  );
+
+  @override
+  void didUpdateWidget(_Leaderboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.roomId != oldWidget.roomId) {
+      _membersStream = widget.rooms.membersStream(widget.roomId);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<RtwRoomMember>>(
-      stream: rooms.membersStream(roomId),
+      stream: _membersStream,
       builder: (context, snapshot) {
         final members = snapshot.data ?? const <RtwRoomMember>[];
         if (members.isEmpty) return const SizedBox.shrink();
@@ -846,7 +884,7 @@ class _Leaderboard extends StatelessWidget {
                     horizontal: 16,
                     vertical: 13,
                   ),
-                  color: member.uid == myUid
+                  color: member.uid == widget.myUid
                       ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
                       : null,
                   child: Row(
@@ -862,7 +900,7 @@ class _Leaderboard extends StatelessWidget {
                         width: 7,
                         height: 7,
                         decoration: BoxDecoration(
-                          color: member.uid == myUid
+                          color: member.uid == widget.myUid
                               ? RtwV2Colors.blue
                               : const Color(0xFFD8D2C5),
                           shape: BoxShape.circle,
@@ -871,11 +909,13 @@ class _Leaderboard extends StatelessWidget {
                       const SizedBox(width: 11),
                       Expanded(
                         child: Text(
-                          member.uid == myUid ? 'You' : member.displayName,
+                          member.uid == widget.myUid
+                              ? 'You'
+                              : member.displayName,
                           style: v2Sans(
                             15,
                             color: RtwV2Colors.inkSoft,
-                            weight: member.uid == myUid
+                            weight: member.uid == widget.myUid
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                           ),

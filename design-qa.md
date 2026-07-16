@@ -429,3 +429,36 @@
 - [P3] Validate every secondary state directly in Claude Design for screens not present in the local screenshot folder.
 
 final result: passed
+
+## Scoped QA: onboarding scoring copy, 2026-07-15
+
+**Findings**
+- No actionable P0/P1/P2 findings remain for the onboarding scoring screen.
+
+**Open Questions**
+- None.
+
+**Implementation Checklist**
+- Source visual truth path: `/var/folders/bh/gty5k7ks2kj6n9qv7vpj0b5c0000gn/T/codex-clipboard-e122db1c-195a-41e1-98b2-e63ab7c77b47.png`
+- Implementation screenshot path: `/Users/michaelparent/development/Read the World/tmp/qa/onboarding-scoring-implemented-416x556.png`
+- Full-view comparison evidence: `/Users/michaelparent/development/Read the World/tmp/qa/onboarding-scoring-source-vs-implementation.png`
+- Viewport: 416x556 CSS pixels, matching the source capture's mobile aspect and content scale.
+- State: scoring explanation after all three tutorial questions and the full timed reveal animation.
+- Primary interactions tested: answer-card swipe, prediction-meter drag, lock-in CTA, progression through all three practice questions, and scoring-screen reveal.
+- Console errors checked: none.
+- Fonts and typography: existing serif, sans, and mono families and weights remain unchanged; both new copy blocks wrap cleanly.
+- Spacing and layout rhythm: the source composition is preserved; the two-line tagline and two-line Read Score explanation remain centered without overlap.
+- Colors and visual tokens: unchanged from the source implementation.
+- Image quality and asset fidelity: no raster or custom image assets are used on this screen; existing meter and card rendering remain unchanged.
+- Copy and content: `40 points apart` remains visible, the inaccurate positive-only scoring sentence is removed, and the new tagline appears on two deliberate lines.
+- Focused-region comparison evidence: a separate crop was not needed because the changed card sentence and tagline are fully legible in the normalized full-view comparison.
+
+**Comparison History**
+- Initial source showed `The farther away, the fewer points you earn.` and `How well do you know what people think?`.
+- Updated implementation now shows `Your Read Score rises or falls based on how your prediction ranks in the room.` and the approved two-line reading-the-room tagline.
+- Post-fix browser capture shows no clipping, overlap, unintended font changes, or console errors in the changed content region.
+
+**Follow-up Polish**
+- None required for this scoped change.
+
+final result: passed

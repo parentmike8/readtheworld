@@ -410,6 +410,10 @@ class PartyController extends ChangeNotifier {
   }
 
   void lockTurn() {
+    // Double-tap guard: the first tap moves to pass/reveal and clears the
+    // side, so a re-entrant call would throw on `side!` and double-count
+    // the reader's pick.
+    if (sub != PartySub.predict || side == null) return;
     unawaited(HapticFeedback.mediumImpact());
     _pushUndo();
     turnPicks = [...turnPicks, PartyTurnPick(side: side!, prediction: pred)];
@@ -506,6 +510,10 @@ class PartyController extends ChangeNotifier {
   }
 
   void next() {
+    // Double-tap guard: next() only advances off the reveal screen; the
+    // first tap already moved to the hand-off (or the summary), so a second
+    // call would skip a question and push a stray undo frame.
+    if (stage != PartyStage.play || sub != PartySub.reveal) return;
     if (idx + 1 < deck.length) _pushUndo();
     _nextQuestionOrDone();
   }

@@ -1201,6 +1201,7 @@ class PredictionAgreementMeter extends StatelessWidget {
     this.height = 72,
     this.radius = 18,
     this.infinite = false,
+    this.showSelection = true,
   });
 
   static const notchThreshold = 15;
@@ -1216,6 +1217,11 @@ class PredictionAgreementMeter extends StatelessWidget {
   /// end label instead of a fixed room headcount [Mike].
   final bool infinite;
 
+  /// When false, the track stays visually empty until the user makes an
+  /// explicit prediction. Other play surfaces keep their existing selected
+  /// state by using the default value.
+  final bool showSelection;
+
   @override
   Widget build(BuildContext context) {
     final boundedPercent = percent < 0
@@ -1224,7 +1230,7 @@ class PredictionAgreementMeter extends StatelessWidget {
         ? 100
         : percent;
     final boundedPeople = people < 0 ? 0 : people;
-    final fraction = boundedPercent / 100;
+    final fraction = showSelection ? boundedPercent / 100 : 0.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1252,40 +1258,46 @@ class PredictionAgreementMeter extends StatelessWidget {
                 ),
                 child: Stack(
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: fraction,
-                        child: Container(
-                          height: height,
-                          color: RtwV2Colors.meterBlue.withValues(alpha: 0.85),
+                    if (showSelection)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: fraction,
+                          child: Container(
+                            key: const ValueKey('prediction-meter-fill'),
+                            height: height,
+                            color: RtwV2Colors.meterBlue.withValues(
+                              alpha: 0.85,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                     ..._meterMarks(
                       boundedPeople,
                       height,
                       !infinite && boundedPeople <= notchThreshold,
                       infinite: infinite,
                     ),
-                    Align(
-                      alignment: Alignment(fraction * 2 - 1, 0),
-                      child: Container(
-                        width: 6,
-                        height: math.min(30, height - 20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(3),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x40000000),
-                              offset: Offset(0, 1),
-                              blurRadius: 4,
-                            ),
-                          ],
+                    if (showSelection)
+                      Align(
+                        alignment: Alignment(fraction * 2 - 1, 0),
+                        child: Container(
+                          key: const ValueKey('prediction-meter-handle'),
+                          width: 6,
+                          height: math.min(30, height - 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x40000000),
+                                offset: Offset(0, 1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),

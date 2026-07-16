@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,8 +12,17 @@ import '../sheets/room_sheets.dart' show showMatureConfirmSheet;
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 
+/// First letter for the invite preview avatar; empty or missing room names
+/// fall back to '?' (a bare `substring` throws on '').
+String joinPreviewInitial(String? name) {
+  if (name == null || name.isEmpty) return '?';
+  return name.substring(0, 1);
+}
+
 /// Landing for shared room links (`rtw.codes/CODE` → `/join/CODE`): shows
 /// the room preview, runs the After Dark consent when needed, and joins.
+/// Signed-out readers keep the invite: the code is stashed and resumes at
+/// /join/CODE after sign-in (and onboarding for brand-new accounts).
 class JoinRoomScreen extends ConsumerStatefulWidget {
   const JoinRoomScreen({super.key, required this.code});
 
@@ -25,12 +35,23 @@ class JoinRoomScreen extends ConsumerStatefulWidget {
 class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
   Map<String, dynamic>? preview;
   bool busy = false;
+  bool needsAuth = false;
   String? error;
 
   @override
   void initState() {
     super.initState();
+    if (_signedOut) {
+      needsAuth = true;
+      ref.read(rtwControllerProvider).stashPendingInviteCode(widget.code);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadPreview());
+  }
+
+  bool get _signedOut {
+    if (!ref.read(firebaseReadyProvider)) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    return user == null || user.isAnonymous;
   }
 
   Future<void> _loadPreview() async {
@@ -42,7 +63,18 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
       setState(() => preview = Map<String, dynamic>.from(result.data as Map));
     } on FirebaseFunctionsException catch (functionsError) {
       if (!mounted) return;
-      setState(() => error = functionsError.message ?? functionsError.code);
+      if (functionsError.code == 'unauthenticated') {
+        // Preview needs sign-in on older backends; the invite still stands.
+        ref.read(rtwControllerProvider).stashPendingInviteCode(widget.code);
+        setState(() => needsAuth = true);
+      } else {
+        if (needsAuth) {
+          // The code itself was rejected; a dead invite must not resume
+          // after sign-in.
+          ref.read(rtwControllerProvider).consumePendingInviteCode();
+        }
+        setState(() => error = functionsError.message ?? functionsError.code);
+      }
     } catch (genericError) {
       if (!mounted) return;
       setState(() => error = genericError.toString());
@@ -102,7 +134,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
             Text(
               error != null
                   ? 'This invite is unavailable.'
-                  : preview == null
+                  : preview == null && !needsAuth
                       ? 'Opening your invite…'
                       : "You're invited in.",
               style: v2Serif(34, height: 1.08, letterSpacing: -0.6),
@@ -110,6 +142,13 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
             if (error != null) ...[
               const SizedBox(height: 12),
               Text(error!, style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5)),
+            ],
+            if (error == null && needsAuth) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Sign in or create a free account to join this room.',
+                style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+              ),
             ],
             if (preview != null) ...[
               const SizedBox(height: 24),
@@ -131,7 +170,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text(
-                        (preview!['name']?.toString() ?? '?').substring(0, 1),
+                        joinPreviewInitial(preview!['name']?.toString()),
                         style: v2Serif(19, color: Colors.white),
                       ),
                     ),
@@ -163,6 +202,17 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                   ],
                 ),
               ),
+            ],
+            if (error == null && needsAuth) ...[
+              const SizedBox(height: 18),
+              V2Button(
+                'Sign in to join →',
+                onPressed: () => context.go('/auth'),
+                padding: const EdgeInsets.symmetric(vertical: 17),
+                radius: 16,
+                fontSize: 16,
+              ),
+            ] else if (preview != null) ...[
               const SizedBox(height: 18),
               V2Button(
                 busy
@@ -183,7 +233,14 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
             const Spacer(),
             Center(
               child: TextButton(
-                onPressed: () => context.go('/rooms'),
+                onPressed: () {
+                  if (needsAuth) {
+                    // Declining the invite drops the stash so sign-in later
+                    // doesn't detour through a room they passed on.
+                    ref.read(rtwControllerProvider).consumePendingInviteCode();
+                  }
+                  context.go('/rooms');
+                },
                 child: Text(
                   error != null ? 'Back to your rooms' : 'Not now',
                   style: v2Sans(14, color: RtwV2Colors.subText, weight: FontWeight.w600),

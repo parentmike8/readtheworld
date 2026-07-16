@@ -1026,9 +1026,17 @@ ButtonStyle _authTextButtonStyle() {
 }
 
 class ShortLinkScreen extends ConsumerStatefulWidget {
-  const ShortLinkScreen({super.key, required this.code});
+  const ShortLinkScreen({
+    super.key,
+    required this.code,
+    this.unsupported = false,
+  });
 
   final String code;
+
+  /// Legacy v1 links (friend invites, result shares) that no longer have a
+  /// destination: skip resolution and show the dead-end state directly.
+  final bool unsupported;
 
   @override
   ConsumerState<ShortLinkScreen> createState() => _ShortLinkScreenState();
@@ -1040,6 +1048,10 @@ class _ShortLinkScreenState extends ConsumerState<ShortLinkScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.unsupported) {
+      failed = true;
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
   }
 
@@ -1084,8 +1096,10 @@ class _ShortLinkScreenState extends ConsumerState<ShortLinkScreen> {
           const SizedBox(height: 14),
           Text(
             failed
-                ? (controller.lastError ??
-                      'The link may have expired or been removed.')
+                ? (widget.unsupported
+                      ? 'This link is no longer supported.'
+                      : (controller.lastError ??
+                            'The link may have expired or been removed.'))
                 : 'Taking you to the right place.',
             style: Theme.of(
               context,

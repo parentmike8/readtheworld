@@ -38,6 +38,13 @@ const roomCategoryOptions = [
 Widget _sheetEyebrow(String text, {Color color = RtwV2Colors.muted}) =>
     V2Eyebrow(text, color: color);
 
+/// First letter for a room avatar; '?' for a missing or empty name
+/// (substring on an empty string throws).
+String _roomInitial(String? name) {
+  final trimmed = name?.trim() ?? '';
+  return trimmed.isEmpty ? '?' : trimmed.substring(0, 1);
+}
+
 Widget _sheetTitle(String text) => Padding(
   padding: const EdgeInsets.only(top: 8),
   child: Text(text, style: v2Serif(26, letterSpacing: -0.3)),
@@ -112,6 +119,12 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   bool revealAnswers = true;
   bool submitting = false;
   String? error;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
 
   static const tierDescriptions = {
     RoomTier.workSafe: 'Lightest topics, safe for a company or team.',
@@ -456,6 +469,12 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
   bool busy = false;
   String? error;
 
+  @override
+  void dispose() {
+    codeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _lookupOrJoin() async {
     final code = codeController.text.trim().toUpperCase();
     if (code.isEmpty) return;
@@ -554,7 +573,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    (preview!['name']?.toString() ?? '?').substring(0, 1),
+                    _roomInitial(preview!['name']?.toString()),
                     style: v2Serif(18, color: Colors.white),
                   ),
                 ),
@@ -952,6 +971,20 @@ class _CustomQSheetState extends State<_CustomQSheet> {
   bool acceptedCommunityStandards = false;
   String? safetyError;
 
+  // Cached: creating a fresh stream on every setState rebuild tears down
+  // and re-creates the Firestore listener (visible flicker + wasted reads).
+  late final Stream<List<QueueItem>> _queueStream = widget.rooms.queueStream(
+    widget.roomId,
+  );
+
+  @override
+  void dispose() {
+    draftController.dispose();
+    optAController.dispose();
+    optBController.dispose();
+    super.dispose();
+  }
+
   Future<void> _add() async {
     final text = draftController.text.trim();
     if (text.isEmpty) return;
@@ -990,7 +1023,7 @@ class _CustomQSheetState extends State<_CustomQSheet> {
         widget.rooms.bindingFor(widget.roomId)?.room?.name ?? 'Room';
     final myUid = widget.rooms.uid;
     return StreamBuilder<List<QueueItem>>(
-      stream: widget.rooms.queueStream(widget.roomId),
+      stream: _queueStream,
       builder: (context, snapshot) {
         final queue = snapshot.data ?? const <QueueItem>[];
         final mine = queue.where((item) => item.authorUid == myUid).toList();
@@ -1272,6 +1305,9 @@ Future<void> showRoomMenuSheet(
   String roomId, {
   required VoidCallback onHistory,
 }) {
+  // Failed actions (toggle, leave) surface here instead of silently leaving
+  // the sheet open with nothing moved.
+  String? actionError;
   return showV2Sheet(context, (context) {
     return Consumer(
       builder: (context, ref, _) {
@@ -1280,77 +1316,101 @@ Future<void> showRoomMenuSheet(
         final room = binding?.room;
         final isCreator = binding?.me?.isCreator ?? false;
         final revealMine = binding?.me?.revealMine ?? false;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sheetEyebrow('Room'),
-            _sheetTitle(room?.name ?? 'Room'),
-            const SizedBox(height: 18),
-            // "Show my answers" governs whether the room sees your picks on the
-            // reveal — meaningless for The World (its reveal is the global split).
-            if (room?.isWorld != true) ...[
-              _SettingToggleRow(
-                title: 'Show my answers',
-                subtitle: 'Let the room see your picks on the reveal',
-                value: revealMine,
-                onChanged: (next) => rooms.setAnswerVisibility(roomId, next),
-              ),
-              const SizedBox(height: 14),
-            ],
-            Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: RtwV2Colors.card,
-                border: Border.all(color: RtwV2Colors.border),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _MenuRow(
-                    label: 'Room history',
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      onHistory();
-                    },
-                  ),
-                  if (isCreator && room?.isWorld != true) ...[
-                    const V2Hairline(),
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetEyebrow('Room'),
+              _sheetTitle(room?.name ?? 'Room'),
+              const SizedBox(height: 18),
+              // "Show my answers" governs whether the room sees your picks on the
+              // reveal — meaningless for The World (its reveal is the global split).
+              if (room?.isWorld != true) ...[
+                _SettingToggleRow(
+                  title: 'Show my answers',
+                  subtitle: 'Let the room see your picks on the reveal',
+                  value: revealMine,
+                  onChanged: (next) async {
+                    final ok = await rooms.setAnswerVisibility(roomId, next);
+                    if (!ok && context.mounted) {
+                      setSheetState(
+                        () => actionError =
+                            rooms.lastError ?? 'Could not update that setting.',
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+              ],
+              Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: RtwV2Colors.card,
+                  border: Border.all(color: RtwV2Colors.border),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
                     _MenuRow(
-                      label: 'Room settings',
+                      label: 'Room history',
                       onTap: () {
                         Navigator.of(context).pop();
-                        showRoomSettingsSheet(context, ref, roomId);
+                        onHistory();
                       },
                     ),
-                  ],
-                  if (room?.isWorld != true) ...[
-                    const V2Hairline(),
-                    _MenuRow(
-                      label: 'Leave room',
-                      color: RtwV2Colors.danger,
-                      onTap: () async {
-                        final rooms = ref.read(roomsControllerProvider);
-                        final confirmed = await _confirmLeaveRoom(
-                          context,
-                          roomName: room?.name ?? 'this room',
-                          isCreator: isCreator,
-                          isLastMember: (room?.memberCount ?? 0) <= 1,
-                        );
-                        if (confirmed != true || !context.mounted) return;
-                        final ok = await rooms.leaveRoom(roomId);
-                        if (ok && context.mounted) {
+                    if (isCreator && room?.isWorld != true) ...[
+                      const V2Hairline(),
+                      _MenuRow(
+                        label: 'Room settings',
+                        onTap: () {
                           Navigator.of(context).pop();
-                          context.go('/rooms');
-                        }
-                      },
-                    ),
+                          showRoomSettingsSheet(context, ref, roomId);
+                        },
+                      ),
+                    ],
+                    if (room?.isWorld != true) ...[
+                      const V2Hairline(),
+                      _MenuRow(
+                        label: 'Leave room',
+                        color: RtwV2Colors.danger,
+                        onTap: () async {
+                          final rooms = ref.read(roomsControllerProvider);
+                          final confirmed = await _confirmLeaveRoom(
+                            context,
+                            roomName: room?.name ?? 'this room',
+                            isCreator: isCreator,
+                            isLastMember: (room?.memberCount ?? 0) <= 1,
+                          );
+                          if (confirmed != true || !context.mounted) return;
+                          final ok = await rooms.leaveRoom(roomId);
+                          if (!context.mounted) return;
+                          if (ok) {
+                            Navigator.of(context).pop();
+                            context.go('/rooms');
+                          } else {
+                            setSheetState(
+                              () => actionError =
+                                  rooms.lastError ??
+                                  'Could not leave the room.',
+                            );
+                          }
+                        },
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            _ghostDoneButton(context),
-          ],
+              if (actionError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  actionError!,
+                  style: v2Sans(13, color: RtwV2Colors.danger),
+                ),
+              ],
+              _ghostDoneButton(context),
+            ],
+          ),
         );
       },
     );
@@ -1468,6 +1528,14 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
   late RoomTier tier;
   late String colorToken;
   late List<String> cats;
+  bool saving = false;
+  String? error;
+
+  // Cached: creating a fresh stream on every setState rebuild tears down
+  // and re-creates the Firestore listener (visible flicker + wasted reads).
+  late final Stream<List<QueueItem>> _queueStream = rooms.queueStream(
+    widget.roomId,
+  );
 
   RtwRoom? get room => rooms.bindingFor(widget.roomId)?.room;
 
@@ -1482,6 +1550,12 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
     cats = [
       ...(current?.cats ?? const ['All']),
     ];
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
   }
 
   void _toggleCat(String cat) {
@@ -1499,7 +1573,11 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
   }
 
   Future<void> _save() async {
-    await rooms.updateRoomSettings(
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    final ok = await rooms.updateRoomSettings(
       widget.roomId,
       name: nameController.text.trim().isEmpty
           ? null
@@ -1508,7 +1586,16 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
       colorToken: colorToken,
       cats: cats,
     );
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    if (!ok) {
+      // Keep the sheet open so nothing looks saved when it wasn't.
+      setState(() {
+        saving = false;
+        error = rooms.lastError ?? 'Could not save the room settings.';
+      });
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   @override
@@ -1652,7 +1739,7 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
           child: Column(
             children: [
               StreamBuilder<List<QueueItem>>(
-                stream: rooms.queueStream(widget.roomId),
+                stream: _queueStream,
                 builder: (context, snapshot) => _MenuRow(
                   label: 'Custom questions',
                   trailing: '${snapshot.data?.length ?? 0} in queue ›',
@@ -1710,6 +1797,11 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
                     if (ok && context.mounted) {
                       Navigator.of(context).pop();
                       context.go('/rooms');
+                    } else if (!ok && mounted) {
+                      setState(
+                        () => error =
+                            rooms.lastError ?? 'Could not delete the room.',
+                      );
                     }
                   }
                 },
@@ -1717,10 +1809,14 @@ class _RoomSettingsSheetState extends State<_RoomSettingsSheet> {
             ],
           ),
         ),
+        if (error != null) ...[
+          const SizedBox(height: 12),
+          Text(error!, style: v2Sans(13, color: RtwV2Colors.danger)),
+        ],
         const SizedBox(height: 16),
         V2Button(
-          'Save & close',
-          onPressed: _save,
+          saving ? 'Saving…' : 'Save & close',
+          onPressed: saving ? null : _save,
           padding: const EdgeInsets.symmetric(vertical: 15),
           radius: 16,
         ),

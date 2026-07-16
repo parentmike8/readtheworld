@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,8 @@ class ProfileScreenV2 extends ConsumerStatefulWidget {
 class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
     with WidgetsBindingObserver {
   TextEditingController? nameController;
+  final FocusNode nameFocus = FocusNode();
+  String? _lastProfileName;
   bool sendingVerification = false;
 
   static const _avatarColors = [
@@ -43,6 +46,7 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     nameController?.dispose();
+    nameFocus.dispose();
     super.dispose();
   }
 
@@ -63,7 +67,17 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
     final authEmail = authUser?.email ?? profile.email;
     final authEmailVerified =
         profile.emailVerified || (authUser?.emailVerified ?? false);
-    nameController ??= TextEditingController(text: profile.displayName);
+    if (nameController == null) {
+      nameController = TextEditingController(text: profile.displayName);
+      _lastProfileName = profile.displayName;
+    } else if (_lastProfileName != profile.displayName) {
+      // The Firestore profile can land after first build; resync the field
+      // unless the reader is editing it (focused or already diverged).
+      if (!nameFocus.hasFocus && nameController!.text == _lastProfileName) {
+        nameController!.text = profile.displayName;
+      }
+      _lastProfileName = profile.displayName;
+    }
     final initial = profile.displayName.isEmpty
         ? '?'
         : profile.displayName.substring(0, 1).toUpperCase();
@@ -147,6 +161,7 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
             const SizedBox(height: 8),
             TextField(
               controller: nameController,
+              focusNode: nameFocus,
               style: v2Sans(16, color: RtwV2Colors.inkSoft),
               onChanged: (value) {
                 if (value.trim().isNotEmpty) {
@@ -199,6 +214,26 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
                           'Ping me when rooms have new questions',
                           style: v2Sans(12, color: RtwV2Colors.faint),
                         ),
+                        if (profile.notificationsDenied &&
+                            !kIsWeb &&
+                            defaultTargetPlatform == TargetPlatform.iOS) ...[
+                          const SizedBox(height: 6),
+                          Semantics(
+                            button: true,
+                            child: GestureDetector(
+                              onTap: () =>
+                                  launchUrl(Uri.parse('app-settings:')),
+                              child: Text(
+                                'Notifications are off in iOS Settings. Open Settings',
+                                style: v2Sans(
+                                  12,
+                                  color: RtwV2Colors.blue,
+                                  weight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -280,9 +315,12 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
 
   Future<void> _verifyEmail() async {
     setState(() => sendingVerification = true);
-    await ref.read(rtwControllerProvider).sendVerificationEmail();
-    if (!mounted) return;
-    setState(() => sendingVerification = false);
+    try {
+      await ref.read(rtwControllerProvider).sendVerificationEmail();
+    } finally {
+      // Always release the row, even if sending throws.
+      if (mounted) setState(() => sendingVerification = false);
+    }
   }
 
   void _showSafetySheet(BuildContext context) {

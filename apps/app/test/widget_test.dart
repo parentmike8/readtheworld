@@ -12,6 +12,7 @@ import 'package:read_the_world/v2/mappers_v2.dart';
 import 'package:read_the_world/v2/party_controller.dart';
 import 'package:read_the_world/v2/review_tools.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
+import 'package:read_the_world/v2/screens/onboarding_screen.dart';
 import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/play_surface.dart';
 import 'package:read_the_world/v2/screens/profile_screen.dart';
@@ -80,6 +81,23 @@ PartyQuestion _partyQuestion(
   shape: 'TASTE',
   tier: tier,
 );
+
+/// Drives one full party question to its reveal: the reader swipes a side and
+/// locks a prediction, every voter swipes, and the reveal hand-off is taken.
+void _playPartyQuestionToReveal(PartyController party, {int pred = 50}) {
+  party.cardDragStart();
+  party.cardDragUpdate(80);
+  party.cardDragEnd(0);
+  party.pred = pred;
+  party.lockTurn();
+  for (var voter = 1; voter < party.players; voter++) {
+    party.passContinue();
+    party.cardDragStart();
+    party.cardDragUpdate(80);
+    party.cardDragEnd(0);
+  }
+  party.passContinue(); // revealPass → reveal
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -470,7 +488,6 @@ void main() {
         // World always predicts now, so a saved answer reopens on the editable
         // predict step at question 1 (not the old answer-only "saved" screen).
         expect(rooms.play!.stage, PlayStage.predict);
-        expect(rooms.play!.answerSavedReason, isNull);
         expect(rooms.play!.side, 'b');
 
         rooms.changeAnswer();
@@ -602,14 +619,6 @@ void main() {
       () async {
         final rooms = RoomsController(firebaseReady: false);
 
-        // No Firebase → locking is a silent no-op, never a throw.
-        await rooms.lockIntroWorldAnswers(const [
-          RoomPick(qid: 'q1', side: 'a'),
-          RoomPick(qid: 'q2', side: 'b'),
-          RoomPick(qid: 'q3', side: 'a'),
-        ]);
-        expect(rooms.lastError, isNull);
-
         // markOnboarded flips the local gate immediately.
         expect(rooms.hasOnboarded, isFalse);
         rooms.markOnboarded();
@@ -714,6 +723,7 @@ void main() {
           ..setRounds(1);
         party.start([_partyQuestion('p1'), _partyQuestion('p2')]);
         expect(party.readerIndex, 0);
+        _playPartyQuestionToReveal(party);
         party.next();
         expect(party.readerIndex, 1);
 
@@ -734,6 +744,7 @@ void main() {
         ..setRounds(2);
       multi.start([_partyQuestion('p1'), _partyQuestion('p2')]);
       expect(multi.sub, PartySub.pick); // first question goes straight in
+      _playPartyQuestionToReveal(multi);
       multi.next();
       expect(multi.sub, PartySub.pass); // between questions: hand-off first
       expect(multi.turn, 0); // new reader answers first
@@ -742,8 +753,49 @@ void main() {
         ..setPlayers(1)
         ..setRounds(2);
       solo.start([_partyQuestion('s1'), _partyQuestion('s2')]);
-      solo.next();
+      solo.cardDragStart();
+      solo.cardDragUpdate(80);
+      solo.cardDragEnd(0);
+      expect(solo.idx, 1);
       expect(solo.sub, PartySub.pick); // solo skips the hand-off
+    });
+
+    test('double-taps on lock and next advance exactly one step', () {
+      final party = PartyController()
+        ..setPlayers(3)
+        ..setRounds(2);
+      party.start([_partyQuestion('p1'), _partyQuestion('p2')]);
+
+      // The reader locks; a second tap of the same button must be a no-op
+      // instead of throwing on the cleared side or double-counting the pick.
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      party.pred = 50;
+      party.lockTurn();
+      expect(party.lockTurn, returnsNormally);
+      expect(party.turn, 1);
+      expect(party.turnPicks, hasLength(1));
+      expect(party.sub, PartySub.pass);
+
+      // Finish the question, then double-tap "Next question".
+      party.passContinue();
+      party.cardDragStart();
+      party.cardDragUpdate(80);
+      party.cardDragEnd(0);
+      party.passContinue();
+      party.cardDragStart();
+      party.cardDragUpdate(-80);
+      party.cardDragEnd(0);
+      party.passContinue();
+      expect(party.sub, PartySub.reveal);
+
+      final beforeIdx = party.idx;
+      party.next();
+      party.next();
+      expect(party.idx, beforeIdx + 1); // exactly one question forward
+      expect(party.stage, PartyStage.play);
+      expect(party.sub, PartySub.pass);
     });
 
     test('undo rewinds the last committing move', () {
@@ -1245,6 +1297,80 @@ void main() {
       );
       expect(find.text('ALL 3'), findsOneWidget);
       expect(find.text('ALL 16'), findsOneWidget);
+    });
+
+    testWidgets('prediction meter can begin without a selected value', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PredictionAgreementMeter(
+              percent: 50,
+              people: 0,
+              infinite: true,
+              showSelection: false,
+              onUpdate: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('prediction-meter-fill')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('prediction-meter-handle')),
+        findsNothing,
+      );
+      expect(find.text('NO ONE'), findsOneWidget);
+      expect(find.text('EVERYONE'), findsOneWidget);
+    });
+
+    testWidgets('onboarding scoring explainer renders after practice', (
+      tester,
+    ) async {
+      final rooms = RoomsController(firebaseReady: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: OnboardingScreenV2()),
+        ),
+      );
+      await tester.pump();
+      expect(rooms.play, isNotNull);
+
+      for (var i = 0; i < 3; i++) {
+        rooms.commitSide('a');
+        rooms.meterUpdate(0.25);
+        await rooms.lockCurrent();
+      }
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(find.text('Closer predictions score more.'), findsOneWidget);
+      expect(find.text('65% of people chose Yes'), findsOneWidget);
+      expect(find.text('You predicted 25%'), findsOneWidget);
+      expect(find.text('40 points apart'), findsOneWidget);
+      expect(
+        find.text(
+          'Your Read Score rises or falls based on how your prediction ranks in the room.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text("It's not about being right.\nIt's about reading the room."),
+        findsOneWidget,
+      );
+      expect(
+        find.text('The farther away, the fewer points you earn.'),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('party tab renders setup and starts a local round', (
