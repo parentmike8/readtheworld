@@ -24,7 +24,7 @@ World lifecycle + scoring, `getWorldLeaderboard`, `notifyMembersOfJoin`, and the
 `lockRoomAnswers` changes all live here.
 ```
 cd functions && npm run build
-firebase deploy --only functions
+cd .. && npm run deploy:functions
 ```
 - [ ] Watch logs for the first `rolloverRooms` / lock after deploy.
 
@@ -41,8 +41,7 @@ firebase deploy --only functions
 
 ## 4. Flutter web
 ```
-scripts/build-flutter-web.sh      # injects the RTW_* dart-defines from .env.local
-firebase deploy --only hosting:app
+npm run deploy:app  # builds with production dart-defines, then deploys hosting:app
 ```
 
 ## 5. iOS (App Store) — NOT one-command
@@ -72,8 +71,14 @@ existing app.
   This gate must report Apple Sign-In, production push notifications,
   `applinks:rtw.codes`, a valid distribution signature, and the production
   Firebase config baked into the Dart snapshot before upload.
-- [ ] Export/upload the verified signed archive with `xcodebuild
-      -exportArchive` and an App Store Connect export options plist.
+- [ ] Upload the verified signed archive:
+  ```
+  xcodebuild -exportArchive \
+    -archivePath apps/app/build/ios/archive/Runner.xcarchive \
+    -exportPath apps/app/build/ios/upload \
+    -exportOptionsPlist apps/app/ios/ExportOptions-AppStore.plist \
+    -allowProvisioningUpdates
+  ```
 
 ## 6. Android (Play) — same shape
 - [ ] Play Console app + signing (Play App Signing), store listing.
