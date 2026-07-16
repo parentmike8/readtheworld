@@ -2,20 +2,26 @@ import { describe, expect, it } from "vitest";
 import type { CandidateQuestion } from "../src/rooms";
 import {
   RoomValidationError,
+  WORLD_REVEAL_CLAIM_STALE_MS,
   catsAllowQuestion,
   customInjectionCount,
   hasClearlyObjectionableContent,
+  mergeLockedPicks,
   normalizeCustomOption,
   normalizeCustomQuestionText,
   normalizePrediction,
   normalizeRoomCats,
   normalizeRoomName,
   normalizeRoomTier,
+  predictedPickCount,
+  questionsAnsweredBeforeDay,
   roomDailyScoreDeltas,
   roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
+  worldRevealClaimDecision,
+  worldRevealCandidateQids,
 } from "../src/rooms";
 
 function candidate(overrides: Partial<CandidateQuestion> & { id: string }): CandidateQuestion {
@@ -295,5 +301,181 @@ describe("scoreWorldQuestion", () => {
     });
     expect(result.aPct).toBe(50);
     expect(result.scores).toHaveLength(1);
+  });
+});
+
+describe("mergeLockedPicks", () => {
+  const pick = (qid: string, side: "a" | "b" = "a", prediction: number | null = 50) =>
+    ({ qid, side, prediction });
+
+  it("replaces unrevealed picks and counts a first-time answer", () => {
+    const merged = mergeLockedPicks({
+      existingPicks: [],
+      newPicks: [pick("q1"), pick("q2")],
+      revealedQids: new Set<string>(),
+    });
+    expect(merged.picks).toEqual([pick("q1"), pick("q2")]);
+    expect(merged.incrementQids).toEqual(["q1", "q2"]);
+    expect(merged.decrementQids).toEqual([]);
+  });
+
+  it("preserves revealed picks untouched on a re-lock", () => {
+    const revealedPick = pick("q1", "b", 80);
+    const merged = mergeLockedPicks({
+      existingPicks: [revealedPick, pick("q2", "a", 40)],
+      newPicks: [pick("q2", "b", 60), pick("q3")],
+      revealedQids: new Set(["q1"]),
+    });
+    // q1 stays exactly as stored; q2 is replaced; q3 is added.
+    expect(merged.picks).toEqual([revealedPick, pick("q2", "b", 60), pick("q3")]);
+    expect(merged.incrementQids).toEqual(["q3"]);
+    expect(merged.decrementQids).toEqual([]);
+  });
+
+  it("never decrements answer counts for revealed questions", () => {
+    const merged = mergeLockedPicks({
+      existingPicks: [pick("q1"), pick("q2")],
+      newPicks: [pick("q3")],
+      revealedQids: new Set(["q1"]),
+    });
+    // q1 already revealed: kept, not decremented. q2 was replaceable and
+    // dropped: decremented.
+    expect(merged.picks).toEqual([pick("q1"), pick("q3")]);
+    expect(merged.incrementQids).toEqual(["q3"]);
+    expect(merged.decrementQids).toEqual(["q2"]);
+  });
+
+  it("ignores a new pick that targets a revealed question", () => {
+    const storedPick = pick("q1", "a", 30);
+    const merged = mergeLockedPicks({
+      existingPicks: [storedPick],
+      newPicks: [pick("q1", "b", 90), pick("q2")],
+      revealedQids: new Set(["q1"]),
+    });
+    expect(merged.picks).toEqual([storedPick, pick("q2")]);
+    expect(merged.incrementQids).toEqual(["q2"]);
+    expect(merged.decrementQids).toEqual([]);
+  });
+
+  it("supports legacy stored pick shapes without touching them", () => {
+    const legacy = { qid: "q1", side: "a", predictedShare: 70 };
+    const merged = mergeLockedPicks({
+      existingPicks: [legacy],
+      newPicks: [pick("q2")],
+      revealedQids: new Set(["q1"]),
+    });
+    expect(merged.picks[0]).toBe(legacy);
+  });
+});
+
+describe("worldRevealClaimDecision", () => {
+  const base = {
+    qid: "q1",
+    revealedQids: [] as string[],
+    revealingQids: [] as string[],
+    claimedAtMs: null as number | null,
+    nowMs: 1_000_000,
+  };
+
+  it("claims fresh when the qid is unclaimed", () => {
+    expect(worldRevealClaimDecision(base)).toBe("fresh-claim");
+  });
+
+  it("treats revealedQids as done, even alongside a leftover claim", () => {
+    expect(worldRevealClaimDecision({
+      ...base,
+      revealedQids: ["q1"],
+      revealingQids: ["q1"],
+      claimedAtMs: 0,
+    })).toBe("done");
+  });
+
+  it("backs off while another invocation holds a fresh claim", () => {
+    expect(worldRevealClaimDecision({
+      ...base,
+      revealingQids: ["q1"],
+      claimedAtMs: base.nowMs - WORLD_REVEAL_CLAIM_STALE_MS + 1,
+    })).toBe("in-progress");
+  });
+
+  it("re-claims a stale claim (a crashed reveal)", () => {
+    expect(worldRevealClaimDecision({
+      ...base,
+      revealingQids: ["q1"],
+      claimedAtMs: base.nowMs - WORLD_REVEAL_CLAIM_STALE_MS,
+    })).toBe("stale-claim");
+  });
+
+  it("re-claims a claim without a readable timestamp", () => {
+    expect(worldRevealClaimDecision({
+      ...base,
+      revealingQids: ["q1"],
+      claimedAtMs: null,
+    })).toBe("stale-claim");
+  });
+
+  it("only reacts to claims for the same qid", () => {
+    expect(worldRevealClaimDecision({
+      ...base,
+      revealingQids: ["q2"],
+      revealedQids: ["q3"],
+    })).toBe("fresh-claim");
+  });
+});
+
+describe("worldRevealCandidateQids", () => {
+  const questions = [
+    { qid: "ready", threshold: 5 },
+    { qid: "waiting", threshold: 10 },
+    { qid: "default-threshold" },
+    { qid: "pulled", threshold: 1, pulled: true },
+    { qid: "revealed", threshold: 1 },
+  ];
+
+  it("returns every unrevealed question at its answer threshold", () => {
+    expect(worldRevealCandidateQids({
+      questions,
+      answerCounts: {
+        ready: 5,
+        waiting: 9,
+        "default-threshold": 3,
+        pulled: 20,
+        revealed: 20,
+      },
+      revealedQids: new Set(["revealed"]),
+      defaultThreshold: 3,
+    })).toEqual(["ready", "default-threshold"]);
+  });
+
+  it("keeps claimed questions discoverable for stale-claim recovery", () => {
+    expect(worldRevealCandidateQids({
+      questions: [{ qid: "claimed", threshold: 2 }],
+      answerCounts: { claimed: 2 },
+      revealedQids: new Set(),
+    })).toEqual(["claimed"]);
+  });
+});
+
+describe("close-day K-factor adjustment", () => {
+  it("subtracts today's predicted picks back out of the lifetime count", () => {
+    expect(questionsAnsweredBeforeDay(12, 3)).toBe(9);
+  });
+
+  it("never goes below zero", () => {
+    expect(questionsAnsweredBeforeDay(2, 3)).toBe(0);
+    expect(questionsAnsweredBeforeDay(0, 0)).toBe(0);
+  });
+
+  it("ignores a negative pick count", () => {
+    expect(questionsAnsweredBeforeDay(5, -2)).toBe(5);
+  });
+
+  it("counts picks with predictions, including legacy predictedShare", () => {
+    expect(predictedPickCount([
+      { qid: "q1", side: "a", prediction: 60 },
+      { qid: "q2", side: "b", prediction: null },
+      { qid: "q3", side: "a", predictedShare: 40 },
+      { qid: "q4", side: "b" },
+    ])).toBe(2);
   });
 });

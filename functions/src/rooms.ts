@@ -218,6 +218,83 @@ export function roomDailyScoreDeltas(results: RoomMemberDayResult[]): RoomMember
   });
 }
 
+/**
+ * K-factor input for closing a day: `member.questionsAnswered` was already
+ * incremented at lock time for the day now being closed, but the documented
+ * contract is "lifetime predicted-question count BEFORE today" — subtract
+ * today's predicted picks back out.
+ */
+export function questionsAnsweredBeforeDay(
+  lifetimeQuestionsAnswered: number,
+  predictedPicksForDay: number,
+): number {
+  return Math.max(0, lifetimeQuestionsAnswered - Math.max(0, predictedPicksForDay));
+}
+
+/** Picks carrying a numeric prediction — mirrors the lock-time counter. */
+export function predictedPickCount(
+  picks: ReadonlyArray<{ prediction?: unknown; predictedShare?: unknown }>,
+): number {
+  return picks.filter((pick) =>
+    typeof pick?.prediction === "number" ||
+    typeof pick?.predictedShare === "number").length;
+}
+
+export const WORLD_REVEAL_CLAIM_STALE_MS = 10 * 60 * 1000;
+
+export type WorldRevealClaimDecision =
+  | "fresh-claim"
+  | "stale-claim"
+  | "in-progress"
+  | "done";
+
+/**
+ * Claim-state machine for revealing a World question. A reveal claims the qid
+ * into `revealingQids` BEFORE scoring and only moves it to `revealedQids`
+ * after every scoring write commits, so a crash mid-scoring stays retryable:
+ * a claim older than the stale window may be re-claimed, a fresh claim means
+ * another invocation is scoring right now, and `revealedQids` means done.
+ */
+export function worldRevealClaimDecision(input: {
+  qid: string;
+  revealedQids: string[];
+  revealingQids: string[];
+  claimedAtMs: number | null;
+  nowMs: number;
+  staleMs?: number;
+}): WorldRevealClaimDecision {
+  if (input.revealedQids.includes(input.qid)) return "done";
+  if (!input.revealingQids.includes(input.qid)) return "fresh-claim";
+  const staleMs = input.staleMs ?? WORLD_REVEAL_CLAIM_STALE_MS;
+  if (input.claimedAtMs == null || input.nowMs - input.claimedAtMs >= staleMs) {
+    return "stale-claim";
+  }
+  return "in-progress";
+}
+
+/**
+ * World questions eligible for a reveal attempt. Claim state is deliberately
+ * not an input: a qid with a fresh claim will back off in
+ * `worldRevealClaimDecision`, while a stale claim must remain discoverable so
+ * a scheduled recovery can finish it after a crashed invocation.
+ */
+export function worldRevealCandidateQids(input: {
+  questions: ReadonlyArray<{ qid: string; pulled?: boolean; threshold?: number | null }>;
+  answerCounts: Readonly<Record<string, number>>;
+  revealedQids: ReadonlySet<string>;
+  defaultThreshold?: number;
+}): string[] {
+  const defaultThreshold = input.defaultThreshold ?? 1000;
+  return input.questions
+    .filter((question) => question.pulled !== true)
+    .filter((question) => !input.revealedQids.has(question.qid))
+    .filter((question) => {
+      const threshold = Number(question.threshold ?? defaultThreshold);
+      return Number(input.answerCounts[question.qid] ?? 0) >= threshold;
+    })
+    .map((question) => question.qid);
+}
+
 export type WorldPredictorInput = {
   uid: string;
   side: "a" | "b";
@@ -326,6 +403,42 @@ export function hasClearlyObjectionableContent(value: string): boolean {
     /\bsp+i+c+s?\b/,
   ];
   return prohibitedPatterns.some((pattern) => pattern.test(text));
+}
+
+export type MergedLockedPicks<T, U> = {
+  /** Picks to store: untouched revealed picks first, then the new picks. */
+  picks: Array<T | U>;
+  /** Qids whose answerCounts should increment (newly answered, unrevealed). */
+  incrementQids: string[];
+  /** Qids whose answerCounts should decrement (dropped, and never revealed). */
+  decrementQids: string[];
+};
+
+/**
+ * Merge a re-lock's picks with what's already stored. Picks for revealed
+ * questions are frozen — their results already counted the reader — so they
+ * are preserved untouched and their answer counts never decrement. Only
+ * unrevealed picks are replaceable.
+ */
+export function mergeLockedPicks<T extends { qid: string }, U extends { qid: string }>(input: {
+  existingPicks: T[];
+  newPicks: U[];
+  revealedQids: Set<string>;
+}): MergedLockedPicks<T, U> {
+  const preserved = input.existingPicks
+    .filter((pick) => input.revealedQids.has(pick.qid));
+  const replacements = input.newPicks
+    .filter((pick) => !input.revealedQids.has(pick.qid));
+  const existingQids = new Set(input.existingPicks.map((pick) => pick.qid));
+  const replacementQids = new Set(replacements.map((pick) => pick.qid));
+  return {
+    picks: [...preserved, ...replacements],
+    incrementQids: replacements
+      .map((pick) => pick.qid)
+      .filter((qid) => !existingQids.has(qid)),
+    decrementQids: [...existingQids]
+      .filter((qid) => !input.revealedQids.has(qid) && !replacementQids.has(qid)),
+  };
 }
 
 export function normalizePrediction(value: unknown): number | null {

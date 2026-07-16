@@ -170,6 +170,37 @@ export function rankedLeaderboardRows(
   });
 }
 
+/** Fields fanOutFriendProfile copies onto friends' docs. */
+export function friendProfileChanged(
+  existing: Record<string, unknown> | null | undefined,
+  next: Pick<
+    LeaderboardRow,
+    "displayName" | "avatarColor" | "readScore" | "currentStreak" | "officialQuestionsAnswered"
+  >,
+): boolean {
+  if (!existing) return true;
+  return String(existing.displayName ?? "") !== next.displayName ||
+    String(existing.avatarColor ?? "") !== next.avatarColor ||
+    Number(existing.readScore) !== next.readScore ||
+    Number(existing.currentStreak) !== next.currentStreak ||
+    Number(existing.officialQuestionsAnswered) !== next.officialQuestionsAnswered;
+}
+
+/**
+ * The hourly recompute rewrites only rows that actually moved; a missing
+ * stored row always counts as changed.
+ */
+export function leaderboardRowChanged(
+  existing: Record<string, unknown> | null | undefined,
+  next: LeaderboardRow,
+  nextReadScorePercentile: number,
+): boolean {
+  if (!existing) return true;
+  return friendProfileChanged(existing, next) ||
+    Number(existing.rank) !== next.rank ||
+    Number(existing.readScorePercentile) !== nextReadScorePercentile;
+}
+
 export function readScorePercentileFromRank(
   rank: number,
   totalEligibleUsers: number,

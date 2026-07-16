@@ -5,13 +5,16 @@ import {
   calculateReadAccuracy,
   dailyPercentilesByAccuracy,
   dailyKeyForEasternDate,
+  friendProfileChanged,
   kFactor,
+  leaderboardRowChanged,
   nextStreakForDailyKey,
   percentileFromTieCounts,
   rankedLeaderboardRows,
   readScorePercentileFromRank,
   scoreDeltaForPercentile,
   smoothedCategoryScore,
+  type LeaderboardRow,
 } from "../src/scoring";
 
 describe("Read Accuracy", () => {
@@ -124,5 +127,58 @@ describe("Leaderboards", () => {
     expect(readScorePercentileFromRank(6, 100)).toBe(94.5);
     expect(readScorePercentileFromRank(100, 100)).toBe(0.5);
     expect(readScorePercentileFromRank(0, 100)).toBe(0);
+  });
+});
+
+describe("Leaderboard changed-row diff", () => {
+  const row: LeaderboardRow = {
+    uid: "u1",
+    displayName: "Ada",
+    avatarColor: "blue",
+    readScore: 1540,
+    officialQuestionsAnswered: 12,
+    currentStreak: 4,
+    rank: 7,
+  };
+  const stored = {
+    uid: "u1",
+    displayName: "Ada",
+    avatarColor: "blue",
+    readScore: 1540,
+    officialQuestionsAnswered: 12,
+    currentStreak: 4,
+    rank: 7,
+    readScorePercentile: 82.5,
+  };
+
+  it("skips rows where nothing visible moved", () => {
+    expect(leaderboardRowChanged(stored, row, 82.5)).toBe(false);
+    expect(friendProfileChanged(stored, row)).toBe(false);
+  });
+
+  it("treats a missing stored row as changed", () => {
+    expect(leaderboardRowChanged(null, row, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(undefined, row, 82.5)).toBe(true);
+    expect(friendProfileChanged(null, row)).toBe(true);
+  });
+
+  it("detects each visible field change", () => {
+    expect(leaderboardRowChanged(stored, { ...row, readScore: 1541 }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, { ...row, displayName: "Ada L" }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, { ...row, avatarColor: "green" }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, { ...row, currentStreak: 5 }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, { ...row, officialQuestionsAnswered: 13 }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, { ...row, rank: 6 }, 82.5)).toBe(true);
+    expect(leaderboardRowChanged(stored, row, 82.4)).toBe(true);
+  });
+
+  it("ignores rank and percentile for friend-profile fan-out", () => {
+    expect(friendProfileChanged(stored, { ...row, rank: 1 })).toBe(false);
+    expect(friendProfileChanged(stored, { ...row, currentStreak: 5 })).toBe(true);
+  });
+
+  it("treats a partial stored row as changed", () => {
+    const { readScorePercentile: _dropped, ...withoutPercentile } = stored;
+    expect(leaderboardRowChanged(withoutPercentile, row, 82.5)).toBe(true);
   });
 });

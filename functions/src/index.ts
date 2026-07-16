@@ -27,12 +27,15 @@ import {
   calculateReadAccuracy,
   dailyPercentilesByAccuracy,
   dailyKeyForEasternDate,
+  friendProfileChanged,
+  leaderboardRowChanged,
   nextStreakForDailyKey,
   rankedLeaderboardRows,
   readScorePercentileFromRank,
   scoreDeltaForPercentile,
   smoothedCategoryScore,
   type LeaderboardInput,
+  type LeaderboardRow,
 } from "./scoring";
 import { addDaysToDailyKey, buildProductionQuestionSeed } from "./seedQuestions";
 import {
@@ -51,6 +54,7 @@ import {
   WORLD_ROOM_ID,
   customInjectionCount,
   hasClearlyObjectionableContent,
+  mergeLockedPicks,
   normalizeCustomOption,
   normalizeCustomQuestionText,
   normalizePrediction,
@@ -58,11 +62,15 @@ import {
   normalizeRoomColor,
   normalizeRoomName,
   normalizeRoomTier,
+  predictedPickCount,
+  questionsAnsweredBeforeDay,
   roomDailyScoreDeltas,
   roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
   tierAllowsQuestion,
+  worldRevealCandidateQids,
+  worldRevealClaimDecision,
   type CandidateQuestion,
   type RoomMemberDayResult,
   type WorldPredictorInput,
@@ -85,8 +93,9 @@ import {
 } from "./questions";
 import {
   dailyNotificationPayload,
+  isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
-  notificationAudienceMatchesUser,
+  selectBroadcastTokens,
   userAllowsNotifications,
   type BroadcastAudience,
 } from "./notifications";
@@ -122,6 +131,8 @@ const COUNTER_SHARDS = 20;
 const LEADERBOARD_LIMIT = 100;
 const FIRESTORE_BATCH_LIMIT = 450;
 const MAX_FCM_TOKENS_PER_SEND = 500;
+const ANSWER_SCORING_CONCURRENCY = 10;
+const ROOM_DAY_CLEANUP_CONCURRENCY = 10;
 const FEATURE_FLAG_CACHE_MS = 60 * 1000;
 const APP_URL = "https://app.readtheworld.today";
 const MARKETING_URL = "https://readtheworld.today";
@@ -145,8 +156,9 @@ const feedbackCallableOptions = {
 };
 // Account deletion must remain available to every authenticated user even if
 // App Check has not finished refreshing immediately after a new sign-in. The
-// handler still scopes all work to request.auth.uid.
-const accountDeletionCallableOptions = { enforceAppCheck: false };
+// handler still scopes all work to request.auth.uid. Long-lived accounts in
+// rooms with deep day histories need far more than the 60s default.
+const accountDeletionCallableOptions = { enforceAppCheck: false, timeoutSeconds: 540 };
 
 class ShortCodeCollisionError extends Error {}
 
@@ -368,16 +380,28 @@ function assertNotificationText(
   return text;
 }
 
-function assertNotificationRoute(value: unknown): string {
-  const route = assertString(value ?? "/today", "route");
+function assertRelativeRoute(value: unknown, field = "route"): string {
+  const route = assertString(value, field);
   if (!route.startsWith("/") || route.startsWith("//") || route.length > 120) {
-    throw new HttpsError("invalid-argument", "route must be a relative app path.");
+    throw new HttpsError("invalid-argument", `${field} must be a relative app path.`);
+  }
+  return route;
+}
+
+/**
+ * Broadcast routes must match the client tap-router allowlist exactly —
+ * anything else ships a push that silently no-ops when tapped.
+ */
+function assertNotificationRoute(value: unknown): string {
+  const route = assertRelativeRoute(value ?? "/today");
+  if (!isAllowedBroadcastRoute(route)) {
+    throw new HttpsError("invalid-argument", "route is not a tappable app path.");
   }
   return route;
 }
 
 function assertAppRoute(value: unknown, fallback = "/today"): string {
-  const route = assertNotificationRoute(value ?? fallback);
+  const route = assertRelativeRoute(value ?? fallback);
   if (![
     "/auth",
     "/onboarding",
@@ -631,6 +655,12 @@ async function commitBatchedWrites(
   }
 }
 
+/** gRPC ALREADY_EXISTS (6) — thrown by DocumentReference.create() on a live doc. */
+function isAlreadyExistsError(error: unknown): boolean {
+  return typeof error === "object" && error !== null &&
+    (error as { code?: unknown }).code === 6;
+}
+
 async function deleteUserSubcollection(uid: string, collectionId: string): Promise<number> {
   let deleted = 0;
   while (true) {
@@ -718,13 +748,20 @@ async function clearServerOwnedShareData(uid: string): Promise<{
 
 async function recomputeGlobalLeaderboard(limit = LEADERBOARD_LIMIT): Promise<{
   rows: number;
+  changedRows: number;
+  fannedOut: number;
 }> {
+  // Fetch every eligible reader, then rank in memory. Firestore requires the
+  // first explicit orderBy to match an inequality field, so ordering this
+  // query by readScore would fail before any proposed composite index could
+  // help. A server-side limit would also make the board incorrect by keeping
+  // the least-active readers from the inequality field's implicit ordering.
   const usersSnap = await db
     .collection("users")
     .where("officialQuestionsAnswered", ">", 0)
-    .limit(1000)
     .get();
 
+  const userDataByUid = new Map(usersSnap.docs.map((doc) => [doc.id, doc.data()]));
   const inputs: LeaderboardInput[] = usersSnap.docs.map((doc) => {
     const data = doc.data();
     return {
@@ -747,25 +784,60 @@ async function recomputeGlobalLeaderboard(limit = LEADERBOARD_LIMIT): Promise<{
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true }),
   ];
+  // Users who fell out of the top rows must be deleted, or getLeaderboard
+  // keeps returning their stale rank/score forever.
+  const nextRowUids = new Set(rows.map((row) => row.uid));
+  const existingRowsSnap = await boardRef.collection("rows").get();
+  const existingRowByUid = new Map(existingRowsSnap.docs.map((doc) => [doc.id, doc.data()]));
+  for (const doc of existingRowsSnap.docs) {
+    if (!nextRowUids.has(doc.id)) {
+      writes.push((batch) => batch.delete(doc.ref));
+    }
+  }
+  // The hourly run only rewrites rows that actually moved — the previous
+  // full rewrite reissued every row, every user doc, and one collectionGroup
+  // fan-out per user each hour even when nothing changed.
+  let changedRows = 0;
   for (const row of rows) {
+    const readScorePercentile = readScorePercentileFromRank(row.rank, allRows.length);
+    if (!leaderboardRowChanged(existingRowByUid.get(row.uid), row, readScorePercentile)) {
+      continue;
+    }
+    changedRows += 1;
     writes.push((batch) => batch.set(boardRef.collection("rows").doc(row.uid), {
       ...row,
-      readScorePercentile: readScorePercentileFromRank(row.rank, allRows.length),
+      readScorePercentile,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true }));
   }
+  const fanOutRows: LeaderboardRow[] = [];
   for (const row of allRows) {
+    const data = userDataByUid.get(row.uid) ?? {};
+    const readScorePercentile = readScorePercentileFromRank(row.rank, allRows.length);
+    // Fan out against the profile recorded AFTER the last successful fan-out
+    // (not the leaderboard row, which commits before the fan-out and would
+    // mask a crashed one).
+    if (friendProfileChanged(
+      (data.lastFriendProfileFanOut ?? null) as Record<string, unknown> | null,
+      row,
+    )) {
+      fanOutRows.push(row);
+    }
+    if (Number(data.leaderboardRank) === row.rank &&
+        Number(data.readScorePercentile) === readScorePercentile) {
+      continue;
+    }
     writes.push((batch) => batch.set(db.collection("users").doc(row.uid), {
       leaderboardRank: row.rank,
-      readScorePercentile: readScorePercentileFromRank(row.rank, allRows.length),
+      readScorePercentile,
       leaderboardUpdatedAt: FieldValue.serverTimestamp(),
     }, { merge: true }));
   }
   await commitBatchedWrites(writes);
-  for (const row of allRows) {
+  for (const row of fanOutRows) {
     await fanOutFriendProfile(row);
   }
-  return { rows: rows.length };
+  return { rows: rows.length, changedRows, fannedOut: fanOutRows.length };
 }
 
 async function activeNotificationTokens(): Promise<NotificationToken[]> {
@@ -801,29 +873,35 @@ async function notificationTokensForAudience(
   audience: BroadcastAudience,
   limit: number,
 ): Promise<NotificationToken[]> {
-  const tokens = (await activeNotificationTokens()).slice(0, Math.max(1, limit));
-  if (audience === "all" || tokens.length === 0) return tokens;
+  // Filter to the audience FIRST, then cap — capping first silently drops
+  // eligible users once total tokens exceed the limit.
+  const tokens = await activeNotificationTokens();
+  if (tokens.length === 0) return tokens;
 
   const today = new Date();
   const todayDailyKey = dailyKeyForEasternDate(today);
   const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sevenDaysAgoDailyKey = dailyKeyForEasternDate(sevenDaysAgo);
-  const userRefs = [...new Set(tokens.map((token) => token.uid))]
-    .map((uid) => db.collection("users").doc(uid));
   const userByUid = new Map<string, Record<string, unknown>>();
-  for (const chunk of chunkArray(userRefs, 100)) {
-    const userSnaps = await db.getAll(...chunk);
-    for (const snap of userSnaps) {
-      userByUid.set(snap.id, snap.data() ?? {});
+  if (audience !== "all") {
+    const userRefs = [...new Set(tokens.map((token) => token.uid))]
+      .map((uid) => db.collection("users").doc(uid));
+    for (const chunk of chunkArray(userRefs, 100)) {
+      const userSnaps = await db.getAll(...chunk);
+      for (const snap of userSnaps) {
+        userByUid.set(snap.id, snap.data() ?? {});
+      }
     }
   }
 
-  return tokens.filter((token) => notificationAudienceMatchesUser(
+  return selectBroadcastTokens({
+    tokens,
     audience,
-    userByUid.get(token.uid) ?? {},
+    userByUid,
+    limit,
     todayDailyKey,
     sevenDaysAgoDailyKey,
-  ));
+  });
 }
 
 async function friendProfileFields(uid: string, authDisplayName?: string | null): Promise<Record<string, unknown>> {
@@ -839,7 +917,7 @@ async function friendProfileFields(uid: string, authDisplayName?: string | null)
   };
 }
 
-async function fanOutFriendProfile(row: LeaderboardInput): Promise<number> {
+async function fanOutFriendProfile(row: LeaderboardRow): Promise<number> {
   const friendsSnap = await db
     .collectionGroup("friends")
     .where("uid", "==", row.uid)
@@ -854,8 +932,21 @@ async function fanOutFriendProfile(row: LeaderboardInput): Promise<number> {
       officialQuestionsAnswered: row.officialQuestionsAnswered,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true }));
+  const friendDocCount = writes.length;
+  // Record what was fanned out last, so the next hourly recompute can skip
+  // this user when nothing moved. Ordered after the friend writes: a crash
+  // mid-fan-out leaves the marker stale and the next run retries.
+  writes.push((batch) => batch.set(db.collection("users").doc(row.uid), {
+    lastFriendProfileFanOut: {
+      displayName: row.displayName,
+      avatarColor: row.avatarColor,
+      readScore: row.readScore,
+      currentStreak: row.currentStreak,
+      officialQuestionsAnswered: row.officialQuestionsAnswered,
+    },
+  }, { merge: true }));
   await commitBatchedWrites(writes);
-  return writes.length;
+  return friendDocCount;
 }
 
 async function disableInvalidNotificationTokens(
@@ -888,10 +979,14 @@ async function sendNotificationToTokens(
   successCount: number;
   failureCount: number;
   disabledCount: number;
+  errorCodes: Record<string, number>;
 }> {
   let successCount = 0;
   let failureCount = 0;
   let disabledCount = 0;
+  // Distinct failure codes with counts (e.g. {"messaging/third-party-auth-error": 3}).
+  // Without this, a prod failureCount is undiagnosable from the campaign doc.
+  const errorCodes: Record<string, number> = {};
 
   for (const chunk of chunkArray(tokens, MAX_FCM_TOKENS_PER_SEND)) {
     const response = await getMessaging().sendEachForMulticast({
@@ -920,6 +1015,9 @@ async function sendNotificationToTokens(
     successCount += response.successCount;
     failureCount += response.failureCount;
     const failedCodes = response.responses.map((item) => item.error?.code ?? "");
+    for (const code of failedCodes) {
+      if (code) errorCodes[code] = (errorCodes[code] ?? 0) + 1;
+    }
     const batch = db.batch();
     disabledCount += await disableInvalidNotificationTokens(batch, chunk, failedCodes);
     await batch.commit();
@@ -930,6 +1028,7 @@ async function sendNotificationToTokens(
     successCount,
     failureCount,
     disabledCount,
+    errorCodes,
   };
 }
 
@@ -1541,12 +1640,20 @@ async function closeQuestion(questionId: string, force = false): Promise<{
 
   const resultRef = db.collection("dailyResults").doc(questionId);
   const resultSnap = await resultRef.get();
+  // Rules expose dailyResults to the world once status is "closed" — hold
+  // first-time closes at "scoring" until every answer has been paid so
+  // mid-scoring numbers never leak. An admin re-close (recomputeQuestion /
+  // closeQuestionNow) of an ALREADY-published result must stay "closed":
+  // demoting it would yank the entry out of every client's history query,
+  // and a scoring failure would strand it unpublished with no automatic
+  // re-close (the nightly run only selects "live" questions).
+  const wasPublished = resultSnap.exists && resultSnap.data()?.status === "closed";
   const resultUpdate: Record<string, unknown> = {
     questionId,
     dailyKey: question.dailyKey ?? null,
     category: question.category,
     prompt: question.prompt,
-    status: "closed",
+    status: wasPublished ? "closed" : "scoring",
     options: question.options,
     optionCounts: Object.fromEntries(question.options.map((option) => [option.id, counts[option.id] ?? 0])),
     optionPcts,
@@ -1558,16 +1665,39 @@ async function closeQuestion(questionId: string, force = false): Promise<{
   }
   await resultRef.set(resultUpdate, { merge: true });
 
-  for (const item of scored) {
-    await applyScoredAnswer(
+  // Bounded concurrency: one sequential transaction per answer previously
+  // outlived the schedule window on big days. The scoring transactions are
+  // reversal-based and idempotent, so a failed run can safely be retried.
+  let scoringFailures = 0;
+  for (const chunk of chunkArray(scored, ANSWER_SCORING_CONCURRENCY)) {
+    const settled = await Promise.allSettled(chunk.map((item) => applyScoredAnswer(
       item.answer,
       question,
       optionPcts,
       item.readAccuracy,
       percentiles.get(item.readAccuracy) ?? 0,
       countedTowardScore,
+    )));
+    settled.forEach((outcome, index) => {
+      if (outcome.status !== "rejected") return;
+      scoringFailures += 1;
+      logger.error("Answer scoring failed", {
+        questionId,
+        uid: chunk[index].answer.uid,
+        error: String(outcome.reason),
+      });
+    });
+  }
+  if (scoringFailures > 0) {
+    // Leave the question live and the result at "scoring" so the next run
+    // retries the whole close (matching the previous abort-on-error shape).
+    throw new HttpsError(
+      "internal",
+      `Scoring failed for ${scoringFailures} of ${scored.length} answers on ${questionId}.`,
     );
   }
+
+  await resultRef.set({ status: "closed" }, { merge: true });
 
   const questionUpdate: Record<string, unknown> = {
     status: "closed",
@@ -2269,6 +2399,8 @@ export const setAdminFeatureFlag = onCall(callableOptions, async (request) => {
 export const closeAndOpenDaily = onSchedule({
   schedule: "0 0 * * *",
   timeZone: EASTERN_TIME_ZONE,
+  timeoutSeconds: 540,
+  retryCount: 1,
 }, async () => {
   const now = Timestamp.now();
   const liveQuestions = await db
@@ -2278,9 +2410,26 @@ export const closeAndOpenDaily = onSchedule({
     .limit(5)
     .get();
 
+  let closeFailures = 0;
   for (const doc of liveQuestions.docs) {
-    const result = await closeQuestion(doc.id);
-    logger.info("Closed daily question", result);
+    // One failing close must not stop the remaining closes.
+    try {
+      const result = await closeQuestion(doc.id);
+      logger.info("Closed daily question", result);
+    } catch (error) {
+      closeFailures += 1;
+      logger.error("Daily question close failed", {
+        questionId: doc.id,
+        error: String(error),
+      });
+    }
+  }
+  if (closeFailures > 0) {
+    // A failed question is still "live", so decideDailyOpen below would skip
+    // the open anyway. Fail the invocation so the scheduler retry gets a
+    // chance to close it and then open today's question; a swallowed error
+    // here would report success and neutralize retryCount.
+    throw new Error(`Failed to close ${closeFailures} daily question(s).`);
   }
 
   const remainingLiveQuestions = await db
@@ -2442,6 +2591,13 @@ export const resolveShortCode = onCall(callableOptions, async (request) => {
       appOpens: FieldValue.increment(1),
     },
     lastOpenedAt: FieldValue.serverTimestamp(),
+    // Rolling expiry for room links: rooms whose members stay active remain
+    // joinable forever; only links idle for a full year lapse. Signed-in
+    // resolutions only — unauthenticated probes and link-preview bots must
+    // not keep a dormant room's code alive. (joinRoom also renews on join.)
+    ...(type === "room" && request.auth?.uid
+      ? { expiresAt: expiresAtTimestamp("room") }
+      : {}),
   }, { merge: true });
 
   const route = type === "room"
@@ -2553,7 +2709,11 @@ export const getLeaderboard = onCall(callableOptions, async (request) => {
     return friendAnswerComparisonsForUser(uid, questionId);
   }
 
-  const limit = Math.min(Number(request.data?.limit ?? 50), LEADERBOARD_LIMIT);
+  const requestedLimit = Number(request.data?.limit ?? 50);
+  const limit = Math.max(1, Math.min(
+    LEADERBOARD_LIMIT,
+    Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 50,
+  ));
   const rowsSnap = await db
     .collection("leaderboards")
     .doc("global")
@@ -3364,8 +3524,28 @@ async function removeAccountFromRoom(uid: string, roomId: string): Promise<void>
     return;
   }
 
-  for (const dayDoc of daysSnap.docs) {
-    await removeAccountRoomDayData(uid, dayDoc.ref);
+  // Answer docs carry no uid field (the doc id IS the uid), so there is no
+  // query that finds only the days this user touched — every day still has to
+  // be visited (authored questions also need sanitizing). Bound the wall time
+  // by running the independent per-day transactions in concurrent chunks.
+  for (const chunk of chunkArray(daysSnap.docs, ROOM_DAY_CLEANUP_CONCURRENCY)) {
+    const settled = await Promise.allSettled(
+      chunk.map((dayDoc) => removeAccountRoomDayData(uid, dayDoc.ref)),
+    );
+    const failures: unknown[] = [];
+    settled.forEach((outcome, index) => {
+      if (outcome.status !== "rejected") return;
+      failures.push(outcome.reason);
+      logger.error("Room day cleanup failed", {
+        roomId,
+        uid,
+        dayId: chunk[index].id,
+        error: String(outcome.reason),
+      });
+    });
+    // Propagate so the deletion fails loudly and the client can retry —
+    // the per-day cleanup is idempotent.
+    if (failures.length > 0) throw failures[0];
   }
 
   const writes: Array<(batch: WriteBatch) => void> = [];
@@ -3429,27 +3609,6 @@ async function applyUserDislikesToRoom(
   const dislikedQuestionIds = await userDislikedQuestionIds(uid);
   if (dislikedQuestionIds.length === 0) return;
   await commitBatchedWrites(dislikedQuestionIds.map((qid) => (batch) => {
-    batch.set(roomRef(roomId).collection("questionDislikes").doc(qid), {
-      qid,
-      count: FieldValue.increment(delta),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  }));
-}
-
-async function applyQuestionDislikeDeltaToMemberRooms(
-  uid: string,
-  qid: string,
-  delta: number,
-): Promise<void> {
-  if (delta === 0) return;
-  const membershipsSnap = await db.collection("users").doc(uid)
-    .collection("memberships")
-    .get();
-  const roomIds = membershipsSnap.docs
-    .map((doc) => String(doc.data().roomId ?? doc.id))
-    .filter((roomId) => roomId !== WORLD_ROOM_ID);
-  await commitBatchedWrites(roomIds.map((roomId) => (batch) => {
     batch.set(roomRef(roomId).collection("questionDislikes").doc(qid), {
       qid,
       count: FieldValue.increment(delta),
@@ -3601,11 +3760,14 @@ function dayQuestionFromCandidate(candidate: CandidateQuestion): RoomDayQuestion
  * Assigns a room's daily set: dynamic custom-queue injection first
  * (1-4 queued → 1, 5-9 → 2, 10+ → 3), bank selection for the rest.
  * Safe to call repeatedly — no-ops if the day doc already exists.
+ * Pass `candidates` when calling in a loop (the rollover) so the ~1,500-doc
+ * questionBank is scanned once per run instead of once per room.
  */
 async function assembleRoomDay(
   roomId: string,
   room: DocumentData,
   dailyKey: string,
+  candidates?: CandidateQuestion[],
 ): Promise<boolean> {
   const dayRef = roomDayRef(roomId, dailyKey);
   const existing = await dayRef.get();
@@ -3634,6 +3796,7 @@ async function assembleRoomDay(
 
   const questions: RoomDayQuestion[] = [];
   const usedQueueRefs: DocumentReference[] = [];
+  const followUpWrites: Array<(batch: WriteBatch) => void> = [];
 
   if (room.customEnabled !== false && room.isWorld !== true) {
     const queueSnap = await roomRef(roomId).collection("queue")
@@ -3685,7 +3848,7 @@ async function assembleRoomDay(
       dailyKey,
       roomTier: (room.tier ?? "normal") as BankTier,
       roomCats: Array.isArray(room.cats) ? room.cats.map(String) : ["All"],
-      candidates: await bankCandidates(),
+      candidates: candidates ?? await bankCandidates(),
       usedQuestionIds: new Set(
         Array.isArray(room.usedQuestionIds) ? room.usedQuestionIds.map(String) : [],
       ),
@@ -3703,19 +3866,21 @@ async function assembleRoomDay(
     }
     picked.forEach((candidate) => questions.push(dayQuestionFromCandidate(candidate)));
 
-    const bankBatch = db.batch();
     picked.forEach((candidate) => {
-      bankBatch.set(db.collection("questionBank").doc(candidate.id), {
+      followUpWrites.push((batch) => batch.set(db.collection("questionBank").doc(candidate.id), {
         timesUsed: FieldValue.increment(1),
         lastUsedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      }, { merge: true }));
     });
-    memberUids.forEach((uid) => {
-      bankBatch.set(db.collection("users").doc(uid), {
-        seenQuestionIds: FieldValue.arrayUnion(...picked.map((candidate) => candidate.id)),
-      }, { merge: true });
-    });
-    if (picked.length > 0) await bankBatch.commit();
+    if (picked.length > 0) {
+      // One write per member — big rooms overflow a single 500-op batch, so
+      // these go through commitBatchedWrites below.
+      memberUids.forEach((uid) => {
+        followUpWrites.push((batch) => batch.set(db.collection("users").doc(uid), {
+          seenQuestionIds: FieldValue.arrayUnion(...picked.map((candidate) => candidate.id)),
+        }, { merge: true }));
+      });
+    }
   }
 
   if (questions.length === 0) {
@@ -3723,14 +3888,14 @@ async function assembleRoomDay(
     return false;
   }
 
-  await dayRef.set({
-    dailyKey,
-    status: "live",
-    questions,
-    answerCount: 0,
-    answerCounts: {},
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  // Atomic claim: the day doc (create(), so a schedule double-fire or
+  // createRoom racing the rollover loses benignly instead of overwriting a
+  // live day), the consumed queue entries, and the room pointer
+  // (currentDailyKey + usedQuestionIds) land in ONE batch. A crash can no
+  // longer publish a live day whose custom questions are still queued —
+  // they would be re-injected the next day — and a lost race rolls the whole
+  // claim back, bookkeeping included. The day holds at most a handful of
+  // queue deletions, so this stays far below the 500-op batch limit.
   const roomUpdates: Record<string, unknown> = {
     currentDailyKey: dailyKey,
     updatedAt: FieldValue.serverTimestamp(),
@@ -3739,12 +3904,31 @@ async function assembleRoomDay(
   if (bankQids.length > 0) {
     roomUpdates.usedQuestionIds = FieldValue.arrayUnion(...bankQids);
   }
-  await roomRef(roomId).set(roomUpdates, { merge: true });
-  if (usedQueueRefs.length > 0) {
-    const queueBatch = db.batch();
-    usedQueueRefs.forEach((ref) => queueBatch.delete(ref));
-    await queueBatch.commit();
+  const claimBatch = db.batch();
+  claimBatch.create(dayRef, {
+    dailyKey,
+    status: "live",
+    questions,
+    answerCount: 0,
+    answerCounts: {},
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  usedQueueRefs.forEach((ref) => claimBatch.delete(ref));
+  claimBatch.set(roomRef(roomId), roomUpdates, { merge: true });
+  try {
+    await claimBatch.commit();
+  } catch (error) {
+    if (isAlreadyExistsError(error)) {
+      logger.info("Room day already assembled elsewhere; skipping", { roomId, dailyKey });
+      return false;
+    }
+    throw error;
   }
+
+  // Selection-quality bookkeeping (bank timesUsed, member seenQuestionIds)
+  // may land after the claim: losing it to a crash only slightly degrades a
+  // future pick, and never re-shows a member's custom question.
+  await commitBatchedWrites(followUpWrites);
   return true;
 }
 
@@ -3766,8 +3950,12 @@ async function closeRoomDay(
     .map((question) => question.qid);
 
   const picksByUid = new Map<string, RoomPick[]>();
+  // How many predicted picks each member locked for THIS day (including picks
+  // for questions pulled later — lock time counted those too).
+  const predictedPicksByUid = new Map<string, number>();
   answersSnap.docs.forEach((doc) => {
     const picks = (Array.isArray(doc.data().picks) ? doc.data().picks : []) as RoomPick[];
+    predictedPicksByUid.set(doc.id, predictedPickCount(picks));
     picksByUid.set(doc.id, picks.filter((pick) => activeQids.includes(pick.qid)));
   });
 
@@ -3816,18 +4004,35 @@ async function closeRoomDay(
     results.push({
       uid,
       accuracies,
-      questionsAnswered: Number(memberDataByUid.get(uid)?.questionsAnswered ?? 0),
+      // The K-factor contract is "lifetime BEFORE today", but lock time
+      // already incremented questionsAnswered for this day's predicted
+      // picks — subtract them back out. Stable across re-runs (the close
+      // itself never touches questionsAnswered).
+      questionsAnswered: questionsAnsweredBeforeDay(
+        Number(memberDataByUid.get(uid)?.questionsAnswered ?? 0),
+        predictedPicksByUid.get(uid) ?? 0,
+      ),
     });
   }
 
   const deltas = roomDailyScoreDeltas(results);
   const deltaByUid = new Map(deltas.map((delta) => [delta.uid, delta]));
 
+  // Idempotency: the score increment and this day's answer marker are adjacent
+  // writes in the same even-sized batch. The per-day answer marker cannot be
+  // overwritten by a newer day, unlike member.lastScoredDailyKey, so an older
+  // close retry never pays someone twice after a later day has scored.
+  const alreadyScoredUids = new Set(
+    answersSnap.docs
+      .filter((doc) => doc.data().scored === true)
+      .map((doc) => doc.id),
+  );
+
   const writes: Array<(batch: WriteBatch) => void> = [];
   for (const [uid] of picksByUid.entries()) {
     const delta = deltaByUid.get(uid);
     const memberDocRef = roomRef(roomId).collection("members").doc(uid);
-    if (delta && memberDataByUid.has(uid)) {
+    if (delta && memberDataByUid.has(uid) && !alreadyScoredUids.has(uid)) {
       // Skip members who left between lock and close — a merge write here
       // would resurrect a ghost member doc.
       writes.push((batch) => batch.set(memberDocRef, {
@@ -3852,7 +4057,10 @@ async function closeRoomDay(
   const standings = [...allMemberDataByUid.entries()]
     .map(([uid, data]) => ({
       uid,
-      score: Number(data.roomScore ?? 0) + (deltaByUid.get(uid)?.delta ?? 0),
+      // Already-scored members carry today's delta in roomScore — adding it
+      // again on a re-run would rank them off an inflated score.
+      score: Number(data.roomScore ?? 0) +
+        (alreadyScoredUids.has(uid) ? 0 : (deltaByUid.get(uid)?.delta ?? 0)),
     }))
     .sort((a, b) => b.score - a.score);
   standings.forEach((standing, index) => {
@@ -3910,14 +4118,28 @@ async function worldScoringUnlocked(): Promise<boolean> {
 async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boolean> {
   const dayRef = roomDayRef(WORLD_ROOM_ID, dailyKey);
 
+  // Claim the qid into revealingQids BEFORE scoring; it only moves into
+  // revealedQids after every scoring write commits. Claiming straight into
+  // revealedQids meant a crash mid-scoring made every later run see "done"
+  // and the scores were silently lost forever. Stale claims (a crashed
+  // reveal) become re-claimable after WORLD_REVEAL_CLAIM_STALE_MS.
   const claimed = await db.runTransaction(async (tx) => {
     const snap = await tx.get(dayRef);
     if (!snap.exists) return false;
-    const revealed = new Set(
-      (Array.isArray(snap.data()?.revealedQids) ? snap.data()?.revealedQids : []) as string[],
-    );
-    if (revealed.has(qid)) return false;
-    tx.update(dayRef, { revealedQids: FieldValue.arrayUnion(qid) });
+    const day = snap.data() ?? {};
+    const claimTimestamps = (day.revealingClaimedAt ?? {}) as Record<string, unknown>;
+    const decision = worldRevealClaimDecision({
+      qid,
+      revealedQids: Array.isArray(day.revealedQids) ? (day.revealedQids as string[]) : [],
+      revealingQids: Array.isArray(day.revealingQids) ? (day.revealingQids as string[]) : [],
+      claimedAtMs: timestampDate(claimTimestamps[qid])?.getTime() ?? null,
+      nowMs: Date.now(),
+    });
+    if (decision === "done" || decision === "in-progress") return false;
+    tx.update(dayRef, {
+      revealingQids: FieldValue.arrayUnion(qid),
+      [`revealingClaimedAt.${qid}`]: Timestamp.now(),
+    });
     return true;
   });
   if (!claimed) return false;
@@ -3926,6 +4148,10 @@ async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boole
   let aCount = 0;
   let bCount = 0;
   const rawPredictors: Array<{ uid: string; side: "a" | "b"; prediction: number }> = [];
+  // Readers whose payment already committed in a crashed earlier attempt —
+  // their answer doc's scoredQids records it atomically with the user-score
+  // increment, so a retry must not pay them twice.
+  const alreadyPaidUids = new Set<string>();
   for (const doc of answersSnap.docs) {
     const picks = Array.isArray(doc.data().picks) ? doc.data().picks : [];
     const pick = (picks as Array<Record<string, unknown>>).find((p) => p?.qid === qid);
@@ -3934,6 +4160,8 @@ async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boole
     if (!side) continue;
     if (side === "a") aCount += 1;
     else bCount += 1;
+    const scoredQids = Array.isArray(doc.data().scoredQids) ? doc.data().scoredQids : [];
+    if ((scoredQids as unknown[]).includes(qid)) alreadyPaidUids.add(doc.id);
     if (typeof pick.prediction === "number") {
       rawPredictors.push({ uid: doc.id, side, prediction: pick.prediction });
     }
@@ -3964,6 +4192,10 @@ async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boole
   for (const predictor of predictors) {
     const score = deltaByUid.get(predictor.uid);
     if (!score) continue;
+    if (alreadyPaidUids.has(predictor.uid)) continue;
+    // The user increment and the answer-doc scoredQids marker stay adjacent
+    // so they land in the same batch chunk (chunk size is even) — payment
+    // and its idempotency record commit atomically.
     writes.push((batch) => batch.set(db.collection("users").doc(predictor.uid), {
       worldReadScore: FieldValue.increment(score.delta),
       worldQuestionsScored: FieldValue.increment(1),
@@ -3975,13 +4207,18 @@ async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boole
       scoredQids: FieldValue.arrayUnion(qid),
     }, { merge: true }));
   }
+  await commitBatchedWrites(writes);
 
+  // Finalize only after every scoring write committed: publish the result and
+  // move the qid from revealingQids to revealedQids in one atomic update.
   const answers = aCount + bCount;
-  writes.push((batch) => batch.set(dayRef, {
+  await dayRef.update({
     results: FieldValue.arrayUnion({ qid, answers, aCount, bCount, aPct }),
     [`revealedAt.${qid}`]: FieldValue.serverTimestamp(),
-  }, { merge: true }));
-  await commitBatchedWrites(writes);
+    revealedQids: FieldValue.arrayUnion(qid),
+    revealingQids: FieldValue.arrayRemove(qid),
+    [`revealingClaimedAt.${qid}`]: FieldValue.delete(),
+  });
 
   // Mark the day closed once every one of its questions has revealed.
   const daySnap = await dayRef.get();
@@ -3999,16 +4236,77 @@ async function revealWorldQuestion(dailyKey: string, qid: string): Promise<boole
   return true;
 }
 
+/**
+ * Attempt every threshold-crossed World reveal for a day. This intentionally
+ * includes questions already present in revealingQids: the claim state machine
+ * rejects live work and reclaims stale work, which makes crash recovery real
+ * instead of waiting for an impossible new answer to the frozen question.
+ */
+async function attemptWorldRevealsForDay(
+  dailyKey: string,
+  dayData?: DocumentData,
+): Promise<number> {
+  const dayRef = roomDayRef(WORLD_ROOM_ID, dailyKey);
+  const day = dayData ?? (await dayRef.get()).data();
+  if (!day || day.status !== "live") return 0;
+  const candidates = worldRevealCandidateQids({
+    questions: Array.isArray(day.questions) ? day.questions as RoomDayQuestion[] : [],
+    answerCounts: (day.answerCounts ?? {}) as Record<string, number>,
+    revealedQids: new Set(
+      (Array.isArray(day.revealedQids) ? day.revealedQids : []) as string[],
+    ),
+  });
+  if (candidates.length === 0 || !(await worldScoringUnlocked())) return 0;
+
+  let revealed = 0;
+  for (const qid of candidates) {
+    if (await revealWorldQuestion(dailyKey, qid)) revealed += 1;
+  }
+  return revealed;
+}
+
+/** Recover World reveals whose function invocation died after claiming. */
+export const recoverWorldReveals = onSchedule({
+  schedule: "every 10 minutes",
+  timeZone: EASTERN_TIME_ZONE,
+  timeoutSeconds: 540,
+  memory: "512MiB",
+  retryCount: 1,
+}, async () => {
+  const liveDays = await roomRef(WORLD_ROOM_ID).collection("days")
+    .where("status", "==", "live")
+    .get();
+  let revealed = 0;
+  for (const dayDoc of liveDays.docs) {
+    revealed += await attemptWorldRevealsForDay(dayDoc.id, dayDoc.data());
+  }
+  logger.info("World reveal recovery complete", {
+    liveDays: liveDays.size,
+    revealed,
+  });
+});
+
+const ROOM_ROLLOVER_PAGE_SIZE = 200;
+const ROOM_ROLLOVER_CONCURRENCY = 8;
+
 export const rolloverRooms = onSchedule({
   schedule: "0 0 * * *",
   timeZone: EASTERN_TIME_ZONE,
+  timeoutSeconds: 540,
+  memory: "512MiB",
+  retryCount: 1,
 }, async () => {
   const todayKey = dailyKeyForEasternDate(new Date());
   await ensureWorldRoom();
-  const roomsSnap = await db.collection("rooms").get();
+  // One bank scan for the whole run — assembleRoomDay would otherwise re-read
+  // the ~1,500-doc questionBank once per room per day.
+  const candidates = await bankCandidates();
+  let rooms = 0;
   let closed = 0;
   let assigned = 0;
-  for (const roomDoc of roomsSnap.docs) {
+  let failed = 0;
+
+  const rolloverRoom = async (roomDoc: QueryDocumentSnapshot): Promise<void> => {
     try {
       const rolloverPlan = roomRolloverPlan(roomDoc.id);
       // The World keeps its threshold-based reveal behavior, but still needs a
@@ -4017,10 +4315,10 @@ export const rolloverRooms = onSchedule({
       // questions for the date.
       if (!rolloverPlan.closePreviousDays) {
         if (rolloverPlan.ensureToday &&
-          await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
+          await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey, candidates)) {
           assigned += 1;
         }
-        continue;
+        return;
       }
       const liveDays = await roomDoc.ref.collection("days")
         .where("status", "==", "live")
@@ -4031,14 +4329,37 @@ export const rolloverRooms = onSchedule({
         closed += 1;
       }
       if (rolloverPlan.ensureToday &&
-        await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey)) {
+        await assembleRoomDay(roomDoc.id, roomDoc.data(), todayKey, candidates)) {
         assigned += 1;
       }
     } catch (error) {
+      failed += 1;
       logger.error("Room rollover failed", { roomId: roomDoc.id, error: String(error) });
     }
+  };
+
+  // Paginate rooms and roll small batches concurrently: one unbounded .get()
+  // plus a sequential loop previously blew past the schedule timeout and left
+  // the tail of rooms without a daily set (and yesterday never closed).
+  let lastRoomDoc: QueryDocumentSnapshot | null = null;
+  while (true) {
+    let pageQuery = db.collection("rooms")
+      .orderBy(FieldPath.documentId())
+      .limit(ROOM_ROLLOVER_PAGE_SIZE);
+    if (lastRoomDoc) pageQuery = pageQuery.startAfter(lastRoomDoc);
+    const page = await pageQuery.get();
+    if (page.empty) break;
+    rooms += page.size;
+    for (const chunk of chunkArray(page.docs, ROOM_ROLLOVER_CONCURRENCY)) {
+      await Promise.allSettled(chunk.map((roomDoc) => rolloverRoom(roomDoc)));
+    }
+    lastRoomDoc = page.docs[page.docs.length - 1];
+    if (page.size < ROOM_ROLLOVER_PAGE_SIZE) break;
   }
-  logger.info("Room rollover complete", { todayKey, rooms: roomsSnap.size, closed, assigned });
+  logger.info("Room rollover complete", { todayKey, rooms, closed, assigned, failed });
+  if (failed > 0) {
+    throw new Error(`Room rollover failed for ${failed} room(s).`);
+  }
 });
 
 export const createRoom = onCall(callableOptions, async (request) => {
@@ -4105,7 +4426,6 @@ export const createRoom = onCall(callableOptions, async (request) => {
 });
 
 export const joinRoom = onCall(emailCallableOptions, async (request) => {
-  const uid = requireUid(request.auth);
   const code = assertString(request.data?.code, "code").toUpperCase();
   const linkSnap = await db.collection("links").doc(code).get();
   const link = linkSnap.data();
@@ -4121,10 +4441,16 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
   if (request.data?.previewOnly === true) {
     // Pre-join preview so the client can show the room card and run the
     // After Dark consent before actually joining (prototype join sheet).
+    // Deliberately available WITHOUT auth (App Check still enforced): invite
+    // onboarding shows the card before the reader signs in, so this must
+    // return only safe, non-member fields.
     const roomSnap = await targetRoomRef.get();
     if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
     const room = roomSnap.data() ?? {};
-    const memberSnap = await targetRoomRef.collection("members").doc(uid).get();
+    const previewUid = request.auth?.uid ?? null;
+    const memberSnap = previewUid
+      ? await targetRoomRef.collection("members").doc(previewUid).get()
+      : null;
     return {
       preview: true,
       roomId,
@@ -4132,10 +4458,11 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
       color: String(room.color ?? ""),
       tier: String(room.tier ?? "normal"),
       memberCount: Number(room.memberCount ?? 0),
-      alreadyMember: memberSnap.exists,
+      alreadyMember: memberSnap?.exists === true,
     };
   }
 
+  const uid = requireUid(request.auth);
   const displayName = await displayNameForUid(uid);
   let joinedNewMember = false;
   let roomName = "Room";
@@ -4170,6 +4497,18 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
     }, { merge: true });
     return String(roomSnap.data()?.tier ?? "normal");
   });
+
+  // Rolling expiry: an actual join (or a returning member) extends the room
+  // link another 365 days, so active rooms never strand behind a dead invite
+  // code. Only real joins renew — unauthenticated previews and probes must
+  // not keep a dormant room's code alive forever. Best-effort: a failure
+  // must not block the join.
+  try {
+    await linkSnap.ref.set({ expiresAt: expiresAtTimestamp("room") }, { merge: true });
+  } catch (error) {
+    logger.warn("Room link expiry extension failed", { code, error: String(error) });
+  }
+
   if (joinedNewMember) {
     await applyUserDislikesToRoom(uid, roomId, 1);
     try {
@@ -4195,40 +4534,90 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
 export const leaveRoom = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const roomId = assertRoomId(request.data?.roomId);
-  const { room, member } = await requireRoomAndMember(roomId, uid);
+  const { room } = await requireRoomAndMember(roomId, uid);
   if (room.isWorld === true) {
     throw new HttpsError("failed-precondition", "The World room cannot be left.");
   }
 
-  const membersSnap = await roomRef(roomId).collection("members").get();
-  const others = membersSnap.docs.filter((doc) => doc.id !== uid);
-  const batch = db.batch();
-  batch.delete(roomRef(roomId).collection("members").doc(uid));
-  batch.delete(db.collection("users").doc(uid).collection("memberships").doc(roomId));
+  // Member-list read, decision, and writes are one transaction: two
+  // concurrent leaves otherwise both saw "one other member left", neither
+  // deleted the room, and memberCount decremented twice.
+  const result = await db.runTransaction(async (tx) => {
+    // All reads first (Firestore requires reads before writes).
+    const membershipRef = db.collection("users").doc(uid)
+      .collection("memberships").doc(roomId);
+    const roomSnap = await tx.get(roomRef(roomId));
+    if (!roomSnap.exists) {
+      // Room vanished between the precheck and this transaction (concurrent
+      // delete). Still drop the caller's membership pointer — a retry would
+      // throw not-found at requireRoomAndMember before ever reaching this
+      // cleanup, leaving a phantom room in their list forever.
+      tx.delete(membershipRef);
+      return { left: true, roomDeleted: false, removedMember: false };
+    }
+    const [membersSnap, queuedByLeaverSnap] = await Promise.all([
+      tx.get(roomRef(roomId).collection("members")),
+      tx.get(roomRef(roomId).collection("queue").where("authorUid", "==", uid)),
+    ]);
+    const roomData = roomSnap.data() ?? {};
+    const memberDoc = membersSnap.docs.find((doc) => doc.id === uid);
+    if (!memberDoc) {
+      // Already gone (double-leave retry) — clean the membership pointer only.
+      tx.delete(membershipRef);
+      return { left: true, roomDeleted: false, removedMember: false };
+    }
+    const member = memberDoc.data() ?? {};
+    const others = membersSnap.docs.filter((doc) => doc.id !== uid);
+    const inviteCode = typeof roomData.inviteCode === "string" ? roomData.inviteCode : "";
 
-  if (others.length === 0) {
-    batch.delete(roomRef(roomId));
-    await batch.commit();
+    tx.delete(memberDoc.ref);
+    tx.delete(membershipRef);
+    // The leaver's queued custom questions go with them (mirrors the
+    // account-deletion path).
+    queuedByLeaverSnap.docs.forEach((doc) => tx.delete(doc.ref));
+
+    if (others.length === 0) {
+      tx.delete(roomRef(roomId));
+      // The invite link must die with the room, or the code resolves to a
+      // deleted room forever.
+      if (inviteCode) tx.delete(db.collection("links").doc(inviteCode));
+      return { left: true, roomDeleted: true, removedMember: true };
+    }
+
+    if (member.role === "creator" || roomData.createdBy === uid) {
+      // Transfer creator to the longest-standing remaining member — on the
+      // member doc AND the room doc (createdBy drives creator checks too).
+      const successor = [...others].sort((a, b) => {
+        const aJoined = timestampDate(a.data().joinedAt)?.getTime() ?? 0;
+        const bJoined = timestampDate(b.data().joinedAt)?.getTime() ?? 0;
+        return aJoined - bJoined;
+      })[0];
+      tx.set(successor.ref, { role: "creator" }, { merge: true });
+      tx.set(roomRef(roomId), {
+        createdBy: successor.id,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (inviteCode) {
+        tx.set(db.collection("links").doc(inviteCode), {
+          createdBy: successor.id,
+        }, { merge: true });
+      }
+    }
+    tx.set(roomRef(roomId), {
+      memberCount: FieldValue.increment(-1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { left: true, roomDeleted: false, removedMember: true };
+  });
+
+  if (result.roomDeleted) {
     await db.recursiveDelete(roomRef(roomId));
-    return { left: true, roomDeleted: true };
+  } else if (result.removedMember) {
+    // Only revert dislikes when this call actually removed the member — a
+    // double-leave retry must not decrement them twice.
+    await applyUserDislikesToRoom(uid, roomId, -1);
   }
-
-  if (member.role === "creator") {
-    // Transfer creator to the longest-standing remaining member.
-    const successor = [...others].sort((a, b) => {
-      const aJoined = timestampDate(a.data().joinedAt)?.getTime() ?? 0;
-      const bJoined = timestampDate(b.data().joinedAt)?.getTime() ?? 0;
-      return aJoined - bJoined;
-    })[0];
-    batch.set(successor.ref, { role: "creator" }, { merge: true });
-  }
-  batch.set(roomRef(roomId), {
-    memberCount: FieldValue.increment(-1),
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
-  await batch.commit();
-  await applyUserDislikesToRoom(uid, roomId, -1);
-  return { left: true, roomDeleted: false };
+  return { left: result.left, roomDeleted: result.roomDeleted };
 });
 
 export const deleteRoom = onCall(callableOptions, async (request) => {
@@ -4239,14 +4628,14 @@ export const deleteRoom = onCall(callableOptions, async (request) => {
     throw new HttpsError("failed-precondition", "The World room cannot be deleted.");
   }
   const membersSnap = await roomRef(roomId).collection("members").get();
-  const batch = db.batch();
-  membersSnap.docs.forEach((doc) => {
-    batch.delete(db.collection("users").doc(doc.id).collection("memberships").doc(roomId));
-  });
+  // One delete per member — big rooms overflow a single 500-op batch.
+  const writes: Array<(batch: WriteBatch) => void> = membersSnap.docs.map((doc) =>
+    (batch) => batch.delete(db.collection("users").doc(doc.id).collection("memberships").doc(roomId)));
   if (typeof room.inviteCode === "string" && room.inviteCode.length > 0) {
-    batch.delete(db.collection("links").doc(room.inviteCode));
+    const inviteCode = room.inviteCode;
+    writes.push((batch) => batch.delete(db.collection("links").doc(inviteCode)));
   }
-  await batch.commit();
+  await commitBatchedWrites(writes);
   await db.recursiveDelete(roomRef(roomId));
   return { deleted: true, roomId };
 });
@@ -4378,9 +4767,14 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
 
   // The World lets readers answer past, not-yet-revealed days too (instant
   // lock, no 24h gap); everyone else answers only today's live set.
-  const requestedDailyKey = isWorld
-    ? (normalizeDailyKey(request.data?.dailyKey) ?? todayKey)
-    : todayKey;
+  let requestedDailyKey: string;
+  try {
+    requestedDailyKey = isWorld
+      ? (normalizeDailyKey(request.data?.dailyKey) ?? todayKey)
+      : todayKey;
+  } catch (error) {
+    mapQuestionValidationError(error);
+  }
   if (requestedDailyKey > todayKey) {
     throw new HttpsError("failed-precondition", "That day is not open yet.");
   }
@@ -4388,16 +4782,33 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   const isToday = dailyKey === todayKey;
 
   const dayRef = roomDayRef(roomId, dailyKey);
-  const daySnap = await dayRef.get();
+  let daySnap = await dayRef.get();
   if (!daySnap.exists || daySnap.data()?.status !== "live") {
     throw new HttpsError("failed-precondition", "Those questions are not open.");
   }
-  const day = daySnap.data() ?? {};
+  let day = daySnap.data() ?? {};
+  if (isWorld && Array.isArray(day.revealingQids) && day.revealingQids.length > 0) {
+    try {
+      await attemptWorldRevealsForDay(dailyKey, day);
+      daySnap = await dayRef.get();
+      day = daySnap.data() ?? {};
+    } catch (error) {
+      logger.warn("World stale reveal recovery failed during lock", {
+        dailyKey,
+        error: String(error),
+      });
+    }
+  }
   // World questions that already revealed are locked out; readers can only
-  // answer the ones still accumulating.
-  const revealedQids = new Set(
-    (Array.isArray(day.revealedQids) ? day.revealedQids : []) as string[],
-  );
+  // answer the ones still accumulating. Questions mid-reveal (revealingQids)
+  // are frozen too: the reveal's scoring pass reads its answers snapshot at
+  // claim time, so a pick accepted during the pass would never be scored and
+  // would drift the published counts. Locking them out is retryable — the
+  // client re-locks against fresh day data once the reveal finalizes.
+  const revealedQids = new Set([
+    ...(Array.isArray(day.revealedQids) ? day.revealedQids : []),
+    ...(Array.isArray(day.revealingQids) ? day.revealingQids : []),
+  ] as string[]);
   const activeQuestions = ((day.questions ?? []) as RoomDayQuestion[])
     .filter((question) => question.pulled !== true && !revealedQids.has(question.qid));
   const activeQids = new Set(activeQuestions.map((question) => question.qid));
@@ -4439,7 +4850,6 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
     throw new HttpsError("invalid-argument", "Each answer needs a prediction in this room.");
   }
 
-  const predictedCount = picks.filter((pick) => pick.prediction != null).length;
   const streak = nextStreakForDailyKey(
     typeof member.lastPlayedDailyKey === "string" ? member.lastPlayedDailyKey : null,
     todayKey,
@@ -4452,37 +4862,33 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
     const answerSnap = await tx.get(answerDocRef);
     const existing = answerSnap.exists ? answerSnap.data() ?? {} : null;
     createdAnswer = existing == null;
-    const existingPicks = Array.isArray(existing?.picks)
-      ? (existing.picks as Array<Record<string, unknown>>)
-        .map((raw) => ({
-          qid: typeof raw.qid === "string" ? raw.qid : "",
-          prediction: typeof raw.prediction === "number"
-            ? raw.prediction
-            : typeof raw.predictedShare === "number"
-              ? raw.predictedShare
-              : null,
-        }))
-        .filter((pick) => pick.qid.length > 0)
-      : [];
-    const existingQids = new Set(existingPicks.map((pick) => pick.qid));
-    const nextQids = new Set(picks.map((pick) => pick.qid));
-    const existingPredictedCount = existingPicks
-      .filter((pick) => pick.prediction != null).length;
-    const predictedDelta = predictedCount - existingPredictedCount;
+    const rawExistingPicks = (Array.isArray(existing?.picks)
+      ? existing.picks as Array<Record<string, unknown>>
+      : []).filter((raw): raw is Record<string, unknown> & { qid: string } =>
+      typeof raw?.qid === "string" && raw.qid.length > 0);
+
+    // Merge instead of replace: picks for already-revealed questions are
+    // frozen (their results counted this reader), so a re-lock must never
+    // drop them or decrement their answer counts.
+    const merged = mergeLockedPicks({
+      existingPicks: rawExistingPicks,
+      newPicks: picks,
+      revealedQids,
+    });
+    const existingPredictedCount =
+      predictedPickCount(rawExistingPicks as Array<Record<string, unknown>>);
+    const predictedDelta =
+      predictedPickCount(merged.picks as Array<Record<string, unknown>>) - existingPredictedCount;
 
     const counterUpdates: Record<string, unknown> = {};
     if (createdAnswer) {
       counterUpdates.answerCount = FieldValue.increment(1);
     }
-    picks.forEach((pick) => {
-      if (!existingQids.has(pick.qid)) {
-        counterUpdates[`answerCounts.${pick.qid}`] = FieldValue.increment(1);
-      }
+    merged.incrementQids.forEach((qid) => {
+      counterUpdates[`answerCounts.${qid}`] = FieldValue.increment(1);
     });
-    existingQids.forEach((qid) => {
-      if (!nextQids.has(qid)) {
-        counterUpdates[`answerCounts.${qid}`] = FieldValue.increment(-1);
-      }
+    merged.decrementQids.forEach((qid) => {
+      counterUpdates[`answerCounts.${qid}`] = FieldValue.increment(-1);
     });
     if (Object.keys(counterUpdates).length > 0) {
       tx.update(dayRef, counterUpdates);
@@ -4490,7 +4896,7 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
 
     if (createdAnswer) {
       tx.set(answerDocRef, {
-        picks,
+        picks: merged.picks,
         answerOnly,
         lockedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -4498,7 +4904,7 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
       });
     } else {
       tx.set(answerDocRef, {
-        picks,
+        picks: merged.picks,
         answerOnly,
         updatedAt: FieldValue.serverTimestamp(),
         scored: false,
@@ -4533,20 +4939,7 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   if (isWorld) {
     try {
       const freshDay = (await dayRef.get()).data() ?? {};
-      const counts = (freshDay.answerCounts ?? {}) as Record<string, number>;
-      const questionsById = new Map(
-        ((freshDay.questions ?? []) as RoomDayQuestion[]).map((question) => [question.qid, question]),
-      );
-      const crossed = picks.filter((pick) => {
-        const question = questionsById.get(pick.qid) as { threshold?: number } | undefined;
-        const threshold = Number(question?.threshold ?? 1000);
-        return Number(counts[pick.qid] ?? 0) >= threshold;
-      });
-      if (crossed.length > 0 && (await worldScoringUnlocked())) {
-        for (const pick of crossed) {
-          await revealWorldQuestion(dailyKey, pick.qid);
-        }
-      }
+      await attemptWorldRevealsForDay(dailyKey, freshDay);
     } catch (error) {
       logger.warn("World reveal check failed", { dailyKey, error: String(error) });
     }
@@ -4640,25 +5033,31 @@ export const queueCustomQuestion = onCall(callableOptions, async (request) => {
     mapRoomValidationError(error);
   }
   const queueRef = roomRef(roomId).collection("queue");
-  const mineSnap = await queueRef.where("authorUid", "==", uid).get();
-  if (mineSnap.size >= CUSTOM_QUEUE_CAP_PER_MEMBER) {
-    throw new HttpsError("resource-exhausted",
-      `You can queue up to ${CUSTOM_QUEUE_CAP_PER_MEMBER} questions per room.`);
-  }
   const displayName = await displayNameForUid(uid);
   await db.collection("users").doc(uid).set({
     customQuestionTermsVersion: CUSTOM_QUESTION_TERMS_VERSION,
     customQuestionTermsAcceptedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  const itemRef = await queueRef.add({
-    text,
-    optA,
-    optB,
-    authorUid: uid,
-    authorName: displayName,
-    createdAt: FieldValue.serverTimestamp(),
+  // Cap check and insert are one transaction — two concurrent submits both
+  // passing a read-then-write check could exceed the per-member cap.
+  const itemRef = queueRef.doc();
+  const remaining = await db.runTransaction(async (tx) => {
+    const mineSnap = await tx.get(queueRef.where("authorUid", "==", uid));
+    if (mineSnap.size >= CUSTOM_QUEUE_CAP_PER_MEMBER) {
+      throw new HttpsError("resource-exhausted",
+        `You can queue up to ${CUSTOM_QUEUE_CAP_PER_MEMBER} questions per room.`);
+    }
+    tx.create(itemRef, {
+      text,
+      optA,
+      optB,
+      authorUid: uid,
+      authorName: displayName,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return CUSTOM_QUEUE_CAP_PER_MEMBER - mineSnap.size - 1;
   });
-  return { queued: true, itemId: itemRef.id, remaining: CUSTOM_QUEUE_CAP_PER_MEMBER - mineSnap.size - 1 };
+  return { queued: true, itemId: itemRef.id, remaining };
 });
 
 export const deleteCustomQuestion = onCall(callableOptions, async (request) => {
@@ -4755,6 +5154,11 @@ export const flagRoomQuestion = onCall(callableOptions, async (request) => {
   }
 
   // "The author is notified" — best-effort push, never blocks the pull.
+  // Intentionally skips the dailyReminder opt-out other sends respect: this is
+  // a one-off moderation notice to the single affected author about their own
+  // content being pulled (and possibly their submitting rights), not an
+  // engagement push — the author should learn about it even if they muted
+  // daily reminders.
   try {
     if (flagged.authorUid && flagged.authorUid !== uid) {
       const tokensSnap = await db.collection("users").doc(flagged.authorUid)
@@ -4813,7 +5217,12 @@ export const resolveContentFlag = onCall(callableOptions, async (request) => {
 export const getRoomDayDetail = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const roomId = assertRoomId(request.data?.roomId);
-  const dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  let dailyKey: string | null;
+  try {
+    dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  } catch (error) {
+    mapQuestionValidationError(error);
+  }
   if (!dailyKey) throw new HttpsError("invalid-argument", "dailyKey is required.");
   await requireRoomAndMember(roomId, uid);
 
@@ -4870,9 +5279,12 @@ export const setQuestionReaction = onCall(authOnlyCallableOptions, async (reques
 
   const userRef = db.collection("users").doc(uid);
   const feedbackRef = db.collection("questionFeedback").doc(qid);
-  let memberRoomDislikeDelta = 0;
   await db.runTransaction(async (tx) => {
+    // All reads first (Firestore requires reads before writes) — memberships
+    // are read up front so the room-dislike propagation below can live inside
+    // the same transaction.
     const userSnap = await tx.get(userRef);
+    const membershipsSnap = await tx.get(userRef.collection("memberships"));
     const user = userSnap.data() ?? {};
     const liked = Array.isArray(user.likedQuestionIds)
       ? user.likedQuestionIds.map(String)
@@ -4907,15 +5319,29 @@ export const setQuestionReaction = onCall(authOnlyCallableOptions, async (reques
     const dislikeDelta =
       (nextReaction === "disliked" ? 1 : 0) -
       (previousReaction === "disliked" ? 1 : 0);
-    memberRoomDislikeDelta = dislikeDelta;
     tx.set(feedbackRef, {
       qid,
       likedCount: FieldValue.increment(likeDelta),
       dislikedCount: FieldValue.increment(dislikeDelta),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+
+    // Room propagation stays INSIDE the transaction: a post-commit step that
+    // failed could never be retried — the retry would see no delta and the
+    // room counters would permanently miss the dislike.
+    if (dislikeDelta !== 0) {
+      const roomIds = membershipsSnap.docs
+        .map((doc) => String(doc.data().roomId ?? doc.id))
+        .filter((roomId) => roomId.length > 0 && roomId !== WORLD_ROOM_ID);
+      for (const roomId of roomIds) {
+        tx.set(roomRef(roomId).collection("questionDislikes").doc(qid), {
+          qid,
+          count: FieldValue.increment(dislikeDelta),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    }
   });
-  await applyQuestionDislikeDeltaToMemberRooms(uid, qid, memberRoomDislikeDelta);
 
   return { qid, reaction: nextReaction };
 });
@@ -5091,7 +5517,12 @@ export const setBankQuestionActive = onCall(callableOptions, async (request) => 
 export const curateWorldDay = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   await requireAdmin(uid);
-  const dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  let dailyKey: string | null;
+  try {
+    dailyKey = normalizeDailyKey(request.data?.dailyKey);
+  } catch (error) {
+    mapQuestionValidationError(error);
+  }
   if (!dailyKey) throw new HttpsError("invalid-argument", "dailyKey is required.");
   const todayKey = dailyKeyForEasternDate(new Date());
   if (dailyKey < todayKey) {
@@ -5154,13 +5585,30 @@ export const curateWorldDay = onCall(callableOptions, async (request) => {
   }
 
   const status = dailyKey === todayKey ? "live" : "scheduled";
-  await roomDayRef(WORLD_ROOM_ID, dailyKey).set({
+  const dayRef = roomDayRef(WORLD_ROOM_ID, dailyKey);
+  const existingDaySnap = await dayRef.get();
+  const existingAnswerCount = Number(existingDaySnap.data()?.answerCount ?? 0);
+  if (existingAnswerCount > 0) {
+    const existingQids = ((existingDaySnap.data()?.questions ?? []) as RoomDayQuestion[])
+      .map((question) => question.qid);
+    const nextQids = questions.map((question) => question.qid);
+    if (existingQids.length !== nextQids.length ||
+        existingQids.some((qid, index) => qid !== nextQids[index])) {
+      throw new HttpsError(
+        "failed-precondition",
+        `World day ${dailyKey} already has ${existingAnswerCount} answers. ` +
+        "Its questions can no longer be replaced.",
+      );
+    }
+  }
+  await dayRef.set({
     dailyKey,
     status,
     curatedBy: uid,
     questions,
-    answerCount: 0,
-    answerCounts: {},
+    // A forced re-curation must never zero live counters — merge keeps the
+    // existing answerCount/answerCounts when the day already has answers.
+    ...(existingAnswerCount > 0 ? {} : { answerCount: 0, answerCounts: {} }),
     createdAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   if (status === "live") {

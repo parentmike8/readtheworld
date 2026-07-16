@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   dailyNotificationPayload,
+  isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
   notificationAudienceMatchesUser,
+  selectBroadcastTokens,
   userAllowsNotifications,
 } from "../src/notifications";
 
@@ -86,5 +88,94 @@ describe("Admin notification targeting", () => {
       "2026-06-28",
       "2026-06-21",
     )).toBe(true);
+  });
+});
+
+describe("Broadcast route allowlist", () => {
+  it("accepts exactly the routes the client router resolves", () => {
+    for (const route of [
+      "/today", "/reveal", "/history", "/party", "/insights",
+      "/account", "/rooms",
+    ]) {
+      expect(isAllowedBroadcastRoute(route)).toBe(true);
+    }
+  });
+
+  it("allows sub-paths only under /rooms and /join", () => {
+    expect(isAllowedBroadcastRoute("/rooms/abc123")).toBe(true);
+    expect(isAllowedBroadcastRoute("/rooms/abc123?edit=1")).toBe(true);
+    expect(isAllowedBroadcastRoute("/join/CODE")).toBe(true);
+    expect(isAllowedBroadcastRoute("/today/predict")).toBe(false);
+    expect(isAllowedBroadcastRoute("/insights/weekly")).toBe(false);
+  });
+
+  it("rejects routes with no client destination (bare /join, legacy /invite)", () => {
+    // Bare /join and anything under /invite fall into the app's /:code
+    // catch-all or the legacy dead-end screen — a push there lands on a
+    // failure page.
+    expect(isAllowedBroadcastRoute("/join")).toBe(false);
+    expect(isAllowedBroadcastRoute("/invite")).toBe(false);
+    expect(isAllowedBroadcastRoute("/invite/CODE")).toBe(false);
+  });
+
+  it("rejects typos, unknown routes, and malformed paths", () => {
+    expect(isAllowedBroadcastRoute("/todya")).toBe(false);
+    expect(isAllowedBroadcastRoute("/profile")).toBe(false);
+    expect(isAllowedBroadcastRoute("today")).toBe(false);
+    expect(isAllowedBroadcastRoute("//evil.example")).toBe(false);
+    expect(isAllowedBroadcastRoute(`/rooms/${"x".repeat(200)}`)).toBe(false);
+    expect(isAllowedBroadcastRoute(null)).toBe(false);
+  });
+});
+
+describe("selectBroadcastTokens", () => {
+  const token = (uid: string) => ({ uid, token: `tok-${uid}` });
+  const today = "2026-07-15";
+  const weekAgo = "2026-07-08";
+
+  it("filters to the audience before applying the send cap", () => {
+    // Only the LAST user is lapsed; a cap-first implementation would slice
+    // them away before the audience filter ever saw them.
+    const tokens = [token("active1"), token("active2"), token("lapsed")];
+    const userByUid = new Map<string, Record<string, unknown>>([
+      ["active1", { lastAnsweredDailyKey: today }],
+      ["active2", { lastAnsweredDailyKey: today }],
+      ["lapsed", { lastAnsweredDailyKey: "2026-06-01" }],
+    ]);
+    const selected = selectBroadcastTokens({
+      tokens,
+      audience: "lapsed_7d",
+      userByUid,
+      limit: 2,
+      todayDailyKey: today,
+      sevenDaysAgoDailyKey: weekAgo,
+    });
+    expect(selected).toEqual([token("lapsed")]);
+  });
+
+  it("caps the matched audience at the limit", () => {
+    const tokens = [token("a"), token("b"), token("c")];
+    const selected = selectBroadcastTokens({
+      tokens,
+      audience: "all",
+      userByUid: new Map(),
+      limit: 2,
+      todayDailyKey: today,
+      sevenDaysAgoDailyKey: weekAgo,
+    });
+    expect(selected).toEqual([token("a"), token("b")]);
+  });
+
+  it("clamps a nonsense limit to at least one send", () => {
+    const tokens = [token("a"), token("b")];
+    const selected = selectBroadcastTokens({
+      tokens,
+      audience: "all",
+      userByUid: new Map(),
+      limit: -5,
+      todayDailyKey: today,
+      sevenDaysAgoDailyKey: weekAgo,
+    });
+    expect(selected).toEqual([token("a")]);
   });
 });

@@ -546,7 +546,7 @@ export function WorldCurationView({
         <button
           className="adminBlueButton"
           disabled={busy || picked.length !== 3}
-          onClick={submitCuration}
+          onClick={() => submitCuration()}
           style={{ marginTop: 12 }}
         >
           {busy ? "Saving…" : `Curate ${dailyKey}`}
