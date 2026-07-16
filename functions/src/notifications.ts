@@ -8,6 +8,16 @@ export type DailyNotificationPayload = {
   type: DailyNotificationKind;
 };
 
+export const DEFAULT_DAILY_REMINDER_MINUTES = 8 * 60;
+export const DEFAULT_DAILY_REMINDER_TIME_ZONE = "America/New_York";
+
+export type DailyReminderMoment = {
+  deliveryKey: string;
+  minuteOfDay: number;
+  reminderMinutes: number;
+  timeZone: string;
+};
+
 const BROADCAST_AUDIENCES: BroadcastAudience[] = ["all", "streak_at_risk", "lapsed_7d"];
 
 /**
@@ -89,12 +99,69 @@ export function userAllowsNotifications(user: Record<string, unknown>): boolean 
   return user.dailyReminder !== false;
 }
 
+export function normalizeDailyReminderMinutes(value: unknown): number {
+  const minutes = Number(value);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
+    return DEFAULT_DAILY_REMINDER_MINUTES;
+  }
+  return minutes;
+}
+
+export function normalizeDailyReminderTimeZone(value: unknown): string {
+  const timeZone = typeof value === "string" ? value.trim() : "";
+  if (timeZone.length === 0) return DEFAULT_DAILY_REMINDER_TIME_ZONE;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).format(new Date(0));
+    return timeZone;
+  } catch (_) {
+    return DEFAULT_DAILY_REMINDER_TIME_ZONE;
+  }
+}
+
+export function dailyReminderMoment(
+  user: Record<string, unknown>,
+  now: Date,
+): DailyReminderMoment {
+  const timeZone = normalizeDailyReminderTimeZone(user.dailyReminderTimeZone);
+  const reminderMinutes = normalizeDailyReminderMinutes(user.dailyReminderMinutes);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  const hour = Number(part("hour"));
+  const minute = Number(part("minute"));
+  return {
+    deliveryKey: `${part("year")}-${part("month")}-${part("day")}`,
+    minuteOfDay: hour * 60 + minute,
+    reminderMinutes,
+    timeZone,
+  };
+}
+
+export function dailyReminderIsDue(
+  user: Record<string, unknown>,
+  now: Date,
+  deliveryWindowMinutes = 15,
+): boolean {
+  const moment = dailyReminderMoment(user, now);
+  const elapsed =
+    (moment.minuteOfDay - moment.reminderMinutes + 24 * 60) % (24 * 60);
+  return elapsed < deliveryWindowMinutes;
+}
+
 export function dailyNotificationPayload(kind: DailyNotificationKind): DailyNotificationPayload {
   if (kind === "daily_room_ready") {
     return {
       title: "Read the World",
-      body: "Your rooms are ready. New questions are open, and yesterday's reveal is waiting.",
-      route: "/rooms",
+      body: "Today's questions are ready. Make your read and see yesterday's results.",
+      route: "/today",
       type: "daily_room_ready",
     };
   }

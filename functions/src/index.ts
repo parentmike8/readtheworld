@@ -92,6 +92,8 @@ import {
   type QuestionStatus,
 } from "./questions";
 import {
+  dailyReminderIsDue,
+  dailyReminderMoment,
   dailyNotificationPayload,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
@@ -1052,16 +1054,72 @@ async function enabledNotificationTokensForUser(uid: string): Promise<Notificati
     .filter((token) => token.token.length > 0);
 }
 
-async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise<{
-  attempted: number;
-  sent: number;
-  skippedWithPush: number;
+const DAILY_REMINDER_CLAIM_STALE_MS = 10 * 60 * 1000;
+
+async function claimDailyReminder(
+  userRef: DocumentReference,
+  deliveryKey: string,
+  now: Date,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const data = userSnap.data() ?? {};
+    if (data.dailyReminder !== true || data.lastDailyReminderKey === deliveryKey) {
+      return false;
+    }
+    const existingClaimAt = data.dailyReminderClaimAt instanceof Timestamp
+      ? data.dailyReminderClaimAt.toMillis()
+      : 0;
+    if (
+      data.dailyReminderClaimKey === deliveryKey &&
+      existingClaimAt > now.getTime() - DAILY_REMINDER_CLAIM_STALE_MS
+    ) {
+      return false;
+    }
+    tx.set(userRef, {
+      dailyReminderClaimKey: deliveryKey,
+      dailyReminderClaimAt: Timestamp.fromDate(now),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
+
+async function finishDailyReminder(
+  userRef: DocumentReference,
+  deliveryKey: string,
+): Promise<void> {
+  await userRef.set({
+    lastDailyReminderKey: deliveryKey,
+    lastDailyReminderSentAt: FieldValue.serverTimestamp(),
+    dailyReminderClaimKey: FieldValue.delete(),
+    dailyReminderClaimAt: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function releaseDailyReminderClaim(userRef: DocumentReference): Promise<void> {
+  await userRef.set({
+    dailyReminderClaimKey: FieldValue.delete(),
+    dailyReminderClaimAt: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function sendDueDailyReminders(now: Date): Promise<{
+  matched: number;
+  claimed: number;
+  pushUsers: number;
+  pushSuccesses: number;
+  emailSent: number;
   skippedUnverified: number;
   failed: number;
 }> {
-  let attempted = 0;
-  let sent = 0;
-  let skippedWithPush = 0;
+  let matched = 0;
+  let claimed = 0;
+  let pushUsers = 0;
+  let pushSuccesses = 0;
+  let emailSent = 0;
   let skippedUnverified = 0;
   let failed = 0;
 
@@ -1080,40 +1138,59 @@ async function sendDailyHabitEmailsToUsersWithoutPush(dailyKey: string): Promise
 
     for (const userDoc of usersSnap.docs) {
       const data = userDoc.data();
-      if (data.lastDailyHabitEmailKey === dailyKey) continue;
-      const tokens = await enabledNotificationTokensForUser(userDoc.id);
-      if (tokens.length > 0) {
-        skippedWithPush += 1;
+      if (!dailyReminderIsDue(data, now)) continue;
+      const moment = dailyReminderMoment(data, now);
+      if (data.lastDailyReminderKey === moment.deliveryKey) continue;
+      matched += 1;
+      if (!await claimDailyReminder(userDoc.ref, moment.deliveryKey, now)) {
         continue;
       }
-      attempted += 1;
-      const authUser = await getAuth().getUser(userDoc.id).catch(() => null);
-      const email = String(authUser?.email ?? "").trim().toLowerCase();
-      if (!authUser?.emailVerified || !isValidEmail(email)) {
-        skippedUnverified += 1;
-        continue;
-      }
+      claimed += 1;
       try {
-        await sendPostmarkEmail(dailyHabitEmail({
-          to: email,
-          displayName: String(data.displayName ?? authUser.displayName ?? "Reader"),
-          roomsUrl: `${APP_URL}/rooms`,
-          dailyKey,
-        }));
-        await userDoc.ref.set({
-          lastDailyHabitEmailKey: dailyKey,
-          lastDailyHabitEmailSentAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        sent += 1;
+        const tokens = await enabledNotificationTokensForUser(userDoc.id);
+        if (tokens.length > 0) {
+          const result = await sendNotificationToTokens(
+            tokens,
+            dailyNotificationPayload("daily_room_ready"),
+          );
+          if (result.successCount === 0 && result.failureCount > 0) {
+            throw new Error(`All push attempts failed: ${JSON.stringify(result.errorCodes)}`);
+          }
+          pushUsers += 1;
+          pushSuccesses += result.successCount;
+        } else {
+          const authUser = await getAuth().getUser(userDoc.id).catch(() => null);
+          const email = String(authUser?.email ?? "").trim().toLowerCase();
+          if (!authUser?.emailVerified || !isValidEmail(email)) {
+            skippedUnverified += 1;
+          } else {
+            await sendPostmarkEmail(dailyHabitEmail({
+              to: email,
+              displayName: String(data.displayName ?? authUser.displayName ?? "Reader"),
+              roomsUrl: `${APP_URL}/today`,
+              dailyKey: moment.deliveryKey,
+            }));
+            emailSent += 1;
+          }
+        }
+        await finishDailyReminder(userDoc.ref, moment.deliveryKey);
       } catch (error) {
         failed += 1;
-        logger.warn("Daily habit email failed", { uid: userDoc.id, error: String(error) });
+        await releaseDailyReminderClaim(userDoc.ref).catch(() => undefined);
+        logger.warn("Daily reminder failed", { uid: userDoc.id, error: String(error) });
       }
     }
   }
 
-  return { attempted, sent, skippedWithPush, skippedUnverified, failed };
+  return {
+    matched,
+    claimed,
+    pushUsers,
+    pushSuccesses,
+    emailSent,
+    skippedUnverified,
+    failed,
+  };
 }
 
 /**
@@ -2748,23 +2825,13 @@ export const recomputeLeaderboards = onSchedule({
 });
 
 export const sendDailyNotifications = onSchedule({
-  schedule: "0 8 * * *",
-  timeZone: EASTERN_TIME_ZONE,
+  schedule: "*/5 * * * *",
+  timeZone: "UTC",
   secrets: [postmarkServerToken],
 }, async () => {
-  const todayKey = dailyKeyForEasternDate(new Date());
-  const tokens = await activeNotificationTokens();
-  const result = await sendNotificationToTokens(
-    tokens,
-    dailyNotificationPayload("daily_room_ready"),
-  );
-  const emailResult = await sendDailyHabitEmailsToUsersWithoutPush(todayKey);
-
-  logger.info("Sent daily notifications", {
-    todayKey,
-    ...result,
-    email: emailResult,
-  });
+  const now = new Date();
+  const result = await sendDueDailyReminders(now);
+  logger.info("Processed local-time daily reminders", { now: now.toISOString(), ...result });
 });
 
 export const sendRevealReadyNotifications = onSchedule({

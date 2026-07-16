@@ -1045,6 +1045,41 @@ void main() {
       expect(find.byType(TextField), findsWidgets);
     });
 
+    testWidgets('profile reminder settings fit a narrow phone', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final profile = RtwController(firebaseReady: false)
+        ..displayName = 'Mike'
+        ..dailyReminder = true
+        ..dailyReminderMinutes = 8 * 60
+        ..lastError = null;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            rtwControllerProvider.overrideWith(
+              (_) => profile,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreenV2()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Daily reset'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reminder time'), findsOneWidget);
+      expect(find.textContaining('8:00'), findsOneWidget);
+      expect(find.text('Daily reset'), findsOneWidget);
+      expect(find.textContaining('local'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('submitted room card exposes a modify action', (tester) async {
       final room = _binding(id: 'studio', name: 'The Studio')
         ..myTodayAnswer = const RoomAnswer(

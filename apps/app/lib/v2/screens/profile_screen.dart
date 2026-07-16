@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_state.dart';
 import '../../main.dart';
+import '../countdown.dart';
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 
@@ -81,6 +83,16 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
     final initial = profile.displayName.isEmpty
         ? '?'
         : profile.displayName.substring(0, 1).toUpperCase();
+    final reminderTime = DateTime(
+      2000,
+      1,
+      1,
+      profile.dailyReminderMinutes ~/ 60,
+      profile.dailyReminderMinutes % 60,
+    );
+    final nextReset = nextEasternMidnightUtc(DateTime.now().toUtc()).toLocal();
+    final reminderTimeLabel = DateFormat.jm().format(reminderTime);
+    final resetTimeLabel = '${DateFormat.jm().format(nextReset)} local';
 
     return V2Scaffold(
       location: '/profile',
@@ -189,58 +201,85 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
             _AuthSummaryCard(summary: authSummary),
             const SizedBox(height: 22),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               decoration: BoxDecoration(
                 color: RtwV2Colors.card,
                 border: Border.all(color: RtwV2Colors.border),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Daily reminder',
-                          style: v2Sans(
-                            15,
-                            color: RtwV2Colors.inkSoft,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Ping me when rooms have new questions',
-                          style: v2Sans(12, color: RtwV2Colors.faint),
-                        ),
-                        if (profile.notificationsDenied &&
-                            !kIsWeb &&
-                            defaultTargetPlatform == TargetPlatform.iOS) ...[
-                          const SizedBox(height: 6),
-                          Semantics(
-                            button: true,
-                            child: GestureDetector(
-                              onTap: () =>
-                                  launchUrl(Uri.parse('app-settings:')),
-                              child: Text(
-                                'Notifications are off in iOS Settings. Open Settings',
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Daily reminder',
                                 style: v2Sans(
-                                  12,
-                                  color: RtwV2Colors.blue,
+                                  15,
+                                  color: RtwV2Colors.inkSoft,
                                   weight: FontWeight.w600,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'New questions and results',
+                                style: v2Sans(12, color: RtwV2Colors.faint),
+                              ),
+                              if (profile.notificationsDenied &&
+                                  !kIsWeb &&
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.iOS) ...[
+                                const SizedBox(height: 6),
+                                Semantics(
+                                  button: true,
+                                  child: GestureDetector(
+                                    onTap: () =>
+                                        launchUrl(Uri.parse('app-settings:')),
+                                    child: Text(
+                                      'Notifications are off. Open iOS Settings',
+                                      style: v2Sans(
+                                        12,
+                                        color: RtwV2Colors.blue,
+                                        weight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
+                        V2Toggle(
+                          value: profile.dailyReminder,
+                          onChanged: (_) =>
+                              ref.read(rtwControllerProvider).toggleReminder(),
+                        ),
                       ],
                     ),
                   ),
-                  V2Toggle(
-                    value: profile.dailyReminder,
-                    onChanged: (_) =>
-                        ref.read(rtwControllerProvider).toggleReminder(),
+                  if (profile.dailyReminder) ...[
+                    const V2Hairline(),
+                    _CompactSettingRow(
+                      label: 'Reminder time',
+                      value: reminderTimeLabel,
+                      onTap: () => _pickReminderTime(
+                        context,
+                        profile.dailyReminderMinutes,
+                      ),
+                    ),
+                  ],
+                  const V2Hairline(),
+                  _CompactSettingRow(
+                    label: 'Daily reset',
+                    value: resetTimeLabel,
+                    caption: 'Answers lock at this time each day',
                   ),
                 ],
               ),
@@ -321,6 +360,26 @@ class _ProfileScreenV2State extends ConsumerState<ProfileScreenV2>
       // Always release the row, even if sending throws.
       if (mounted) setState(() => sendingVerification = false);
     }
+  }
+
+  Future<void> _pickReminderTime(
+    BuildContext context,
+    int currentMinutes,
+  ) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: currentMinutes ~/ 60,
+        minute: currentMinutes % 60,
+      ),
+      helpText: 'Choose reminder time',
+      cancelText: 'Cancel',
+      confirmText: 'Save',
+    );
+    if (selected == null) return;
+    await ref
+        .read(rtwControllerProvider)
+        .setDailyReminderMinutes((selected.hour * 60) + selected.minute);
   }
 
   void _showSafetySheet(BuildContext context) {
@@ -710,6 +769,72 @@ class _AuthSummaryCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _CompactSettingRow extends StatelessWidget {
+  const _CompactSettingRow({
+    required this.label,
+    required this.value,
+    this.caption,
+    this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final String? caption;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: v2Sans(
+                    14,
+                    color: RtwV2Colors.inkSoft,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+                if (caption != null) ...[
+                  const SizedBox(height: 2),
+                  Text(caption!, style: v2Sans(11.5, color: RtwV2Colors.faint)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            flex: 2,
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: v2Sans(
+                13.5,
+                color: onTap == null ? RtwV2Colors.subText : RtwV2Colors.blue,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 5),
+            Text('›', style: v2Sans(16, color: RtwV2Colors.blue)),
+          ],
+        ],
+      ),
+    );
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
   }
 }
 

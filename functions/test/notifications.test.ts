@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  dailyReminderIsDue,
+  dailyReminderMoment,
   dailyNotificationPayload,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
@@ -9,11 +11,11 @@ import {
 } from "../src/notifications";
 
 describe("Daily notification payloads", () => {
-  it("uses one morning room-ready payload for the daily habit", () => {
+  it("opens Today from the daily habit reminder", () => {
     expect(dailyNotificationPayload("daily_room_ready")).toEqual({
       title: "Read the World",
-      body: "Your rooms are ready. New questions are open, and yesterday's reveal is waiting.",
-      route: "/rooms",
+      body: "Today's questions are ready. Make your read and see yesterday's results.",
+      route: "/today",
       type: "daily_room_ready",
     });
   });
@@ -31,6 +33,46 @@ describe("Daily notification payloads", () => {
       route: "/reveal",
       type: "result_ready",
     });
+  });
+});
+
+describe("Local-time daily reminders", () => {
+  it("defaults to 8 AM Eastern for profiles without the new preference", () => {
+    const now = new Date("2026-07-16T12:00:00.000Z");
+    expect(dailyReminderMoment({}, now)).toEqual({
+      deliveryKey: "2026-07-16",
+      minuteOfDay: 8 * 60,
+      reminderMinutes: 8 * 60,
+      timeZone: "America/New_York",
+    });
+    expect(dailyReminderIsDue({}, now)).toBe(true);
+  });
+
+  it("uses each profile's IANA timezone and chosen local time", () => {
+    const user = {
+      dailyReminderMinutes: (18 * 60) + 30,
+      dailyReminderTimeZone: "America/Los_Angeles",
+    };
+    expect(dailyReminderIsDue(user, new Date("2026-07-17T01:30:00.000Z"))).toBe(true);
+    expect(dailyReminderIsDue(user, new Date("2026-07-17T01:15:00.000Z"))).toBe(false);
+  });
+
+  it("keeps a short retry window after the selected minute", () => {
+    const user = {
+      dailyReminderMinutes: 8 * 60,
+      dailyReminderTimeZone: "America/New_York",
+    };
+    expect(dailyReminderIsDue(user, new Date("2026-07-16T12:10:00.000Z"))).toBe(true);
+    expect(dailyReminderIsDue(user, new Date("2026-07-16T12:15:00.000Z"))).toBe(false);
+  });
+
+  it("falls back safely when stored reminder settings are invalid", () => {
+    const moment = dailyReminderMoment({
+      dailyReminderMinutes: 5000,
+      dailyReminderTimeZone: "Not/A_Timezone",
+    }, new Date("2026-07-16T12:00:00.000Z"));
+    expect(moment.reminderMinutes).toBe(8 * 60);
+    expect(moment.timeZone).toBe("America/New_York");
   });
 });
 

@@ -193,6 +193,8 @@ describe("official answers and scoring data", () => {
       updateDoc(doc(authedDb("alex"), "users/alex"), {
         displayName: "Alex P.",
         dailyReminder: true,
+        dailyReminderMinutes: 510,
+        dailyReminderTimeZone: "America/Toronto",
         notifPrimerSeenAt: new Date("2026-07-05T15:00:00Z"),
       }),
     );

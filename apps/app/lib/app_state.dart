@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'firestore_mappers.dart';
@@ -43,6 +44,8 @@ class RtwController extends ChangeNotifier {
   String phoneNumber = '';
   bool phoneCodeSent = false;
   bool dailyReminder = false;
+  int dailyReminderMinutes = 8 * 60;
+  String? dailyReminderTimeZone;
   bool notificationsDenied = false;
   int avatarIndex = 0;
   DateTime? birthdate;
@@ -365,6 +368,13 @@ class RtwController extends ChangeNotifier {
             authPhoneNumber ??
             phoneNumber;
         dailyReminder = data['dailyReminder'] as bool? ?? dailyReminder;
+        dailyReminderMinutes = _intValue(
+          data['dailyReminderMinutes'],
+          fallback: dailyReminderMinutes,
+        ).clamp(0, (24 * 60) - 1);
+        dailyReminderTimeZone =
+            _nonEmptyString(data['dailyReminderTimeZone']) ??
+            dailyReminderTimeZone;
         if (dailyReminder && !_notificationTokenSynced) {
           _notificationTokenSynced = true;
           unawaited(_syncNotificationTokenIfAuthorized());
@@ -513,6 +523,8 @@ class RtwController extends ChangeNotifier {
     phoneNumber = _nonEmptyString(user.phoneNumber) ?? '';
     if (resetScoring) {
       dailyReminder = false;
+      dailyReminderMinutes = 8 * 60;
+      dailyReminderTimeZone = null;
       avatarIndex = _avatarIndexFromColor(
         _optimisticProfileValues['avatarColor'],
       );
@@ -1712,7 +1724,14 @@ class RtwController extends ChangeNotifier {
       }
       await _writeNotificationToken(token: token, enabled: true);
       dailyReminder = true;
-      await _writeUserProfile({'dailyReminder': true});
+      final timeZone = await _localTimeZoneIdentifier();
+      dailyReminderTimeZone = timeZone ?? dailyReminderTimeZone;
+      await _writeUserProfile({
+        'dailyReminder': true,
+        'dailyReminderMinutes': dailyReminderMinutes,
+        if (dailyReminderTimeZone != null)
+          'dailyReminderTimeZone': dailyReminderTimeZone,
+      });
       unawaited(_logEvent('notification_opt_in'));
       notifyListeners();
     } catch (error) {
@@ -1731,8 +1750,7 @@ class RtwController extends ChangeNotifier {
       const webVapidKey = String.fromEnvironment('RTW_WEB_PUSH_VAPID_KEY');
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.getNotificationSettings();
-      final denied =
-          settings.authorizationStatus == AuthorizationStatus.denied;
+      final denied = settings.authorizationStatus == AuthorizationStatus.denied;
       if (denied != notificationsDenied) {
         notificationsDenied = denied;
         notifyListeners();
@@ -1748,6 +1766,11 @@ class RtwController extends ChangeNotifier {
       );
       if (token == null || token.isEmpty) return;
       await _writeNotificationToken(token: token, enabled: true);
+      final timeZone = await _localTimeZoneIdentifier();
+      if (timeZone != null && timeZone != dailyReminderTimeZone) {
+        dailyReminderTimeZone = timeZone;
+        await _writeUserProfile({'dailyReminderTimeZone': timeZone});
+      }
     } catch (error) {
       debugPrint('Notification token sync skipped: $error');
     }
@@ -1778,6 +1801,35 @@ class RtwController extends ChangeNotifier {
     } catch (error) {
       debugPrint('Apple push registration request failed: $error');
     }
+  }
+
+  Future<String?> _localTimeZoneIdentifier() async {
+    try {
+      final timeZone = await FlutterTimezone.getLocalTimezone();
+      return _nonEmptyString(timeZone.identifier);
+    } catch (error) {
+      debugPrint('Local timezone lookup skipped: $error');
+      return null;
+    }
+  }
+
+  Future<void> setDailyReminderMinutes(int minutes) async {
+    final normalized = minutes.clamp(0, (24 * 60) - 1);
+    dailyReminderMinutes = normalized;
+    lastError = null;
+    notifyListeners();
+    final timeZone = await _localTimeZoneIdentifier();
+    dailyReminderTimeZone = timeZone ?? dailyReminderTimeZone;
+    await _writeUserProfile({
+      'dailyReminderMinutes': normalized,
+      if (dailyReminderTimeZone != null)
+        'dailyReminderTimeZone': dailyReminderTimeZone,
+    });
+    unawaited(
+      _logEvent('notification_time_changed', {
+        'minutes_after_midnight': normalized,
+      }),
+    );
   }
 
   Future<void> _setCurrentNotificationTokenEnabled(bool enabled) async {
@@ -1984,12 +2036,13 @@ class RtwController extends ChangeNotifier {
       // itself 9 minutes (timeoutSeconds: 540). The plugin's ~70s default
       // would report failure mid-deletion and leave the app signed in
       // against an account being erased.
-      final callable = FirebaseFunctions.instanceFor(
-        region: 'us-central1',
-      ).httpsCallable(
-        'deleteMyAccount',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 540)),
-      );
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable(
+            'deleteMyAccount',
+            options: HttpsCallableOptions(
+              timeout: const Duration(seconds: 540),
+            ),
+          );
       await callable.call();
     } on FirebaseFunctionsException catch (error) {
       lastError = error.message ?? error.code;
@@ -2020,6 +2073,8 @@ class RtwController extends ChangeNotifier {
     phoneNumber = '';
     phoneCodeSent = false;
     dailyReminder = false;
+    dailyReminderMinutes = 8 * 60;
+    dailyReminderTimeZone = null;
     avatarIndex = 0;
     birthdate = null;
     gender = null;
