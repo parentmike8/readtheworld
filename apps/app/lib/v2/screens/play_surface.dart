@@ -28,6 +28,7 @@ class TodayScreenV2 extends ConsumerStatefulWidget {
 
 class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
   bool _enterTodayScheduled = false;
+  String? _lastEntryFingerprint;
 
   @override
   void initState() {
@@ -38,11 +39,21 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
   void _scheduleEnterToday() {
     if (_enterTodayScheduled) return;
     _enterTodayScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _enterTodayScheduled = false;
       if (!mounted) return;
       final rooms = ref.read(roomsControllerProvider);
-      if (rooms.play?.mode != 'today') rooms.enterToday();
+      final fingerprint = rooms.todayEntryFingerprint;
+      if (rooms.play?.mode == 'today' ||
+          rooms.preparingPlay ||
+          _lastEntryFingerprint == fingerprint) {
+        return;
+      }
+      _lastEntryFingerprint = fingerprint;
+      await rooms.enterToday();
+      if (mounted) {
+        _lastEntryFingerprint = rooms.todayEntryFingerprint;
+      }
     });
   }
 
@@ -50,7 +61,7 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
   Widget build(BuildContext context) {
     final rooms = ref.watch(roomsControllerProvider);
     final session = rooms.play;
-    if (session?.mode != 'today') {
+    if (session?.mode != 'today' && !rooms.preparingPlay) {
       _scheduleEnterToday();
     }
     final todaySwipe =
@@ -60,6 +71,16 @@ class _TodayScreenV2State extends ConsumerState<TodayScreenV2> {
       location: '/today',
       child: todaySwipe
           ? PlaySurface(session: session)
+          : rooms.preparingPlay || rooms.loadingRooms
+          ? const Center(child: CircularProgressIndicator())
+          : rooms.lastError != null
+          ? _TodayLoadError(
+              message: rooms.lastError!,
+              onRetry: () {
+                _lastEntryFingerprint = null;
+                _scheduleEnterToday();
+              },
+            )
           : _CaughtUp(count: rooms.caughtUpCount),
     );
   }
@@ -1416,6 +1437,57 @@ void _showRoomSwitchSheet(
 }
 
 // ── CAUGHT UP ───────────────────────────────────────────────────────────
+
+class _TodayLoadError extends StatelessWidget {
+  const _TodayLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(26, 70, 26, 30),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 42,
+            color: RtwV2Colors.muted,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Could not refresh today.',
+            textAlign: TextAlign.center,
+            style: v2Serif(31, height: 1.08, letterSpacing: -0.5),
+          ),
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: v2Sans(14.5, color: RtwV2Colors.subText, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 26),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: V2Button(
+              'Try again',
+              onPressed: onRetry,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              radius: 16,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _CaughtUp extends StatelessWidget {
   const _CaughtUp({required this.count});

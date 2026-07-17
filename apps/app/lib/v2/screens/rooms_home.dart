@@ -360,16 +360,25 @@ class _WorldHero extends StatelessWidget {
                     foreground: RtwV2Colors.ink,
                     fontWeight: FontWeight.w700,
                     padding: const EdgeInsets.symmetric(vertical: 13),
-                    onPressed: () {
-                      // Already answered -> read-only review first; otherwise
-                      // straight into the play flow.
-                      if (answered) {
-                        context.push('/rooms/$worldRoomId/review');
-                        return;
-                      }
-                      rooms.startRoomPlay(worldRoomId);
-                      if (rooms.play != null) context.go('/today/play');
-                    },
+                    onPressed: rooms.preparingPlay
+                        ? null
+                        : () async {
+                            // Already answered -> read-only review first; otherwise
+                            // straight into the play flow.
+                            if (answered) {
+                              context.push('/rooms/$worldRoomId/review');
+                              return;
+                            }
+                            final started = await rooms.startRoomPlay(
+                              worldRoomId,
+                            );
+                            if (!context.mounted) return;
+                            if (started) {
+                              context.go('/today/play');
+                            } else {
+                              _showPlayRefreshError(context, rooms);
+                            }
+                          },
                   ),
                   const SizedBox(height: 8),
                   // Full-width, opaque hit target — the text alone was a
@@ -446,7 +455,7 @@ class _RoomCard extends ConsumerWidget {
       wide: 13.5,
       full: 14,
     );
-    void onStatusTap() {
+    Future<void> onStatusTap() async {
       final rooms = ref.read(roomsControllerProvider);
       rooms.markTodaySeen(room.id);
       // Already answered -> read-only review; otherwise into the play flow.
@@ -454,8 +463,13 @@ class _RoomCard extends ConsumerWidget {
         context.push('/rooms/${room.id}/review');
         return;
       }
-      rooms.startRoomPlay(room.id);
-      if (rooms.play != null) context.go('/today/play');
+      final started = await rooms.startRoomPlay(room.id);
+      if (!context.mounted) return;
+      if (started) {
+        context.go('/today/play');
+      } else {
+        _showPlayRefreshError(context, rooms);
+      }
     }
 
     return GestureDetector(
@@ -586,6 +600,16 @@ class _RoomCard extends ConsumerWidget {
     final rank = binding.me?.rank;
     return rank == null ? null : 'Rank #$rank';
   }
+}
+
+void _showPlayRefreshError(BuildContext context, RoomsController rooms) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        rooms.lastError ?? 'Could not verify the latest questions. Try again.',
+      ),
+    ),
+  );
 }
 
 class _EmptyRooms extends StatelessWidget {

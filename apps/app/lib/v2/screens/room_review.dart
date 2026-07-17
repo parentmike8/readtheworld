@@ -95,11 +95,28 @@ class RoomReviewScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             V2Button(
-              'Edit answers →',
-              onPressed: () {
-                rooms.startRoomPlay(roomId, entryRoute: '/rooms/$roomId/review');
-                if (rooms.play != null) context.go('/today/play');
-              },
+              rooms.preparingPlay ? 'Refreshing questions…' : 'Edit answers →',
+              onPressed: rooms.preparingPlay
+                  ? null
+                  : () async {
+                      final started = await rooms.startRoomPlay(
+                        roomId,
+                        entryRoute: '/rooms/$roomId/review',
+                      );
+                      if (!context.mounted) return;
+                      if (started) {
+                        context.go('/today/play');
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              rooms.lastError ??
+                                  'Could not verify the latest questions. Try again.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
               padding: const EdgeInsets.symmetric(vertical: 17),
               radius: 16,
               fontSize: 16,
@@ -166,7 +183,10 @@ class _ReviewCard extends StatelessWidget {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: sideColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: sideColor,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -177,7 +197,11 @@ class _ReviewCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: sideLabel,
-                        style: v2Sans(13.5, color: sideColor, weight: FontWeight.w700),
+                        style: v2Sans(
+                          13.5,
+                          color: sideColor,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                       if (prediction != null)
                         TextSpan(

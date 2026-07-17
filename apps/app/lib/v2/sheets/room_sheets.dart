@@ -2497,16 +2497,26 @@ class _RoomHistoryViewState extends State<RoomHistoryView> {
                 question: card.question,
                 day: card.entry.day,
               ),
-              onAnswer: () {
-                widget.rooms.startWorldDayPlay(
+              onAnswer: () async {
+                final started = await widget.rooms.startWorldDayPlay(
                   card.entry,
                   entryRoute: '/rooms/${widget.room.id}/history',
                 );
-                if (widget.rooms.play != null) {
+                if (!context.mounted) return;
+                if (started) {
                   // Sheet mode: close the sheet first. Exit returns to the
                   // recorded entry route (the history screen) either way.
                   if (!widget.asScreen) Navigator.of(context).pop();
                   context.go('/today/play');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        widget.rooms.lastError ??
+                            'Could not verify the latest questions. Try again.',
+                      ),
+                    ),
+                  );
                 }
               },
             ),
@@ -2779,13 +2789,25 @@ Future<void> showWorldBrowseSheet(
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   radius: 13,
-                  onPressed: () {
-                    rooms.startWorldDayPlay(entry);
-                    if (rooms.play != null) {
-                      Navigator.of(context).pop();
-                      context.go('/today/play');
-                    }
-                  },
+                  onPressed: rooms.preparingPlay
+                      ? null
+                      : () async {
+                          final started = await rooms.startWorldDayPlay(entry);
+                          if (!context.mounted) return;
+                          if (started) {
+                            Navigator.of(context).pop();
+                            context.go('/today/play');
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  rooms.lastError ??
+                                      'Could not verify the latest questions. Try again.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
                 ),
               ),
             for (final question in entry.day.activeQuestions) ...[

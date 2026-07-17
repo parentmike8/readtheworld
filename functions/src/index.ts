@@ -4874,6 +4874,121 @@ export const markRoomRevealSeen = onCall(callableOptions, async (request) => {
   return { roomId, revealSeenDailyKey: lastClosed };
 });
 
+/**
+ * Authoritative entry gate for every answerable room flow. The client may use
+ * Firestore's persisted cache to render room chrome quickly, but it must not
+ * construct a question deck until this server-time snapshot confirms the
+ * current day and exact question payload.
+ */
+export const getRoomPlaySnapshot = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const todayKey = dailyKeyForEasternDate(new Date());
+  const targetRoomRef = roomRef(roomId);
+  const [roomSnap, memberSnap] = await Promise.all([
+    targetRoomRef.get(),
+    targetRoomRef.collection("members").doc(uid).get(),
+  ]);
+  if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+  const room = roomSnap.data() ?? {};
+  const isWorld = room.isWorld === true;
+  if (!isWorld && !memberSnap.exists) {
+    throw new HttpsError("permission-denied", "You are not a member of this room.");
+  }
+
+  let requestedDailyKey: string | null = null;
+  try {
+    requestedDailyKey = normalizeDailyKey(request.data?.dailyKey);
+  } catch (error) {
+    mapQuestionValidationError(error);
+  }
+  if (requestedDailyKey && !isWorld) {
+    throw new HttpsError(
+      "invalid-argument",
+      "A specific day can only be opened in The World.",
+    );
+  }
+  if (requestedDailyKey && requestedDailyKey > todayKey) {
+    throw new HttpsError("failed-precondition", "That day is not open yet.");
+  }
+
+  const dailyKey = requestedDailyKey ?? todayKey;
+  if (!requestedDailyKey && String(room.currentDailyKey ?? "") !== todayKey) {
+    throw new HttpsError(
+      "unavailable",
+      "Today's questions are still loading. Try again shortly.",
+      { reason: "room-rollover-pending", todayDailyKey: todayKey },
+    );
+  }
+
+  const dayRef = roomDayRef(roomId, dailyKey);
+  const [daySnap, answerSnap] = await Promise.all([
+    dayRef.get(),
+    dayRef.collection("answers").doc(uid).get(),
+  ]);
+  if (!daySnap.exists || daySnap.data()?.status !== "live") {
+    throw new HttpsError("failed-precondition", "Those questions are not open.");
+  }
+  const day = daySnap.data() ?? {};
+  const revealedQids = new Set([
+    ...(Array.isArray(day.revealedQids) ? day.revealedQids : []),
+    ...(Array.isArray(day.revealingQids) ? day.revealingQids : []),
+  ] as string[]);
+  const openQuestions = ((day.questions ?? []) as RoomDayQuestion[])
+    .filter((question) => question.pulled !== true && !revealedQids.has(question.qid));
+  if (openQuestions.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "There are no open questions in this room right now.",
+    );
+  }
+  const answer = answerSnap.data();
+
+  return {
+    roomId,
+    dailyKey,
+    room: {
+      name: String(room.name ?? "Room"),
+      color: String(room.color ?? "oklch(0.50 0.10 256)"),
+      tier: String(room.tier ?? "normal"),
+      cats: Array.isArray(room.cats) ? room.cats.map(String) : ["All"],
+      customEnabled: room.customEnabled !== false,
+      memberCount: Number(room.memberCount ?? 1),
+      isWorld,
+      worldGoal: Number(room.worldGoal ?? 5000),
+      inviteCode: typeof room.inviteCode === "string" ? room.inviteCode : null,
+      createdBy: String(room.createdBy ?? ""),
+      currentDailyKey: String(room.currentDailyKey ?? dailyKey),
+      lastClosedDailyKey: typeof room.lastClosedDailyKey === "string"
+        ? room.lastClosedDailyKey
+        : null,
+    },
+    day: {
+      status: String(day.status ?? "live"),
+      questions: Array.isArray(day.questions) ? day.questions : [],
+      results: Array.isArray(day.results) ? day.results : [],
+      answerCount: Number(day.answerCount ?? 0),
+      answerCounts: day.answerCounts && typeof day.answerCounts === "object"
+        ? day.answerCounts
+        : {},
+      // The Flutter model has one exclusion set. Include questions already in
+      // the reveal transition so a just-fetched deck cannot render them while
+      // the reveal transaction completes.
+      revealedQids: [...revealedQids],
+    },
+    answer: answer ? {
+      picks: Array.isArray(answer.picks) ? answer.picks : [],
+      answerOnly: answer.answerOnly === true,
+      scored: answer.scored === true,
+      scoreDelta: typeof answer.scoreDelta === "number" ? answer.scoreDelta : null,
+      avgAccuracy: typeof answer.avgAccuracy === "number" ? answer.avgAccuracy : null,
+      accuracies: answer.accuracies && typeof answer.accuracies === "object"
+        ? answer.accuracies
+        : {},
+    } : null,
+  };
+});
+
 export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   const uid = requireUid(request.auth);
   const roomId = assertRoomId(request.data?.roomId);

@@ -34,16 +34,16 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   /// play surface pre-loaded with their picks so they can revise.
   void _maybeAutoEdit(RoomsController rooms, RtwRoom room) {
     if (!widget.edit || _autoEditDone) return;
-    final day = room.isWorld
-        ? rooms.worldToday
-        : rooms.bindingFor(room.id)?.today;
-    final answer = rooms.bindingFor(room.id)?.myTodayAnswer;
-    if (day == null || !day.isLive || answer == null) return;
     _autoEditDone = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      rooms.startRoomPlay(room.id);
-      if (rooms.play != null) context.go('/today/play');
+      final started = await rooms.startRoomPlay(room.id);
+      if (!mounted) return;
+      if (started) {
+        context.go('/today/play');
+      } else {
+        _showPlayRefreshError(context, rooms);
+      }
     });
   }
 
@@ -328,21 +328,38 @@ class _PlayCard extends StatelessWidget {
             const SizedBox(height: 18),
           ],
           V2Button(
-            cta,
+            rooms.preparingPlay ? 'Refreshing questions…' : cta,
             background: Colors.white,
             foreground: const Color(0xFF244D82),
             fontWeight: FontWeight.w700,
             fontSize: 16,
             padding: const EdgeInsets.symmetric(vertical: 16),
-            onPressed: () {
-              rooms.startRoomPlay(room.id);
-              if (rooms.play != null) context.go('/today/play');
-            },
+            onPressed: rooms.preparingPlay
+                ? null
+                : () async {
+                    final started = await rooms.startRoomPlay(room.id);
+                    if (!context.mounted) return;
+                    if (started) {
+                      context.go('/today/play');
+                    } else {
+                      _showPlayRefreshError(context, rooms);
+                    }
+                  },
           ),
         ],
       ),
     );
   }
+}
+
+void _showPlayRefreshError(BuildContext context, RoomsController rooms) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        rooms.lastError ?? 'Could not verify the latest questions. Try again.',
+      ),
+    ),
+  );
 }
 
 class _PlayedCard extends StatelessWidget {

@@ -42,6 +42,8 @@ RoomBinding _binding({
   bool isWorld = false,
   String? inviteCode,
   List<String> qids = const ['q1', 'q2', 'q3'],
+  String dailyKey = '2026-07-02',
+  String? currentDailyKey,
 }) {
   return RoomBinding()
     ..room = RtwRoom(
@@ -54,9 +56,10 @@ RoomBinding _binding({
       memberCount: members,
       isWorld: isWorld,
       inviteCode: inviteCode,
+      currentDailyKey: currentDailyKey ?? dailyKey,
     )
     ..today = RoomDay(
-      dailyKey: '2026-07-02',
+      dailyKey: dailyKey,
       status: 'live',
       questions: [for (final qid in qids) _question(qid)],
     );
@@ -67,6 +70,7 @@ class _TestRoomsController extends RoomsController {
 
   List<RtwRoomMember> testMembers = const <RtwRoomMember>[];
   String? removedMemberUid;
+  int enterTodayCalls = 0;
 
   @override
   String? get uid => 'u1';
@@ -78,6 +82,12 @@ class _TestRoomsController extends RoomsController {
   @override
   Stream<List<RtwRoomMember>> membersStream(String roomId) =>
       Stream.value(testMembers);
+
+  @override
+  Future<bool> enterToday() {
+    enterTodayCalls += 1;
+    return super.enterToday();
+  }
 
   @override
   Future<bool> removeRoomMember(String roomId, String memberUid) async {
@@ -412,6 +422,43 @@ void main() {
       expect(deck.where((card) => !card.intro).length, 1);
     });
 
+    test('today session retains the verified day key for submission', () async {
+      final rooms = _roomsWith([
+        _binding(id: 'studio', name: 'The Studio', dailyKey: '2026-07-17'),
+      ]);
+
+      final entered = await rooms.enterToday();
+
+      expect(entered, isTrue);
+      expect(rooms.play?.dailyKey, '2026-07-17');
+    });
+
+    test('today refuses room blocks verified for different days', () async {
+      final rooms = _roomsWith([
+        _binding(id: 'studio', name: 'The Studio', dailyKey: '2026-07-16'),
+        _binding(id: 'family', name: 'Family', dailyKey: '2026-07-17'),
+      ]);
+
+      final entered = await rooms.enterToday();
+
+      expect(entered, isFalse);
+      expect(rooms.play, isNull);
+      expect(rooms.lastError, contains('still refreshing'));
+    });
+
+    test('never builds a deck from a day that does not match the room key', () {
+      final stale = _binding(
+        id: 'studio',
+        name: 'The Studio',
+        dailyKey: '2026-07-16',
+        currentDailyKey: '2026-07-17',
+      );
+      final rooms = _roomsWith([stale]);
+
+      expect(stale.hasCurrentDaySnapshot, isFalse);
+      expect(rooms.buildTodayDeck(), isEmpty);
+    });
+
     test('skips world questions once the live world answer exists', () {
       final world = _binding(id: worldRoomId, name: 'The World', isWorld: true)
         ..myTodayAnswer = const RoomAnswer(
@@ -428,6 +475,26 @@ void main() {
   });
 
   group('play state machine', () {
+    test(
+      'room play refuses a stale day snapshot before showing questions',
+      () async {
+        final rooms = _roomsWith([
+          _binding(
+            id: 'studio',
+            name: 'The Studio',
+            dailyKey: '2026-07-16',
+            currentDailyKey: '2026-07-17',
+          ),
+        ]);
+
+        final started = await rooms.startRoomPlay('studio');
+
+        expect(started, isFalse);
+        expect(rooms.play, isNull);
+        expect(rooms.lastError, contains('still refreshing'));
+      },
+    );
+
     test('swipe commit routes to predict with duo snap', () {
       final rooms = _roomsWith([
         _binding(id: 'duo', name: 'You & Sam', members: 2),
@@ -941,6 +1008,56 @@ void main() {
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Rooms'), findsOneWidget);
       expect(find.text('Party'), findsOneWidget);
+    });
+
+    testWidgets(
+      'today does not keep reopening the entry gate while caught up',
+      (tester) async {
+        final rooms = _TestRoomsController();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              firebaseReadyProvider.overrideWithValue(false),
+              appSettingsProvider.overrideWithValue(AppSettings.defaults),
+              roomsControllerProvider.overrideWith(
+                (_) => rooms,
+                disposeNotifier: false,
+              ),
+            ],
+            child: const ReadTheWorldApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.text("You're all caught up."), findsOneWidget);
+        expect(rooms.enterTodayCalls, 1);
+      },
+    );
+
+    testWidgets('today does not present a refresh failure as caught up', (
+      tester,
+    ) async {
+      final rooms = _TestRoomsController()
+        ..lastError = 'Check your connection and try again.';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const ReadTheWorldApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not refresh today.'), findsOneWidget);
+      expect(find.text('Check your connection and try again.'), findsOneWidget);
+      expect(find.text("You're all caught up."), findsNothing);
     });
 
     testWidgets('today starts when room data arrives after first build', (
@@ -2052,24 +2169,30 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final binding = _binding(id: 'studio', name: 'The Studio', qids: const [])
-        ..today = const RoomDay(
-          dailyKey: '2026-07-11',
-          status: 'live',
-          questions: [
-            RoomDayQuestion(
-              qid: 'custom-1',
-              prompt: 'Should we order pizza?',
-              optA: 'Yes',
-              optB: 'No',
-              tag: 'Custom',
-              shape: 'CUSTOM',
-              custom: true,
-              authorUid: 'member-1',
-              authorName: 'Taylor',
-            ),
-          ],
-        );
+      final binding =
+          _binding(
+              id: 'studio',
+              name: 'The Studio',
+              qids: const [],
+              dailyKey: '2026-07-11',
+            )
+            ..today = const RoomDay(
+              dailyKey: '2026-07-11',
+              status: 'live',
+              questions: [
+                RoomDayQuestion(
+                  qid: 'custom-1',
+                  prompt: 'Should we order pizza?',
+                  optA: 'Yes',
+                  optB: 'No',
+                  tag: 'Custom',
+                  shape: 'CUSTOM',
+                  custom: true,
+                  authorUid: 'member-1',
+                  authorName: 'Taylor',
+                ),
+              ],
+            );
       final rooms = _roomsWith([binding]);
       rooms.startRoomPlay('studio');
 

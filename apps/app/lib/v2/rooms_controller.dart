@@ -39,7 +39,12 @@ class RoomBinding {
   RoomAnswer? myTodayAnswer;
   bool todaySeen = false;
 
-  bool get played => myTodayAnswer != null;
+  bool get hasCurrentDaySnapshot {
+    final currentKey = room?.currentDailyKey;
+    return currentKey != null && today?.dailyKey == currentKey;
+  }
+
+  bool get played => hasCurrentDaySnapshot && myTodayAnswer != null;
   bool get hasUnseenReveal {
     final lastClosed = room?.lastClosedDailyKey;
     if (lastClosed == null) return false;
@@ -140,6 +145,7 @@ class RoomsController extends ChangeNotifier {
 
   String? lastError;
   bool submitting = false;
+  bool preparingPlay = false;
   bool loadingRooms = true;
 
   /// users/{uid} profile doc state — gates the first-run onboarding demo.
@@ -375,6 +381,11 @@ class RoomsController extends ChangeNotifier {
     while (subs.length > 2) {
       subs.removeLast().cancel();
     }
+    // Never leave the previous day's payload paired with a newly streamed
+    // currentDailyKey. Firestore can deliver the room document before the new
+    // day document, especially when waking from persisted cache.
+    binding.today = null;
+    binding.myTodayAnswer = null;
     final dayRef = _db
         .collection('rooms')
         .doc(roomId)
@@ -382,6 +393,10 @@ class RoomsController extends ChangeNotifier {
         .doc(dailyKey);
     subs.add(
       dayRef.snapshots().listen((snapshot) {
+        // A cancelled Firestore listener can still have a queued callback.
+        // Never let the prior day repopulate a binding after the room key has
+        // moved on.
+        if (binding.room?.currentDailyKey != dailyKey) return;
         final data = snapshot.data();
         binding.today = data == null
             ? null
@@ -391,6 +406,7 @@ class RoomsController extends ChangeNotifier {
     );
     subs.add(
       dayRef.collection('answers').doc(uid).snapshots().listen((snapshot) {
+        if (binding.room?.currentDailyKey != dailyKey) return;
         final data = snapshot.data();
         binding.myTodayAnswer = data == null
             ? null
@@ -422,6 +438,7 @@ class RoomsController extends ChangeNotifier {
             worldDoc.collection('days').doc(nextKey).snapshots().listen((
               daySnap,
             ) {
+              if (worldRoom?.currentDailyKey != nextKey) return;
               final dayData = daySnap.data();
               worldToday = dayData == null
                   ? null
@@ -438,6 +455,7 @@ class RoomsController extends ChangeNotifier {
                 .doc(uid)
                 .snapshots()
                 .listen((answerSnap) {
+                  if (worldRoom?.currentDailyKey != nextKey) return;
                   final answerData = answerSnap.data();
                   binding.myTodayAnswer = answerData == null
                       ? null
@@ -493,6 +511,7 @@ class RoomsController extends ChangeNotifier {
       .where(
         (binding) =>
             !binding.played &&
+            binding.hasCurrentDaySnapshot &&
             (binding.today?.activeQuestions.isNotEmpty ?? false),
       )
       .toList();
@@ -501,6 +520,32 @@ class RoomsController extends ChangeNotifier {
     final roomCount = visibleRooms.where((binding) => binding.played).length;
     final worldCount = (_worldBinding?.played ?? false) ? 1 : 0;
     return roomCount + worldCount;
+  }
+
+  /// Changes whenever the inputs that could produce Today's deck change.
+  /// The Today screen uses this to retry after listeners deliver new data
+  /// without repeatedly polling the entry gate while the caught-up or offline
+  /// state remains unchanged.
+  String get todayEntryFingerprint {
+    final buffer = StringBuffer('loading=$loadingRooms');
+    for (final roomId in {...roomOrder, worldRoomId}) {
+      final binding = bindingFor(roomId);
+      final room = binding?.room;
+      final day = binding?.today;
+      buffer
+        ..write('|$roomId:')
+        ..write(room?.currentDailyKey ?? '-')
+        ..write(':')
+        ..write(day?.dailyKey ?? '-')
+        ..write(':')
+        ..write(binding?.myTodayAnswer == null ? 'open' : 'played')
+        ..write(':')
+        ..write(
+          day?.answerableQuestions.map((question) => question.qid).join(',') ??
+              '-',
+        );
+    }
+    return buffer.toString();
   }
 
   RoomBinding? bindingFor(String? roomId) => roomId == null
@@ -556,6 +601,7 @@ class RoomsController extends ChangeNotifier {
     if (world != null &&
         world.room != null &&
         worldToday != null &&
+        world.hasCurrentDaySnapshot &&
         !(world.played) &&
         worldToday!.isLive) {
       // Only include world questions the user hasn't answered; the whole
@@ -565,7 +611,7 @@ class RoomsController extends ChangeNotifier {
     return deck;
   }
 
-  bool enterToday() {
+  bool _enterTodayFromLoadedState() {
     final deck = buildTodayDeck();
     if (deck.isEmpty) {
       if (play == null) return false;
@@ -573,18 +619,119 @@ class RoomsController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    play = PlaySession(mode: 'today', deck: deck);
+    final dailyKeys = {
+      for (final card in deck)
+        if (!card.intro) bindingFor(card.roomId)?.today?.dailyKey,
+    }..remove(null);
+    // Every block in Today must come from the same server day. Retaining that
+    // key on the session lets lockRoomAnswers reject a session that crosses a
+    // rollover before it can write picks into a newer day.
+    if (dailyKeys.length != 1) {
+      lastError = "Today's questions are still refreshing. Try again.";
+      play = null;
+      notifyListeners();
+      return false;
+    }
+    play = PlaySession(mode: 'today', deck: deck, dailyKey: dailyKeys.single);
     notifyListeners();
     return true;
   }
 
-  void startRoomPlay(String roomId, {String? entryRoute}) {
+  /// Refresh every room that can contribute to Today's deck from the server
+  /// before exposing questions. Firestore listeners intentionally render
+  /// cached room chrome quickly, but cached question documents are never an
+  /// acceptable source for starting an answer session.
+  Future<bool> enterToday() async {
+    if (!firebaseReady) return _enterTodayFromLoadedState();
+    if (preparingPlay) return false;
+    preparingPlay = true;
+    lastError = null;
+    notifyListeners();
+    try {
+      final currentUid = uid;
+      if (currentUid == null) return false;
+      final membershipSnap = await _db
+          .collection('users')
+          .doc(currentUid)
+          .collection('memberships')
+          .get(const GetOptions(source: Source.server));
+      final joinedAtByRoom = {
+        for (final doc in membershipSnap.docs)
+          doc.id: _timestampMillis(doc.data()['joinedAt']),
+      };
+      final serverRoomIds =
+          membershipSnap.docs
+              .map((doc) => doc.id)
+              .where((roomId) => roomId != worldRoomId)
+              .toList()
+            ..sort((a, b) {
+              final aJoined = joinedAtByRoom[a] ?? 0;
+              final bJoined = joinedAtByRoom[b] ?? 0;
+              if (aJoined != bJoined) return aJoined.compareTo(bJoined);
+              return a.compareTo(b);
+            });
+
+      for (final roomId in bindings.keys.toList()) {
+        if (roomId != worldRoomId && !serverRoomIds.contains(roomId)) {
+          _unbindRoom(roomId);
+        }
+      }
+      for (final roomId in serverRoomIds) {
+        if (!bindings.containsKey(roomId)) _bindRoom(roomId, currentUid);
+      }
+      roomOrder = serverRoomIds;
+
+      final refreshResults = await Future.wait([
+        for (final roomId in [...serverRoomIds, worldRoomId])
+          _tryRefreshRoomForToday(roomId),
+      ]);
+      final entered = _enterTodayFromLoadedState();
+      if (!entered && refreshResults.any((result) => !result)) {
+        lastError ??=
+            'Could not verify the latest questions. Check your connection and try again.';
+      }
+      return entered;
+    } catch (error) {
+      lastError = _playRefreshMessage(error);
+      play = null;
+      return false;
+    } finally {
+      preparingPlay = false;
+      loadingRooms = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> startRoomPlay(String roomId, {String? entryRoute}) async {
+    if (firebaseReady) {
+      if (preparingPlay) return false;
+      preparingPlay = true;
+      lastError = null;
+      notifyListeners();
+      try {
+        await _refreshRoomForPlay(roomId);
+      } catch (error) {
+        lastError = _playRefreshMessage(error);
+        play = null;
+        return false;
+      } finally {
+        preparingPlay = false;
+        notifyListeners();
+      }
+    }
     final binding = bindingFor(roomId);
     final room = binding?.room;
     final day = roomId == worldRoomId ? worldToday : binding?.today;
-    if (room == null || day == null) return;
+    if (room == null || day == null) return false;
+    if (room.currentDailyKey == null || day.dailyKey != room.currentDailyKey) {
+      lastError = "Today's questions are still refreshing. Try again.";
+      play = null;
+      notifyListeners();
+      return false;
+    }
     _playEntryRoute = entryRoute;
     _startDayPlay(room, day, binding?.myTodayAnswer);
+    return play != null;
   }
 
   /// Review-only play-card preview for exercising custom-question attribution,
@@ -626,11 +773,128 @@ class RoomsController extends ChangeNotifier {
 
   /// The World lets readers answer a past, not-yet-revealed day (instant lock,
   /// no 24h gap). Locks against that day's key.
-  void startWorldDayPlay(RoomHistoryDay history, {String? entryRoute}) {
+  Future<bool> startWorldDayPlay(
+    RoomHistoryDay history, {
+    String? entryRoute,
+  }) async {
+    if (firebaseReady) {
+      if (preparingPlay) return false;
+      preparingPlay = true;
+      lastError = null;
+      notifyListeners();
+      try {
+        final refreshed = await _refreshRoomForPlay(
+          worldRoomId,
+          requestedDailyKey: history.day.dailyKey,
+        );
+        _playEntryRoute = entryRoute;
+        _startDayPlay(
+          refreshed.room!,
+          refreshed.today!,
+          refreshed.myTodayAnswer,
+        );
+        return play != null;
+      } catch (error) {
+        lastError = _playRefreshMessage(error);
+        play = null;
+        return false;
+      } finally {
+        preparingPlay = false;
+        notifyListeners();
+      }
+    }
     final room = worldRoom;
-    if (room == null) return;
+    if (room == null) return false;
     _playEntryRoute = entryRoute;
     _startDayPlay(room, history.day, history.myAnswer);
+    return play != null;
+  }
+
+  /// Loads one answerable room-day through the authoritative server-time gate
+  /// and applies its room, day, and answer payload atomically. This deliberately
+  /// does not trust Firestore's client cache or the device clock.
+  Future<RoomBinding> _refreshRoomForPlay(
+    String roomId, {
+    String? requestedDailyKey,
+  }) async {
+    if (uid == null) {
+      throw StateError('Sign in again to load the latest questions.');
+    }
+    final result = await _callable(
+      'getRoomPlaySnapshot',
+    ).call({'roomId': roomId, 'dailyKey': ?requestedDailyKey});
+    if (result.data is! Map) {
+      throw StateError('The latest questions could not be verified.');
+    }
+    final payload = Map<String, dynamic>.from(result.data as Map);
+    final roomData = payload['room'];
+    final dayData = payload['day'];
+    final dailyKey = payload['dailyKey']?.toString();
+    if (roomData is! Map ||
+        dayData is! Map ||
+        dailyKey == null ||
+        dailyKey.isEmpty) {
+      throw StateError('The latest questions could not be verified.');
+    }
+
+    final refreshedRoom = roomFromFirestore(
+      roomId,
+      Map<String, dynamic>.from(roomData),
+    );
+    final day = roomDayFromFirestore(
+      dailyKey,
+      Map<String, dynamic>.from(dayData),
+    );
+    if (day.answerableQuestions.isEmpty) {
+      throw StateError('There are no open questions in this room right now.');
+    }
+    final answerData = payload['answer'];
+    final refreshedAnswer = answerData is Map
+        ? roomAnswerFromFirestore(Map<String, dynamic>.from(answerData))
+        : null;
+    if (refreshedRoom.isWorld && requestedDailyKey != null) {
+      return RoomBinding()
+        ..room = refreshedRoom
+        ..today = day
+        ..myTodayAnswer = refreshedAnswer;
+    }
+    final binding = bindings.putIfAbsent(roomId, () => RoomBinding());
+    binding.room = refreshedRoom;
+    binding.today = day;
+    binding.myTodayAnswer = refreshedAnswer;
+    if (roomId == worldRoomId) {
+      worldRoom = refreshedRoom;
+      worldToday = day;
+    }
+    return binding;
+  }
+
+  Future<bool> _tryRefreshRoomForToday(String roomId) async {
+    try {
+      await _refreshRoomForPlay(roomId);
+      return true;
+    } catch (error) {
+      final binding = bindings[roomId];
+      if (binding != null) {
+        binding.today = null;
+        binding.myTodayAnswer = null;
+      }
+      if (roomId == worldRoomId) worldToday = null;
+      lastError ??= _playRefreshMessage(error);
+      return false;
+    }
+  }
+
+  String _playRefreshMessage(Object error) {
+    if (error is FirebaseFunctionsException) {
+      return error.message ??
+          'Could not verify the latest questions. Try again shortly.';
+    }
+    if (error is FirebaseException) {
+      return 'Could not verify the latest questions. Check your connection and try again.';
+    }
+    final text = error.toString();
+    return text.startsWith('Bad state: ') ? text.substring(11) : text;
   }
 
   void _startDayPlay(RtwRoom room, RoomDay day, RoomAnswer? answer) {
