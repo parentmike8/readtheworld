@@ -68,6 +68,7 @@ import {
   roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
+  submittedQuestionDisposition,
   tierAllowsQuestion,
   worldRevealCandidateQids,
   worldRevealClaimDecision,
@@ -4554,9 +4555,19 @@ export const joinRoom = onCall(emailCallableOptions, async (request) => {
     }
     roomName = String(roomSnap.data()?.name ?? "Room");
     const memberRef = targetRoomRef.collection("members").doc(uid);
-    const memberSnap = await tx.get(memberRef);
+    const removedMemberRef = targetRoomRef.collection("removedMembers").doc(uid);
+    const [memberSnap, removedMemberSnap] = await Promise.all([
+      tx.get(memberRef),
+      tx.get(removedMemberRef),
+    ]);
     if (memberSnap.exists) {
       return String(roomSnap.data()?.tier ?? "normal");
+    }
+    if (removedMemberSnap.exists) {
+      throw new HttpsError(
+        "permission-denied",
+        "The room creator removed you from this room.",
+      );
     }
     joinedNewMember = true;
     tx.set(memberRef, {
@@ -4699,6 +4710,79 @@ export const leaveRoom = onCall(callableOptions, async (request) => {
     await applyUserDislikesToRoom(uid, roomId, -1);
   }
   return { left: result.left, roomDeleted: result.roomDeleted };
+});
+
+export const removeRoomMember = onCall(callableOptions, async (request) => {
+  const uid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const targetUid = assertString(request.data?.memberUid, "memberUid");
+  if (targetUid.length > 128 || targetUid.includes("/")) {
+    throw new HttpsError("invalid-argument", "memberUid is invalid.");
+  }
+  if (targetUid === uid) {
+    throw new HttpsError("invalid-argument", "Use Leave room to remove yourself.");
+  }
+
+  const targetRoomRef = roomRef(roomId);
+  const result = await db.runTransaction(async (tx) => {
+    const callerMemberRef = targetRoomRef.collection("members").doc(uid);
+    const targetMemberRef = targetRoomRef.collection("members").doc(targetUid);
+    const targetMembershipRef = db.collection("users").doc(targetUid)
+      .collection("memberships").doc(roomId);
+    const removedMemberRef = targetRoomRef.collection("removedMembers").doc(targetUid);
+
+    // All reads precede writes so the creator check and removal are atomic
+    // with concurrent leaves, room deletion, and creator transfer.
+    const [roomSnap, callerSnap, targetSnap, queuedByTargetSnap] = await Promise.all([
+      tx.get(targetRoomRef),
+      tx.get(callerMemberRef),
+      tx.get(targetMemberRef),
+      tx.get(targetRoomRef.collection("queue").where("authorUid", "==", targetUid)),
+    ]);
+    if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+    const room = roomSnap.data() ?? {};
+    if (room.isWorld === true) {
+      throw new HttpsError("failed-precondition", "Members cannot be removed from The World.");
+    }
+    if (!callerSnap.exists || callerSnap.data()?.role !== "creator") {
+      throw new HttpsError("permission-denied", "Only the room creator can remove members.");
+    }
+    if (!targetSnap.exists) return { removed: false };
+    if (targetSnap.data()?.role === "creator") {
+      throw new HttpsError("failed-precondition", "The room creator cannot be removed.");
+    }
+
+    tx.delete(targetMemberRef);
+    tx.delete(targetMembershipRef);
+    queuedByTargetSnap.docs.forEach((doc) => tx.delete(doc.ref));
+    // A tombstone makes removal meaningful even if the member still knows the
+    // room's reusable invite code. It is private server state (no client rule
+    // grants access) and is removed with the room by recursive deletion.
+    tx.set(removedMemberRef, {
+      removedBy: uid,
+      removedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(targetRoomRef, {
+      memberCount: FieldValue.increment(-1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { removed: true };
+  });
+
+  if (result.removed) {
+    try {
+      await applyUserDislikesToRoom(targetUid, roomId, -1);
+    } catch (error) {
+      // The membership removal already committed. Do not report a false
+      // failure to the creator; question-pool preference cleanup is best-effort.
+      logger.warn("Removed-member dislike cleanup failed", {
+        roomId,
+        targetUid,
+        error: String(error),
+      });
+    }
+  }
+  return { removed: result.removed, roomId, memberUid: targetUid };
 });
 
 export const deleteRoom = onCall(callableOptions, async (request) => {
@@ -4847,17 +4931,24 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   const member = memberSnap.data() ?? {};
 
   // The World lets readers answer past, not-yet-revealed days too (instant
-  // lock, no 24h gap); everyone else answers only today's live set.
+  // lock, no 24h gap). Private rooms still accept only today's day, but honor
+  // the client's explicit key long enough to identify an overnight-stale
+  // round instead of comparing yesterday's qids with today's set.
   let requestedDailyKey: string;
   try {
-    requestedDailyKey = isWorld
-      ? (normalizeDailyKey(request.data?.dailyKey) ?? todayKey)
-      : todayKey;
+    requestedDailyKey = normalizeDailyKey(request.data?.dailyKey) ?? todayKey;
   } catch (error) {
     mapQuestionValidationError(error);
   }
   if (requestedDailyKey > todayKey) {
     throw new HttpsError("failed-precondition", "That day is not open yet.");
+  }
+  if (!isWorld && requestedDailyKey !== todayKey) {
+    throw new HttpsError(
+      "failed-precondition",
+      "That round has ended. Reopen the room for today's questions.",
+      { reason: "stale-room-day", todayDailyKey: todayKey },
+    );
   }
   const dailyKey = requestedDailyKey;
   const isToday = dailyKey === todayKey;
@@ -4893,6 +4984,9 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   const activeQuestions = ((day.questions ?? []) as RoomDayQuestion[])
     .filter((question) => question.pulled !== true && !revealedQids.has(question.qid));
   const activeQids = new Set(activeQuestions.map((question) => question.qid));
+  const dayQids = new Set(
+    ((day.questions ?? []) as RoomDayQuestion[]).map((question) => question.qid),
+  );
   if (activeQids.size === 0) {
     throw new HttpsError("failed-precondition", "These questions have already revealed.");
   }
@@ -4905,20 +4999,29 @@ export const lockRoomAnswers = onCall(callableOptions, async (request) => {
   const rawPicks = Array.isArray(request.data?.picks) ? request.data.picks : [];
   let picks: RoomPick[];
   try {
-    picks = rawPicks.map((raw: Record<string, unknown>) => {
+    picks = rawPicks.flatMap((raw: Record<string, unknown>) => {
       const qid = assertString(raw?.qid, "picks.qid");
       const side = raw?.side === "a" || raw?.side === "b" ? raw.side : null;
       if (!side) throw new HttpsError("invalid-argument", "picks.side must be 'a' or 'b'.");
-      if (!activeQids.has(qid)) {
-        throw new HttpsError("invalid-argument", `Question ${qid} is not in today's set.`);
+      const disposition = submittedQuestionDisposition(qid, dayQids, activeQids);
+      if (disposition === "unknown") {
+        throw new HttpsError(
+          "failed-precondition",
+          "The room's questions changed while you were answering. Reopen the room and try again.",
+          { reason: "room-questions-changed" },
+        );
       }
-      return {
+      // A creator can disable a question while another member is mid-round,
+      // and a World question can reveal during play. Drop that now-inactive
+      // pick; rejecting the entire otherwise-valid round strands the member.
+      if (disposition === "inactive") return [];
+      return [{
         qid,
         side,
         prediction: answerOnly
           ? null
           : normalizePrediction(raw?.prediction ?? raw?.predictedShare),
-      };
+      }];
     });
   } catch (error) {
     mapRoomValidationError(error);

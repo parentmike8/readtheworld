@@ -246,6 +246,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                 rooms: rooms,
                 roomId: room.id,
                 myUid: me?.uid,
+                canRemoveMembers: me?.isCreator ?? false,
                 onInvite: () => showInviteSheet(context, rooms, room.id),
               ),
             ],
@@ -822,12 +823,14 @@ class _Leaderboard extends StatefulWidget {
     required this.rooms,
     required this.roomId,
     required this.myUid,
+    required this.canRemoveMembers,
     required this.onInvite,
   });
 
   final RoomsController rooms;
   final String roomId;
   final String? myUid;
+  final bool canRemoveMembers;
   final VoidCallback onInvite;
 
   @override
@@ -840,6 +843,66 @@ class _LeaderboardState extends State<_Leaderboard> {
   late Stream<List<RtwRoomMember>> _membersStream = widget.rooms.membersStream(
     widget.roomId,
   );
+  String? _actionError;
+
+  Future<void> _removeMember(RtwRoomMember member) async {
+    final confirmed = await showV2Sheet<bool>(context, (sheetContext) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          V2Eyebrow(
+            'Remove member',
+            size: 11,
+            letterSpacing: 1.6,
+            color: RtwV2Colors.danger,
+          ),
+          const SizedBox(height: 8),
+          Text('Remove ${member.displayName}?', style: v2Serif(29)),
+          const SizedBox(height: 10),
+          Text(
+            'They will immediately lose access and will not be able to rejoin '
+            'with this room\'s invite code. Their past answers stay in the '
+            'room history.',
+            style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          V2Button(
+            'Remove member',
+            key: const ValueKey('confirm-remove-room-member'),
+            background: RtwV2Colors.danger,
+            onPressed: () => Navigator.of(sheetContext).pop(true),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            radius: 16,
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(false),
+              child: Text(
+                'Keep member',
+                style: v2Sans(
+                  14,
+                  color: RtwV2Colors.subText,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+    if (confirmed != true || !mounted) return;
+    final removed = await widget.rooms.removeRoomMember(
+      widget.roomId,
+      member.uid,
+    );
+    if (!mounted || removed) return;
+    setState(() {
+      _actionError =
+          widget.rooms.lastError ?? 'Could not remove ${member.displayName}.';
+    });
+  }
 
   @override
   void didUpdateWidget(_Leaderboard oldWidget) {
@@ -908,11 +971,35 @@ class _LeaderboardState extends State<_Leaderboard> {
                         ),
                       ),
                       Text(_thousands(member.roomScore), style: v2Serif(17)),
+                      if (widget.canRemoveMembers &&
+                          member.uid != widget.myUid &&
+                          !member.isCreator) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          key: ValueKey('remove-room-member-${member.uid}'),
+                          tooltip: 'Remove ${member.displayName}',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.more_vert,
+                            size: 19,
+                            color: RtwV2Colors.muted,
+                          ),
+                          onPressed: () => _removeMember(member),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const V2Hairline(),
               ],
+              if (_actionError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                  child: Text(
+                    _actionError!,
+                    style: v2Sans(12.5, color: RtwV2Colors.danger),
+                  ),
+                ),
               Semantics(
                 button: true,
                 label: 'Invite someone to this room',

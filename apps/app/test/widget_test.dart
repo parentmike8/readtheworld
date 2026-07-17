@@ -65,6 +65,9 @@ RoomBinding _binding({
 class _TestRoomsController extends RoomsController {
   _TestRoomsController() : super(firebaseReady: false);
 
+  List<RtwRoomMember> testMembers = const <RtwRoomMember>[];
+  String? removedMemberUid;
+
   @override
   String? get uid => 'u1';
 
@@ -74,7 +77,13 @@ class _TestRoomsController extends RoomsController {
 
   @override
   Stream<List<RtwRoomMember>> membersStream(String roomId) =>
-      Stream.value(const <RtwRoomMember>[]);
+      Stream.value(testMembers);
+
+  @override
+  Future<bool> removeRoomMember(String roomId, String memberUid) async {
+    removedMemberUid = memberUid;
+    return true;
+  }
 }
 
 RoomsController _roomsWith(List<RoomBinding> bindings) {
@@ -1374,6 +1383,77 @@ void main() {
       await tester.pump();
       expect(copiedText, 'ABC123');
       expect(find.text('Copied ✓'), findsOneWidget);
+    });
+
+    testWidgets('room creator can remove another member from the leaderboard', (
+      tester,
+    ) async {
+      final binding = _binding(id: 'studio', name: 'The Studio', members: 2)
+        ..me = const RtwRoomMember(
+          uid: 'u1',
+          displayName: 'Owner',
+          role: 'creator',
+          revealMine: false,
+          roomScore: 1510,
+          streak: 0,
+          questionsAnswered: 0,
+        );
+      final rooms = _TestRoomsController()
+        ..testMembers = const [
+          RtwRoomMember(
+            uid: 'u1',
+            displayName: 'Owner',
+            role: 'creator',
+            revealMine: false,
+            roomScore: 1510,
+            streak: 0,
+            questionsAnswered: 0,
+          ),
+          RtwRoomMember(
+            uid: 'u2',
+            displayName: 'Guest',
+            role: 'member',
+            revealMine: false,
+            roomScore: 1490,
+            streak: 0,
+            questionsAnswered: 0,
+          ),
+        ]
+        ..bindings['studio'] = binding
+        ..roomOrder = ['studio']
+        ..loadingRooms = false;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: RoomDetailScreen(roomId: 'studio')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final removeButton = find.byKey(const ValueKey('remove-room-member-u2'));
+      expect(removeButton, findsOneWidget);
+      expect(find.byKey(const ValueKey('remove-room-member-u1')), findsNothing);
+
+      await tester.ensureVisible(removeButton);
+      await tester.tap(removeButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Remove Guest?'), findsOneWidget);
+      expect(find.textContaining('will not be able to rejoin'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('confirm-remove-room-member')),
+      );
+      await tester.pumpAndSettle();
+      expect(rooms.removedMemberUid, 'u2');
     });
 
     testWidgets('past World play returns to the history list', (tester) async {

@@ -19,6 +19,7 @@ import {
   roomRolloverPlan,
   scoreWorldQuestion,
   selectDailyQuestions,
+  submittedQuestionDisposition,
   tierAllowsQuestion,
   worldRevealClaimDecision,
   worldRevealCandidateQids,
@@ -477,5 +478,20 @@ describe("close-day K-factor adjustment", () => {
       { qid: "q3", side: "a", predictedShare: 40 },
       { qid: "q4", side: "b" },
     ])).toBe(2);
+  });
+});
+
+describe("submittedQuestionDisposition", () => {
+  const dayQids = new Set(["active", "pulled", "revealed"]);
+  const activeQids = new Set(["active"]);
+
+  it("accepts a question that is still active", () => {
+    expect(submittedQuestionDisposition("active", dayQids, activeQids)).toBe("active");
+  });
+
+  it("distinguishes a mid-round pull or reveal from a stale question set", () => {
+    expect(submittedQuestionDisposition("pulled", dayQids, activeQids)).toBe("inactive");
+    expect(submittedQuestionDisposition("revealed", dayQids, activeQids)).toBe("inactive");
+    expect(submittedQuestionDisposition("yesterday", dayQids, activeQids)).toBe("unknown");
   });
 });

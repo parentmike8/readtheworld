@@ -1420,6 +1420,11 @@ class RoomsController extends ChangeNotifier {
   Future<bool> leaveRoom(String roomId) =>
       _simpleCall('leaveRoom', {'roomId': roomId});
 
+  Future<bool> removeRoomMember(String roomId, String memberUid) => _simpleCall(
+    'removeRoomMember',
+    {'roomId': roomId, 'memberUid': memberUid},
+  );
+
   Future<bool> deleteRoom(String roomId) =>
       _simpleCall('deleteRoom', {'roomId': roomId});
 

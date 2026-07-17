@@ -240,6 +240,23 @@ export function predictedPickCount(
     typeof pick?.predictedShare === "number").length;
 }
 
+export type SubmittedQuestionDisposition = "active" | "inactive" | "unknown";
+
+/**
+ * Classifies a pick against the day snapshot used by the lock callable.
+ * "inactive" is intentionally distinct from "unknown": a pick for a question
+ * that was pulled or revealed mid-round can be omitted safely, while an
+ * unknown qid means the client is holding a different question set.
+ */
+export function submittedQuestionDisposition(
+  qid: string,
+  dayQids: ReadonlySet<string>,
+  activeQids: ReadonlySet<string>,
+): SubmittedQuestionDisposition {
+  if (!dayQids.has(qid)) return "unknown";
+  return activeQids.has(qid) ? "active" : "inactive";
+}
+
 export const WORLD_REVEAL_CLAIM_STALE_MS = 10 * 60 * 1000;
 
 export type WorldRevealClaimDecision =
