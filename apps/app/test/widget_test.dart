@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -44,6 +46,7 @@ RoomBinding _binding({
   List<String> qids = const ['q1', 'q2', 'q3'],
   String dailyKey = '2026-07-02',
   String? currentDailyKey,
+  String? lastClosedDailyKey,
 }) {
   return RoomBinding()
     ..room = RtwRoom(
@@ -57,6 +60,7 @@ RoomBinding _binding({
       isWorld: isWorld,
       inviteCode: inviteCode,
       currentDailyKey: currentDailyKey ?? dailyKey,
+      lastClosedDailyKey: lastClosedDailyKey,
     )
     ..today = RoomDay(
       dailyKey: dailyKey,
@@ -76,6 +80,9 @@ class _TestRoomsController extends RoomsController {
   String? sentNudgeTargetUid;
   bool sendNudgeResult = true;
   int enterTodayCalls = 0;
+  RoomRevealData? testReveal;
+  Future<List<RoomDayDetailRow>>? testDayDetailFuture;
+  int loadDayDetailCalls = 0;
 
   @override
   String? get uid => 'u1';
@@ -107,6 +114,15 @@ class _TestRoomsController extends RoomsController {
   Future<bool> enterToday() {
     enterTodayCalls += 1;
     return super.enterToday();
+  }
+
+  @override
+  Future<RoomRevealData?> loadRoomReveal(String roomId) async => testReveal;
+
+  @override
+  Future<List<RoomDayDetailRow>> loadDayDetail(String roomId, String dailyKey) {
+    loadDayDetailCalls += 1;
+    return testDayDetailFuture ?? Future.value(const <RoomDayDetailRow>[]);
   }
 
   @override
@@ -1414,6 +1430,102 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(router.routeInformationProvider.value.uri.path, '/rooms/world');
+      },
+    );
+
+    testWidgets(
+      'yesterday detail shows progress and ignores repeated taps while loading',
+      (tester) async {
+        final detailCompleter = Completer<List<RoomDayDetailRow>>();
+        const yesterday = RoomDay(
+          dailyKey: '2026-07-01',
+          status: 'closed',
+          questions: [
+            RoomDayQuestion(
+              qid: 'q1',
+              prompt: 'Prompt q1?',
+              optA: 'Yes',
+              optB: 'No',
+              tag: 'Social',
+              shape: 'TASTE',
+              custom: false,
+            ),
+          ],
+          results: [
+            RoomDayQuestionResult(
+              qid: 'q1',
+              answers: 3,
+              aCount: 2,
+              bCount: 1,
+              aPct: 67,
+            ),
+          ],
+        );
+        const answer = RoomAnswer(
+          picks: [RoomPick(qid: 'q1', side: 'a', prediction: 60)],
+          answerOnly: false,
+          accuracies: {'q1': 93},
+        );
+        final binding = _binding(
+          id: 'studio',
+          name: 'The Studio',
+          members: 3,
+          lastClosedDailyKey: yesterday.dailyKey,
+        );
+        final rooms = _TestRoomsController()
+          ..testReveal = const RoomRevealData(
+            dailyKey: '2026-07-01',
+            day: yesterday,
+            myAnswer: answer,
+          )
+          ..testDayDetailFuture = detailCompleter.future
+          ..bindings['studio'] = binding
+          ..roomOrder = ['studio']
+          ..loadingRooms = false;
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              firebaseReadyProvider.overrideWithValue(false),
+              appSettingsProvider.overrideWithValue(AppSettings.defaults),
+              roomsControllerProvider.overrideWith(
+                (_) => rooms,
+                disposeNotifier: false,
+              ),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(body: RoomDetailScreen(roomId: 'studio')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final card = find.byKey(const ValueKey('yesterday-question-q1'));
+        await tester.ensureVisible(card);
+        await tester.tap(card);
+        await tester.pump();
+
+        expect(
+          find.byKey(const ValueKey('opening-yesterday-question')),
+          findsOneWidget,
+        );
+        expect(rooms.loadDayDetailCalls, 1);
+
+        await tester.tap(card);
+        await tester.pump();
+        expect(rooms.loadDayDetailCalls, 1);
+
+        detailCompleter.complete(const <RoomDayDetailRow>[]);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(BottomSheet), findsOneWidget);
+
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('opening-yesterday-question')),
+          findsNothing,
+        );
       },
     );
 

@@ -27,6 +27,7 @@ class RoomDetailScreen extends ConsumerStatefulWidget {
 class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
   RoomRevealData? reveal;
   String? _attemptedRevealKey;
+  String? _openingYesterdayQuestionId;
   bool _loadingReveal = false;
   bool _autoEditDone = false;
 
@@ -65,6 +66,27 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadReveal(lastClosed);
     });
+  }
+
+  Future<void> _openYesterdayQuestion(
+    RoomsController rooms,
+    RtwRoom room,
+    RoomDayQuestion question,
+  ) async {
+    if (_openingYesterdayQuestionId != null || reveal == null) return;
+    setState(() => _openingYesterdayQuestionId = question.qid);
+    try {
+      await showQuestionDetailSheet(
+        context,
+        rooms,
+        roomId: room.id,
+        dailyKey: reveal!.dailyKey,
+        question: question,
+        day: reveal!.day,
+      );
+    } finally {
+      if (mounted) setState(() => _openingYesterdayQuestionId = null);
+    }
   }
 
   @override
@@ -226,14 +248,10 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
                   question: question,
                   day: reveal!.day,
                   answer: reveal!.myAnswer,
-                  onTap: () => showQuestionDetailSheet(
-                    context,
-                    rooms,
-                    roomId: room.id,
-                    dailyKey: reveal!.dailyKey,
-                    question: question,
-                    day: reveal!.day,
-                  ),
+                  loading: _openingYesterdayQuestionId == question.qid,
+                  onTap: _openingYesterdayQuestionId == null
+                      ? () => _openYesterdayQuestion(rooms, room, question)
+                      : null,
                 ),
                 const SizedBox(height: 11),
               ],
@@ -731,13 +749,15 @@ class _YesterdayCard extends StatelessWidget {
     required this.question,
     required this.day,
     required this.answer,
+    required this.loading,
     required this.onTap,
   });
 
   final RoomDayQuestion question;
   final RoomDay day;
   final RoomAnswer? answer;
-  final VoidCallback onTap;
+  final bool loading;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -751,6 +771,8 @@ class _YesterdayCard extends StatelessWidget {
     final score = answer?.accuracies[question.qid];
 
     return GestureDetector(
+      key: ValueKey('yesterday-question-${question.qid}'),
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -766,7 +788,14 @@ class _YesterdayCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 V2Eyebrow(question.tag, letterSpacing: 1.2),
-                if (score != null)
+                if (loading)
+                  const SizedBox(
+                    key: ValueKey('opening-yesterday-question'),
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (score != null)
                   Text.rich(
                     TextSpan(
                       text: '$score',
