@@ -245,6 +245,7 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
               _Leaderboard(
                 rooms: rooms,
                 roomId: room.id,
+                room: room,
                 myUid: me?.uid,
                 canRemoveMembers: me?.isCreator ?? false,
                 onInvite: () => showInviteSheet(context, rooms, room.id),
@@ -839,6 +840,7 @@ class _Leaderboard extends StatefulWidget {
   const _Leaderboard({
     required this.rooms,
     required this.roomId,
+    required this.room,
     required this.myUid,
     required this.canRemoveMembers,
     required this.onInvite,
@@ -846,6 +848,7 @@ class _Leaderboard extends StatefulWidget {
 
   final RoomsController rooms;
   final String roomId;
+  final RtwRoom room;
   final String? myUid;
   final bool canRemoveMembers;
   final VoidCallback onInvite;
@@ -861,6 +864,25 @@ class _LeaderboardState extends State<_Leaderboard> {
     widget.roomId,
   );
   String? _actionError;
+
+  Future<void> _leaveRoom() async {
+    final confirmed = await confirmLeaveRoom(
+      context,
+      roomName: widget.room.name,
+      isCreator: widget.canRemoveMembers,
+      isLastMember: widget.room.memberCount <= 1,
+    );
+    if (confirmed != true || !mounted) return;
+    final left = await widget.rooms.leaveRoom(widget.roomId);
+    if (!mounted) return;
+    if (left) {
+      context.go('/rooms');
+      return;
+    }
+    setState(() {
+      _actionError = widget.rooms.lastError ?? 'Could not leave the room.';
+    });
+  }
 
   Future<void> _removeMember(RtwRoomMember member) async {
     final confirmed = await showV2Sheet<bool>(context, (sheetContext) {
@@ -988,22 +1010,14 @@ class _LeaderboardState extends State<_Leaderboard> {
                         ),
                       ),
                       Text(_thousands(member.roomScore), style: v2Serif(17)),
-                      if (widget.canRemoveMembers &&
-                          member.uid != widget.myUid &&
-                          !member.isCreator) ...[
-                        const SizedBox(width: 4),
-                        IconButton(
-                          key: ValueKey('remove-room-member-${member.uid}'),
-                          tooltip: 'Remove ${member.displayName}',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(
-                            Icons.more_vert,
-                            size: 19,
-                            color: RtwV2Colors.muted,
-                          ),
-                          onPressed: () => _removeMember(member),
-                        ),
-                      ],
+                      const SizedBox(width: 4),
+                      _MemberAction(
+                        member: member,
+                        myUid: widget.myUid,
+                        canRemoveMembers: widget.canRemoveMembers,
+                        onLeave: _leaveRoom,
+                        onRemove: () => _removeMember(member),
+                      ),
                     ],
                   ),
                 ),
@@ -1068,6 +1082,52 @@ class _LeaderboardState extends State<_Leaderboard> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MemberAction extends StatelessWidget {
+  const _MemberAction({
+    required this.member,
+    required this.myUid,
+    required this.canRemoveMembers,
+    required this.onLeave,
+    required this.onRemove,
+  });
+
+  final RtwRoomMember member;
+  final String? myUid;
+  final bool canRemoveMembers;
+  final VoidCallback onLeave;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMe = member.uid == myUid;
+    final canRemove = canRemoveMembers && !isMe && !member.isCreator;
+    final action = isMe ? onLeave : (canRemove ? onRemove : null);
+
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: action == null
+          ? null
+          : IconButton(
+              key: ValueKey(
+                isMe
+                    ? 'leave-room-from-leaderboard'
+                    : 'remove-room-member-${member.uid}',
+              ),
+              tooltip: isMe ? 'Leave room' : 'Remove ${member.displayName}',
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.more_vert,
+                size: 19,
+                color: RtwV2Colors.muted,
+              ),
+              onPressed: action,
+            ),
     );
   }
 }

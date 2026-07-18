@@ -1440,7 +1440,7 @@ Future<void> showRoomMenuSheet(
                         color: RtwV2Colors.danger,
                         onTap: () async {
                           final rooms = ref.read(roomsControllerProvider);
-                          final confirmed = await _confirmLeaveRoom(
+                          final confirmed = await confirmLeaveRoom(
                             context,
                             roomName: room?.name ?? 'this room',
                             isCreator: isCreator,
@@ -1481,7 +1481,7 @@ Future<void> showRoomMenuSheet(
   });
 }
 
-Future<bool?> _confirmLeaveRoom(
+Future<bool?> confirmLeaveRoom(
   BuildContext context, {
   required String roomName,
   required bool isCreator,
@@ -1503,6 +1503,7 @@ Future<bool?> _confirmLeaveRoom(
         const SizedBox(height: 18),
         V2Button(
           'Leave room',
+          key: const ValueKey('confirm-leave-room'),
           background: RtwV2Colors.danger,
           onPressed: () => Navigator.of(context).pop(true),
           padding: const EdgeInsets.symmetric(vertical: 16),

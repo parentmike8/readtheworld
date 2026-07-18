@@ -70,6 +70,7 @@ class _TestRoomsController extends RoomsController {
 
   List<RtwRoomMember> testMembers = const <RtwRoomMember>[];
   String? removedMemberUid;
+  String? leftRoomId;
   int enterTodayCalls = 0;
 
   @override
@@ -92,6 +93,12 @@ class _TestRoomsController extends RoomsController {
   @override
   Future<bool> removeRoomMember(String roomId, String memberUid) async {
     removedMemberUid = memberUid;
+    return true;
+  }
+
+  @override
+  Future<bool> leaveRoom(String roomId) async {
+    leftRoomId = roomId;
     return true;
   }
 }
@@ -1539,6 +1546,17 @@ void main() {
         ..bindings['studio'] = binding
         ..roomOrder = ['studio']
         ..loadingRooms = false;
+      final router = GoRouter(
+        initialLocation: '/rooms/studio',
+        routes: [
+          GoRoute(
+            path: '/rooms/:roomId',
+            builder: (_, state) =>
+                RoomDetailScreen(roomId: state.pathParameters['roomId']!),
+          ),
+          GoRoute(path: '/rooms', builder: (_, _) => const Text('Rooms home')),
+        ],
+      );
 
       await tester.pumpWidget(
         ProviderScope(
@@ -1550,14 +1568,22 @@ void main() {
               disposeNotifier: false,
             ),
           ],
-          child: const MaterialApp(home: RoomDetailScreen(roomId: 'studio')),
+          child: MaterialApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
 
       final removeButton = find.byKey(const ValueKey('remove-room-member-u2'));
+      final leaveButton = find.byKey(
+        const ValueKey('leave-room-from-leaderboard'),
+      );
       expect(removeButton, findsOneWidget);
+      expect(leaveButton, findsOneWidget);
       expect(find.byKey(const ValueKey('remove-room-member-u1')), findsNothing);
+
+      final ownerScoreRight = tester.getTopRight(find.text('1,510').last).dx;
+      final guestScoreRight = tester.getTopRight(find.text('1,490')).dx;
+      expect(ownerScoreRight, guestScoreRight);
 
       await tester.ensureVisible(removeButton);
       await tester.tap(removeButton);
@@ -1571,6 +1597,18 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(rooms.removedMemberUid, 'u2');
+
+      await tester.ensureVisible(leaveButton);
+      await tester.tap(leaveButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leave The Studio?'), findsOneWidget);
+      expect(find.textContaining('creator status will move'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('confirm-leave-room')));
+      await tester.pumpAndSettle();
+
+      expect(rooms.leftRoomId, 'studio');
+      expect(find.text('Rooms home'), findsOneWidget);
     });
 
     testWidgets('past World play returns to the history list', (tester) async {
