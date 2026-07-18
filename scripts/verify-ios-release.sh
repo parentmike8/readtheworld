@@ -44,6 +44,10 @@ fi
 plist="$app_path/Info.plist"
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")
 build_number=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")
+uses_non_exempt_encryption=$(
+  /usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' \
+    "$plist" 2>/dev/null || true
+)
 
 if [[ "$bundle_id" != "today.readtheworld.app" ]]; then
   echo "Unexpected bundle identifier: $bundle_id" >&2
@@ -52,6 +56,11 @@ fi
 
 if [[ -n "$expected_build" && "$build_number" != "$expected_build" ]]; then
   echo "Expected build $expected_build, found $build_number" >&2
+  exit 1
+fi
+
+if [[ "$uses_non_exempt_encryption" != "false" ]]; then
+  echo "ITSAppUsesNonExemptEncryption must be false for TestFlight export compliance." >&2
   exit 1
 fi
 
@@ -154,4 +163,5 @@ echo "  Apple Sign-In: Default"
 echo "  Push notifications: production"
 echo "  Associated domain: applinks:rtw.codes"
 echo "  Distribution signature: valid"
+echo "  Export compliance: no non-exempt encryption"
 echo "  Firebase config: $expected_project_id baked into Dart snapshot, no emulator hosts"

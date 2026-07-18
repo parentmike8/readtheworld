@@ -60,6 +60,11 @@ if grep -q '^RTW_USE_EMULATORS=true$' <<<"$decoded_defines"; then
   exit 1
 fi
 
+if grep -q '^RTW_APP_CHECK_DEBUG_TOKEN=' <<<"$decoded_defines"; then
+  echo "Built archive contains a local App Check debug token. Do not upload it." >&2
+  exit 1
+fi
+
 ipa_path=$(ls -t build/ios/ipa/*.ipa 2>/dev/null | head -1 || true)
 archive_path="build/ios/archive/Runner.xcarchive"
 

@@ -83,9 +83,12 @@ class _TestRoomsController extends RoomsController {
   RoomRevealData? testReveal;
   Future<List<RoomDayDetailRow>>? testDayDetailFuture;
   int loadDayDetailCalls = 0;
+  bool blockPartyPoolRefresh = false;
+  int partyPoolRefreshCalls = 0;
+  String? testUid = 'u1';
 
   @override
-  String? get uid => 'u1';
+  String? get uid => testUid;
 
   @override
   Stream<List<QueueItem>> queueStream(String roomId) =>
@@ -135,6 +138,13 @@ class _TestRoomsController extends RoomsController {
   Future<bool> leaveRoom(String roomId) async {
     leftRoomId = roomId;
     return true;
+  }
+
+  @override
+  Future<void> refreshPartyPool({RoomTier? tier}) {
+    partyPoolRefreshCalls += 1;
+    if (blockPartyPoolRefresh) return Future.value();
+    return super.refreshPartyPool(tier: tier);
   }
 }
 
@@ -2219,7 +2229,63 @@ void main() {
         find.text('Play with everyone in the room, right from your phone.'),
         findsOneWidget,
       );
-      expect(find.text('Load more questions'), findsOneWidget);
+      expect(find.text('Could not load Party questions.'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Load more questions'), findsNothing);
+    });
+
+    testWidgets('party setup explains an unauthenticated question pool', (
+      tester,
+    ) async {
+      final rooms = _TestRoomsController()
+        ..blockPartyPoolRefresh = true
+        ..testUid = null
+        ..partyPoolLoadAttempted = true
+        ..partyPoolError = 'Unauthenticated';
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Sign in to load Party questions.'), findsOneWidget);
+      expect(find.text('Sign in'), findsOneWidget);
+      expect(find.text('Load more questions'), findsNothing);
+      expect(rooms.partyPoolRefreshCalls, 1);
+    });
+
+    testWidgets('party does not call an App Check failure signed out', (
+      tester,
+    ) async {
+      final rooms = _TestRoomsController()
+        ..blockPartyPoolRefresh = true
+        ..partyPoolLoadAttempted = true
+        ..partyPoolError = 'Unauthenticated';
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(home: PartyScreenV2()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Could not load Party questions.'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
     });
 
     testWidgets('party play surface exposes swaps and the game menu', (

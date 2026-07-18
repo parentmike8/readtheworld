@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../main.dart';
 import '../models_v2.dart';
@@ -12,10 +12,6 @@ import '../rooms_controller.dart';
 import '../sheets/room_sheets.dart' show showMatureConfirmSheet;
 import '../tokens_v2.dart';
 import '../widgets_v2.dart';
-
-final partyControllerProvider = ChangeNotifierProvider<PartyController>((ref) {
-  return PartyController();
-});
 
 const _settleCurve = Cubic(0.2, 0.8, 0.3, 1);
 
@@ -101,6 +97,7 @@ class _Setup extends ConsumerWidget {
         (!rooms.partyPoolLoadAttempted || rooms.partyPoolLoading);
     final shouldOfferPoolReload =
         pool.isEmpty && rooms.partyPoolLoadAttempted && !rooms.partyPoolLoading;
+    final poolLoadError = rooms.partyPoolError;
     final topics = [
       'All',
       ...{for (final question in tierPool) question.tag},
@@ -273,9 +270,18 @@ class _Setup extends ConsumerWidget {
                   ),
                 ),
               )
+            else if (poolLoadError != null)
+              _PartyPoolLoadError(
+                authenticationRequired:
+                    _isAuthenticationError(poolLoadError) && rooms.uid == null,
+                onPressed:
+                    _isAuthenticationError(poolLoadError) && rooms.uid == null
+                    ? () => context.go('/auth')
+                    : () => rooms.refreshPartyPool(tier: party.tier),
+              )
             else if (shouldOfferPoolReload)
               V2Button(
-                'Load more questions →',
+                'Try loading questions again →',
                 onPressed: () => rooms.refreshPartyPool(tier: party.tier),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 radius: 16,
@@ -306,6 +312,58 @@ class _Setup extends ConsumerWidget {
               radius: 16,
               fontSize: 16,
             ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _isAuthenticationError(String error) {
+  final normalized = error.toLowerCase();
+  return normalized.contains('unauthenticated') ||
+      normalized.contains('sign in') ||
+      normalized.contains('sign-in');
+}
+
+class _PartyPoolLoadError extends StatelessWidget {
+  const _PartyPoolLoadError({
+    required this.authenticationRequired,
+    required this.onPressed,
+  });
+
+  final bool authenticationRequired;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RtwV2Colors.hairline,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            authenticationRequired
+                ? 'Sign in to load Party questions.'
+                : 'Could not load Party questions.',
+            textAlign: TextAlign.center,
+            style: v2Sans(
+              15,
+              color: RtwV2Colors.subText,
+              weight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          V2Button(
+            authenticationRequired ? 'Sign in →' : 'Try again →',
+            onPressed: onPressed,
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            radius: 14,
+            fontSize: 15,
+          ),
         ],
       ),
     );
@@ -594,6 +652,7 @@ class _Play extends StatelessWidget {
 void _showPartyMenuSheet(BuildContext context, PartyController party) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     isDismissible: true,
     enableDrag: true,

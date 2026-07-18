@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../main.dart';
 import 'models_v2.dart';
+import 'party_controller.dart';
 import 'tokens_v2.dart';
 
 /// Exact-size text helpers — the prototype styles each element in px, so v2
@@ -788,6 +789,7 @@ class V2Scaffold extends StatelessWidget {
       );
     }
 
+    final persistentNavigation = _V2PersistentNavigationScope.active(context);
     final surfaceWidth = kIsWeb ? math.min(size.width, 393.0) : size.width;
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -795,13 +797,98 @@ class V2Scaffold extends StatelessWidget {
         width: surfaceWidth,
         child: Column(
           children: [
-            Expanded(child: _FadeUp(child: child)),
-            if (showNav) V2BottomNav(location: location),
+            // Routed mobile pages get their motion from GoRouter. Replaying
+            // the prototype fade-up inside a native slide made every push feel
+            // like two animations fighting each other.
+            Expanded(
+              child: persistentNavigation ? child : _FadeUp(child: child),
+            ),
+            if (showNav && !persistentNavigation)
+              V2BottomNav(location: location),
           ],
         ),
       ),
     );
   }
+}
+
+/// Persistent mobile application chrome for authenticated routes.
+///
+/// The nested Navigator supplied by [ShellRoute] is the body, while the tab
+/// bar is mounted once below it. Pushes and pops therefore happen entirely
+/// above the bar. Wide layouts retain their existing per-screen top nav.
+class V2NavigationShell extends ConsumerStatefulWidget {
+  const V2NavigationShell({
+    super.key,
+    required this.location,
+    required this.child,
+  });
+
+  final String location;
+  final Widget child;
+
+  @override
+  ConsumerState<V2NavigationShell> createState() => _V2NavigationShellState();
+}
+
+class _V2NavigationShellState extends ConsumerState<V2NavigationShell> {
+  late String _lastPrimaryLocation =
+      _primaryLocation(widget.location) ?? '/rooms';
+
+  @override
+  void didUpdateWidget(V2NavigationShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final primary = _primaryLocation(widget.location);
+    if (primary != null) _lastPrimaryLocation = primary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= 820) return widget.child;
+
+    final activePartySession =
+        widget.location.startsWith('/party') &&
+        ref.watch(
+          partyControllerProvider.select(
+            (party) => party.stage != PartyStage.setup,
+          ),
+        );
+
+    return _V2PersistentNavigationScope(
+      child: Scaffold(
+        backgroundColor: RtwV2Colors.paper,
+        body: widget.child,
+        bottomNavigationBar: activePartySession
+            ? null
+            : V2BottomNav(location: _lastPrimaryLocation),
+      ),
+    );
+  }
+
+  static String? _primaryLocation(String location) {
+    if (location == '/today' || location.startsWith('/today/')) {
+      return '/today';
+    }
+    if (location == '/rooms' || location.startsWith('/rooms/')) {
+      return '/rooms';
+    }
+    if (location == '/party' || location.startsWith('/party/')) {
+      return '/party';
+    }
+    return null;
+  }
+}
+
+class _V2PersistentNavigationScope extends InheritedWidget {
+  const _V2PersistentNavigationScope({required super.child});
+
+  static bool active(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_V2PersistentNavigationScope>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(_V2PersistentNavigationScope oldWidget) => false;
 }
 
 /// Web-native top nav for the wide shell: wordmark, text tabs, avatar.
@@ -961,6 +1048,7 @@ Future<T?> showV2Sheet<T>(BuildContext context, WidgetBuilder builder) {
   if (isWide) {
     return showDialog<T>(
       context: context,
+      useRootNavigator: true,
       barrierColor: const Color(0x6B1C1A16),
       builder: (context) => Dialog(
         backgroundColor: RtwV2Colors.paper,
@@ -977,6 +1065,7 @@ Future<T?> showV2Sheet<T>(BuildContext context, WidgetBuilder builder) {
   }
   return showModalBottomSheet<T>(
     context: context,
+    useRootNavigator: true,
     backgroundColor: RtwV2Colors.paper,
     barrierColor: const Color(0x6B1C1A16),
     isDismissible: true,

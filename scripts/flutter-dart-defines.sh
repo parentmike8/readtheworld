@@ -3,7 +3,10 @@
 rtw_load_flutter_env() {
   local root_dir="$1"
   local env_file
-  for env_file in "$root_dir/.env" "$root_dir/.env.local"; do
+  for env_file in \
+    "$root_dir/.env" \
+    "$root_dir/.env.local" \
+    "$root_dir/.env.appcheck.local"; do
     if [[ -f "$env_file" ]]; then
       set -a
       # shellcheck source=/dev/null
@@ -43,6 +46,16 @@ rtw_flutter_dart_define_args() {
       printf '%s\n' "--dart-define=$key=${!key}"
     fi
   done
+}
+
+# Local iOS Simulator builds can reuse one Firebase App Check debug token
+# instead of generating a new console registration whenever app data is reset.
+# This is deliberately separate from rtw_flutter_dart_define_args so release
+# and web builds can never receive the local debug credential.
+rtw_local_app_check_debug_dart_define_arg() {
+  if [[ -n "${RTW_APP_CHECK_DEBUG_TOKEN:-}" ]]; then
+    printf '%s\n' "--dart-define=RTW_APP_CHECK_DEBUG_TOKEN=${RTW_APP_CHECK_DEBUG_TOKEN}"
+  fi
 }
 
 # Fails loudly when a define the mobile app cannot run without is unset or

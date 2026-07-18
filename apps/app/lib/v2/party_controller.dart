@@ -2,10 +2,15 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter/services.dart';
 
 import 'models_v2.dart';
 import 'tokens_v2.dart';
+
+final partyControllerProvider = ChangeNotifierProvider<PartyController>((ref) {
+  return PartyController();
+});
 
 /// Pass-the-phone party state machine — a faithful port of the prototype's
 /// party handlers. Entirely session-local: scores never touch the profile.

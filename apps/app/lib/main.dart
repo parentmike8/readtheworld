@@ -37,6 +37,7 @@ import 'v2/screens/room_review.dart';
 import 'v2/screens/room_reveal.dart';
 import 'v2/screens/rooms_home.dart';
 import 'v2/screens/world_leaderboard.dart';
+import 'v2/widgets_v2.dart' show V2NavigationShell;
 import 'theme/rtw_theme.dart';
 
 Future<void> main() async {
@@ -57,6 +58,7 @@ Future<void> main() async {
 }
 
 const _useEmulators = bool.fromEnvironment('RTW_USE_EMULATORS');
+const _appCheckDebugToken = String.fromEnvironment('RTW_APP_CHECK_DEBUG_TOKEN');
 const _emulatorHost = String.fromEnvironment(
   'RTW_EMULATOR_HOST',
   defaultValue: 'localhost',
@@ -107,7 +109,11 @@ Future<AppSettings> _configureFirebaseServices() async {
             ? const AndroidDebugProvider()
             : const AndroidPlayIntegrityProvider(),
         providerApple: kDebugMode
-            ? const AppleDebugProvider()
+            ? AppleDebugProvider(
+                debugToken: _appCheckDebugToken.isEmpty
+                    ? null
+                    : _appCheckDebugToken,
+              )
             : const AppleAppAttestWithDeviceCheckFallbackProvider(),
       );
     }
@@ -398,8 +404,6 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         (_, _) => const NotificationsPrimerScreen(),
         mainFade: true,
       ),
-      _appRoute('/today', (_, _) => const TodayScreenV2(), mainFade: true),
-      _appRoute('/party', (_, _) => const PartyScreenV2(), mainFade: true),
       // Legacy v1 paths (old notification routes, bookmarks) land safely.
       GoRoute(path: '/history', redirect: (_, _) => '/rooms'),
       GoRoute(path: '/insights', redirect: (_, _) => '/rooms'),
@@ -428,46 +432,61 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         ),
         mobileSlide: true,
       ),
-      // ── v2 rooms routes.
-      _appRoute('/rooms', (_, _) => const RoomsHomeScreen(), mainFade: true),
-      _appRoute(
-        '/rooms/:roomId',
-        (_, state) => RoomDetailScreen(
-          roomId: state.pathParameters['roomId'] ?? '',
-          edit: state.uri.queryParameters['edit'] == '1',
-        ),
-        mobileSlide: true,
-      ),
-      _appRoute(
-        '/rooms/:roomId/review',
-        (_, state) =>
-            RoomReviewScreen(roomId: state.pathParameters['roomId'] ?? ''),
-        mobileSlide: true,
-      ),
-      _appRoute(
-        '/rooms/:roomId/history',
-        (_, state) =>
-            RoomHistoryScreen(roomId: state.pathParameters['roomId'] ?? ''),
-        mobileSlide: true,
-      ),
-      _appRoute(
-        '/rooms/:roomId/reveal',
-        (_, state) => RoomRevealScreen(
-          roomId: state.pathParameters['roomId'] ?? '',
-          fromToday: state.uri.queryParameters['from'] == 'today',
-        ),
-        mainFade: true,
-      ),
-      _appRoute('/today/play', (_, _) => const RoomPlayScreen()),
-      _appRoute(
-        '/world/leaderboard',
-        (_, _) => const WorldLeaderboardScreen(),
-        mobileSlide: true,
-      ),
-      _appRoute(
-        '/profile',
-        (_, _) => const ProfileScreenV2(),
-        mobileSlide: true,
+      // Authenticated routes share one mobile navigation shell. Pages still
+      // own their surfaces, while the tab bar is mounted once outside the
+      // nested Navigator so it never participates in page transitions.
+      ShellRoute(
+        builder: (context, state, child) =>
+            V2NavigationShell(location: state.uri.path, child: child),
+        routes: [
+          _appRoute('/today', (_, _) => const TodayScreenV2(), mainFade: true),
+          _appRoute('/party', (_, _) => const PartyScreenV2(), mainFade: true),
+          // ── v2 rooms routes.
+          _appRoute(
+            '/rooms',
+            (_, _) => const RoomsHomeScreen(),
+            mainFade: true,
+          ),
+          _appRoute(
+            '/rooms/:roomId',
+            (_, state) => RoomDetailScreen(
+              roomId: state.pathParameters['roomId'] ?? '',
+              edit: state.uri.queryParameters['edit'] == '1',
+            ),
+            mobileSlide: true,
+          ),
+          _appRoute(
+            '/rooms/:roomId/review',
+            (_, state) =>
+                RoomReviewScreen(roomId: state.pathParameters['roomId'] ?? ''),
+            mobileSlide: true,
+          ),
+          _appRoute(
+            '/rooms/:roomId/history',
+            (_, state) =>
+                RoomHistoryScreen(roomId: state.pathParameters['roomId'] ?? ''),
+            mobileSlide: true,
+          ),
+          _appRoute(
+            '/rooms/:roomId/reveal',
+            (_, state) => RoomRevealScreen(
+              roomId: state.pathParameters['roomId'] ?? '',
+              fromToday: state.uri.queryParameters['from'] == 'today',
+            ),
+            mainFade: true,
+          ),
+          _appRoute('/today/play', (_, _) => const RoomPlayScreen()),
+          _appRoute(
+            '/world/leaderboard',
+            (_, _) => const WorldLeaderboardScreen(),
+            mobileSlide: true,
+          ),
+          _appRoute(
+            '/profile',
+            (_, _) => const ProfileScreenV2(),
+            mobileSlide: true,
+          ),
+        ],
       ),
       _appRoute(
         '/join/:code',

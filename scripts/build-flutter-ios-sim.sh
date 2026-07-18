@@ -10,6 +10,9 @@ dart_define_args=()
 while IFS= read -r arg; do
   dart_define_args+=("$arg")
 done < <(rtw_flutter_dart_define_args)
+while IFS= read -r arg; do
+  dart_define_args+=("$arg")
+done < <(rtw_local_app_check_debug_dart_define_arg)
 
 cd "$ROOT_DIR/apps/app"
 flutter build ios --simulator --debug "${dart_define_args[@]}" "$@"
