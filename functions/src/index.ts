@@ -96,9 +96,11 @@ import {
   dailyReminderIsDue,
   dailyReminderMoment,
   dailyNotificationPayload,
+  enabledNotificationTokenValue,
   eveningUnansweredReminderIsDue,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
+  notificationScheduleFailureCount,
   selectBroadcastTokens,
   userAllowsNotifications,
   userAllowsRoomActivityNotifications,
@@ -1060,15 +1062,13 @@ async function sendNotificationToTokens(
 async function enabledNotificationTokensForUser(uid: string): Promise<NotificationToken[]> {
   const tokensSnap = await db.collection("users").doc(uid)
     .collection("notificationTokens")
-    .where("enabled", "==", true)
     .get();
   return tokensSnap.docs
-    .map((doc) => ({
-      uid,
-      refPath: doc.ref.path,
-      token: String(doc.data().token ?? ""),
-    }))
-    .filter((token) => token.token.length > 0);
+    .map((doc) => {
+      const token = enabledNotificationTokenValue(doc.data());
+      return token ? { uid, refPath: doc.ref.path, token } : null;
+    })
+    .filter((token): token is NotificationToken => token !== null);
 }
 
 const DAILY_REMINDER_CLAIM_STALE_MS = 10 * 60 * 1000;
@@ -3073,6 +3073,16 @@ export const sendDailyNotifications = onSchedule({
     daily,
     evening,
   });
+  const failures = notificationScheduleFailureCount(daily.failed, evening.failed);
+  if (failures > 0) {
+    logger.error("Notification schedule completed with delivery failures", {
+      now: now.toISOString(),
+      failures,
+      daily,
+      evening,
+    });
+    throw new Error(`Notification schedule completed with ${failures} delivery failure(s).`);
+  }
 });
 
 export const sendRevealReadyNotifications = onSchedule({
@@ -5904,17 +5914,7 @@ export const flagRoomQuestion = onCall(callableOptions, async (request) => {
   // daily reminders.
   try {
     if (flagged.authorUid && flagged.authorUid !== uid) {
-      const tokensSnap = await db.collection("users").doc(flagged.authorUid)
-        .collection("notificationTokens")
-        .where("enabled", "==", true)
-        .get();
-      const tokens = tokensSnap.docs
-        .map((doc) => ({
-          uid: flagged.authorUid ?? "",
-          refPath: doc.ref.path,
-          token: String(doc.data().token ?? ""),
-        }))
-        .filter((token) => token.token.length > 0);
+      const tokens = await enabledNotificationTokensForUser(flagged.authorUid);
       if (tokens.length > 0) {
         await sendNotificationToTokens(tokens, {
           title: "A question was removed",

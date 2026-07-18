@@ -3,10 +3,12 @@ import {
   dailyReminderIsDue,
   dailyReminderMoment,
   eveningUnansweredReminderIsDue,
+  enabledNotificationTokenValue,
   regularReminderIsNearEvening,
   dailyNotificationPayload,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
+  notificationScheduleFailureCount,
   notificationAudienceMatchesUser,
   selectBroadcastTokens,
   userAllowsNotifications,
@@ -153,6 +155,24 @@ describe("Room activity notification targeting", () => {
   it("keeps room nudges enabled until their dedicated future opt-out is set", () => {
     expect(userAllowsRoomNudges({ dailyReminder: false })).toBe(true);
     expect(userAllowsRoomNudges({ roomNudges: false })).toBe(false);
+  });
+});
+
+describe("Direct notification token selection", () => {
+  it("keeps only explicitly enabled, non-empty device tokens", () => {
+    expect(enabledNotificationTokenValue({ enabled: true, token: "  token-1  " }))
+      .toBe("token-1");
+    expect(enabledNotificationTokenValue({ enabled: false, token: "token-2" }))
+      .toBeNull();
+    expect(enabledNotificationTokenValue({ enabled: true, token: "" }))
+      .toBeNull();
+    expect(enabledNotificationTokenValue({ enabled: true })).toBeNull();
+  });
+
+  it("surfaces aggregate scheduler failures to the platform", () => {
+    expect(notificationScheduleFailureCount(0, 0)).toBe(0);
+    expect(notificationScheduleFailureCount(2, 1)).toBe(3);
+    expect(notificationScheduleFailureCount(-1, undefined, "2")).toBe(2);
   });
 });
 

@@ -200,6 +200,28 @@ function checkAccounts() {
       add("ok", "Firebase CLI auth", `Authorized account ${EXPECTED_GOOGLE_ACCOUNT}.`);
     }
   }
+
+  const firebaseProjectAccess = run("npx", [
+    "-y",
+    "firebase-tools@15.22.3",
+    "projects:list",
+    "--json",
+  ]);
+  if (firebaseProjectAccess.status !== 0) {
+    add(
+      "block",
+      "Firebase CLI credential validity",
+      firebaseProjectAccess.output || "Could not verify Firebase project access.",
+    );
+  } else if (!firebaseProjectAccess.stdout.includes(EXPECTED_PROJECT_ID)) {
+    add(
+      "block",
+      "Firebase CLI project access",
+      `Authenticated account cannot see ${EXPECTED_PROJECT_ID}.`,
+    );
+  } else {
+    add("ok", "Firebase CLI credential validity", `Can access ${EXPECTED_PROJECT_ID}.`);
+  }
 }
 
 function checkFirebaseFiles() {
@@ -393,6 +415,40 @@ function checkFirebaseFiles() {
         add("block", `Firestore index ${required.label}`, "Missing or wrong queryScope/fields.");
       }
     }
+
+    const requiredFieldOverrides = [
+      {
+        label: "friends uid",
+        collectionGroup: "friends",
+        fieldPath: "uid",
+        indexes: [
+          "COLLECTION:ASCENDING",
+          "COLLECTION:DESCENDING",
+          "COLLECTION_GROUP:ASCENDING",
+        ],
+      },
+      {
+        label: "notification tokens enabled",
+        collectionGroup: "notificationTokens",
+        fieldPath: "enabled",
+        indexes: [
+          "COLLECTION:ASCENDING",
+          "COLLECTION:DESCENDING",
+          "COLLECTION_GROUP:ASCENDING",
+        ],
+      },
+    ];
+    for (const required of requiredFieldOverrides) {
+      if (hasFirestoreFieldOverride(indexes.fieldOverrides ?? [], required)) {
+        add("ok", `Firestore field override ${required.label}`, "Collection and collection-group scopes configured.");
+      } else {
+        add(
+          "block",
+          `Firestore field override ${required.label}`,
+          "Missing collection defaults or required collection-group scope.",
+        );
+      }
+    }
   }
 }
 
@@ -405,6 +461,18 @@ function hasFirestoreIndex(indexes, required) {
     return required.fields.length === fields.length &&
       required.fields.every((field, index) => field === fields[index]);
   });
+}
+
+function hasFirestoreFieldOverride(fieldOverrides, required) {
+  const override = fieldOverrides.find((item) =>
+    item.collectionGroup === required.collectionGroup &&
+    item.fieldPath === required.fieldPath,
+  );
+  if (!override) return false;
+  const configured = new Set((override.indexes ?? []).map((index) =>
+    `${index.queryScope}:${index.order ?? index.arrayConfig ?? ""}`,
+  ));
+  return required.indexes.every((index) => configured.has(index));
 }
 
 function checkEnvironment() {

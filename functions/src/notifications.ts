@@ -116,6 +116,29 @@ export function userAllowsRoomNudges(user: Record<string, unknown>): boolean {
   return user.roomNudges !== false;
 }
 
+/**
+ * Device token subcollections are intentionally tiny. Filter them in memory so
+ * direct user notifications do not depend on a Firestore field override being
+ * deployed before Functions. Collection-group broadcasts still use their
+ * dedicated index.
+ */
+export function enabledNotificationTokenValue(
+  tokenRecord: Record<string, unknown>,
+): string | null {
+  if (tokenRecord.enabled !== true) return null;
+  const token = typeof tokenRecord.token === "string" ? tokenRecord.token.trim() : "";
+  return token.length > 0 ? token : null;
+}
+
+export function notificationScheduleFailureCount(
+  ...failureCounts: unknown[]
+): number {
+  return failureCounts.reduce<number>((total, value) => {
+    const count = Number(value);
+    return total + (Number.isFinite(count) && count > 0 ? Math.floor(count) : 0);
+  }, 0);
+}
+
 export function normalizeDailyReminderMinutes(value: unknown): number {
   const minutes = Number(value);
   if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
