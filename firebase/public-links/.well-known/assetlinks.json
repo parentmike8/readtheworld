@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "today.readtheworld.app",
+      "sha256_cert_fingerprints": [
+        "BE:81:80:19:F6:06:C2:79:02:CB:BA:70:3D:55:45:5F:AF:26:CD:1B:FC:85:EE:D9:4B:FF:BB:DF:56:82:24:99"
+      ]
+    }
+  }
+]
