@@ -240,7 +240,33 @@ class _RoomDetailScreenState extends ConsumerState<RoomDetailScreen> {
             ],
             if (hasBoard) ...[
               const SizedBox(height: 15),
-              const V2Eyebrow('Room leaderboard', size: 11, letterSpacing: 1.6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const V2Eyebrow(
+                    'Room leaderboard',
+                    size: 11,
+                    letterSpacing: 1.6,
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: RtwV2Colors.blue,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Answered today',
+                        style: v2Sans(11.5, color: RtwV2Colors.muted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
               const SizedBox(height: 13),
               _Leaderboard(
                 rooms: rooms,
@@ -967,59 +993,85 @@ class _LeaderboardState extends State<_Leaderboard> {
           child: Column(
             children: [
               for (final (index, member) in members.indexed) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 13,
-                  ),
-                  color: member.uid == widget.myUid
-                      ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
-                      : null,
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 26,
-                        child: Text(
-                          '#${index + 1}',
-                          style: v2Mono(13, letterSpacing: 0),
-                        ),
+                Builder(
+                  builder: (context) {
+                    final answeredToday =
+                        widget.room.currentDailyKey != null &&
+                        member.lastPlayedDailyKey ==
+                            widget.room.currentDailyKey;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 13,
                       ),
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: member.uid == widget.myUid
-                              ? RtwV2Colors.blue
-                              : const Color(0xFFD8D2C5),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Text(
-                          member.uid == widget.myUid
-                              ? 'You'
-                              : member.displayName,
-                          style: v2Sans(
-                            15,
-                            color: RtwV2Colors.inkSoft,
-                            weight: member.uid == widget.myUid
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                      color: member.uid == widget.myUid
+                          ? RtwV2Colors.meterBlue.withValues(alpha: 0.08)
+                          : null,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 26,
+                            child: Text(
+                              '#${index + 1}',
+                              style: v2Mono(13, letterSpacing: 0),
+                            ),
                           ),
-                        ),
+                          Semantics(
+                            label: answeredToday
+                                ? '${member.displayName} answered today'
+                                : '${member.displayName} has not answered today',
+                            child: Tooltip(
+                              message: answeredToday
+                                  ? 'Answered today'
+                                  : 'Not answered yet',
+                              child: Container(
+                                key: ValueKey(
+                                  answeredToday
+                                      ? 'member-answered-today-${member.uid}'
+                                      : 'member-not-answered-today-${member.uid}',
+                                ),
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: answeredToday
+                                      ? RtwV2Colors.blue
+                                      : const Color(0xFFD8D2C5),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Text(
+                              member.uid == widget.myUid
+                                  ? 'You'
+                                  : member.displayName,
+                              style: v2Sans(
+                                15,
+                                color: RtwV2Colors.inkSoft,
+                                weight: member.uid == widget.myUid
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _thousands(member.roomScore),
+                            style: v2Serif(17),
+                          ),
+                          const SizedBox(width: 4),
+                          _MemberAction(
+                            member: member,
+                            myUid: widget.myUid,
+                            canRemoveMembers: widget.canRemoveMembers,
+                            onLeave: _leaveRoom,
+                            onRemove: () => _removeMember(member),
+                          ),
+                        ],
                       ),
-                      Text(_thousands(member.roomScore), style: v2Serif(17)),
-                      const SizedBox(width: 4),
-                      _MemberAction(
-                        member: member,
-                        myUid: widget.myUid,
-                        canRemoveMembers: widget.canRemoveMembers,
-                        onLeave: _leaveRoom,
-                        onRemove: () => _removeMember(member),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
                 const V2Hairline(),
               ],

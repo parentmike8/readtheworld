@@ -1532,6 +1532,7 @@ void main() {
             roomScore: 1510,
             streak: 0,
             questionsAnswered: 0,
+            lastPlayedDailyKey: '2026-07-02',
           ),
           RtwRoomMember(
             uid: 'u2',
@@ -1580,6 +1581,30 @@ void main() {
       expect(removeButton, findsOneWidget);
       expect(leaveButton, findsOneWidget);
       expect(find.byKey(const ValueKey('remove-room-member-u1')), findsNothing);
+      expect(find.text('Answered today'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('member-answered-today-u1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+        findsOneWidget,
+      );
+
+      final answeredDot = tester.widget<Container>(
+        find.byKey(const ValueKey('member-answered-today-u1')),
+      );
+      final waitingDot = tester.widget<Container>(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+      );
+      expect(
+        (answeredDot.decoration! as BoxDecoration).color,
+        RtwV2Colors.blue,
+      );
+      expect(
+        (waitingDot.decoration! as BoxDecoration).color,
+        const Color(0xFFD8D2C5),
+      );
 
       final ownerScoreRight = tester.getTopRight(find.text('1,510').last).dx;
       final guestScoreRight = tester.getTopRight(find.text('1,490')).dx;
