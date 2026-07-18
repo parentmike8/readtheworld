@@ -71,6 +71,10 @@ class _TestRoomsController extends RoomsController {
   List<RtwRoomMember> testMembers = const <RtwRoomMember>[];
   String? removedMemberUid;
   String? leftRoomId;
+  RoomNudgeStatus? testNudgeStatus;
+  String? nudgeStatusTargetUid;
+  String? sentNudgeTargetUid;
+  bool sendNudgeResult = true;
   int enterTodayCalls = 0;
 
   @override
@@ -83,6 +87,21 @@ class _TestRoomsController extends RoomsController {
   @override
   Stream<List<RtwRoomMember>> membersStream(String roomId) =>
       Stream.value(testMembers);
+
+  @override
+  Future<RoomNudgeStatus?> getRoomNudgeStatus(
+    String roomId,
+    String targetUid,
+  ) async {
+    nudgeStatusTargetUid = targetUid;
+    return testNudgeStatus;
+  }
+
+  @override
+  Future<bool> sendRoomNudge(String roomId, String targetUid) async {
+    sentNudgeTargetUid = targetUid;
+    return sendNudgeResult;
+  }
 
   @override
   Future<bool> enterToday() {
@@ -1634,6 +1653,168 @@ void main() {
 
       expect(rooms.leftRoomId, 'studio');
       expect(find.text('Rooms home'), findsOneWidget);
+    });
+
+    testWidgets('gray member dot confirms and sends a room nudge', (
+      tester,
+    ) async {
+      final binding = _binding(id: 'studio', name: 'The Studio', members: 2)
+        ..me = const RtwRoomMember(
+          uid: 'u1',
+          displayName: 'Sarah',
+          role: 'creator',
+          revealMine: false,
+          roomScore: 1510,
+          streak: 0,
+          questionsAnswered: 0,
+          lastPlayedDailyKey: '2026-07-02',
+        );
+      final rooms = _TestRoomsController()
+        ..testNudgeStatus = const RoomNudgeStatus(
+          targetName: 'Mike',
+          nudgeCount: 2,
+          alreadyNudged: false,
+          canNudge: true,
+          outgoingRemaining: 4,
+        )
+        ..testMembers = const [
+          RtwRoomMember(
+            uid: 'u1',
+            displayName: 'Sarah',
+            role: 'creator',
+            revealMine: false,
+            roomScore: 1510,
+            streak: 0,
+            questionsAnswered: 0,
+            lastPlayedDailyKey: '2026-07-02',
+          ),
+          RtwRoomMember(
+            uid: 'u2',
+            displayName: 'Mike',
+            role: 'member',
+            revealMine: false,
+            roomScore: 1490,
+            streak: 0,
+            questionsAnswered: 0,
+          ),
+        ]
+        ..bindings['studio'] = binding
+        ..roomOrder = ['studio']
+        ..loadingRooms = false;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: RoomDetailScreen(roomId: 'studio')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(rooms.nudgeStatusTargetUid, 'u2');
+      expect(find.text('Nudge Mike?'), findsOneWidget);
+      expect(find.text('Mike hasn’t answered today.'), findsOneWidget);
+      expect(find.text('2 people have nudged Mike today'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('send-room-nudge')));
+      await tester.pumpAndSettle();
+
+      expect(rooms.sentNudgeTargetUid, 'u2');
+      expect(find.text('Nudge sent'), findsOneWidget);
+    });
+
+    testWidgets('a repeated room nudge is disabled in the sheet', (
+      tester,
+    ) async {
+      final binding = _binding(id: 'studio', name: 'The Studio', members: 2)
+        ..me = const RtwRoomMember(
+          uid: 'u1',
+          displayName: 'Sarah',
+          role: 'creator',
+          revealMine: false,
+          roomScore: 1510,
+          streak: 0,
+          questionsAnswered: 0,
+        );
+      final rooms = _TestRoomsController()
+        ..testNudgeStatus = const RoomNudgeStatus(
+          targetName: 'Mike',
+          nudgeCount: 2,
+          alreadyNudged: true,
+          canNudge: false,
+          outgoingRemaining: 4,
+          blockReason: 'already-nudged',
+        )
+        ..testMembers = const [
+          RtwRoomMember(
+            uid: 'u1',
+            displayName: 'Sarah',
+            role: 'creator',
+            revealMine: false,
+            roomScore: 1510,
+            streak: 0,
+            questionsAnswered: 0,
+          ),
+          RtwRoomMember(
+            uid: 'u2',
+            displayName: 'Mike',
+            role: 'member',
+            revealMine: false,
+            roomScore: 1490,
+            streak: 0,
+            questionsAnswered: 0,
+          ),
+        ]
+        ..bindings['studio'] = binding
+        ..roomOrder = ['studio']
+        ..loadingRooms = false;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: RoomDetailScreen(roomId: 'studio')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('member-not-answered-today-u2')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('You nudged Mike today'), findsOneWidget);
+      final sendButton = tester.widget<V2Button>(
+        find.byKey(const ValueKey('send-room-nudge')),
+      );
+      expect(sendButton.onPressed, isNull);
     });
 
     testWidgets('past World play returns to the history list', (tester) async {

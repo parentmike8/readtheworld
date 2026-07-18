@@ -10,6 +10,8 @@ export type DailyNotificationPayload = {
 
 export const DEFAULT_DAILY_REMINDER_MINUTES = 8 * 60;
 export const DEFAULT_DAILY_REMINDER_TIME_ZONE = "America/New_York";
+export const EVENING_UNANSWERED_REMINDER_MINUTES = 20 * 60;
+export const EVENING_REMINDER_NEARBY_MINUTES = 60;
 
 export type DailyReminderMoment = {
   deliveryKey: string;
@@ -110,6 +112,10 @@ export function userAllowsRoomActivityNotifications(
   return user.roomActivityNotifications !== false;
 }
 
+export function userAllowsRoomNudges(user: Record<string, unknown>): boolean {
+  return user.roomNudges !== false;
+}
+
 export function normalizeDailyReminderMinutes(value: unknown): number {
   const minutes = Number(value);
   if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
@@ -164,6 +170,33 @@ export function dailyReminderIsDue(
   const moment = dailyReminderMoment(user, now);
   const elapsed =
     (moment.minuteOfDay - moment.reminderMinutes + 24 * 60) % (24 * 60);
+  return elapsed < deliveryWindowMinutes;
+}
+
+export function regularReminderIsNearEvening(
+  user: Record<string, unknown>,
+  nearbyMinutes = EVENING_REMINDER_NEARBY_MINUTES,
+): boolean {
+  const reminder = normalizeDailyReminderMinutes(user.dailyReminderMinutes);
+  const distance = Math.abs(reminder - EVENING_UNANSWERED_REMINDER_MINUTES);
+  return Math.min(distance, 24 * 60 - distance) <= nearbyMinutes;
+}
+
+export function eveningUnansweredReminderIsDue(
+  user: Record<string, unknown>,
+  now: Date,
+  deliveryWindowMinutes = 15,
+): boolean {
+  if (user.dailyReminder !== true || regularReminderIsNearEvening(user)) {
+    return false;
+  }
+  const moment = dailyReminderMoment({
+    ...user,
+    dailyReminderMinutes: EVENING_UNANSWERED_REMINDER_MINUTES,
+  }, now);
+  const elapsed =
+    (moment.minuteOfDay - EVENING_UNANSWERED_REMINDER_MINUTES + 24 * 60) %
+    (24 * 60);
   return elapsed < deliveryWindowMinutes;
 }
 

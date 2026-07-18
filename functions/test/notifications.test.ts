@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   dailyReminderIsDue,
   dailyReminderMoment,
+  eveningUnansweredReminderIsDue,
+  regularReminderIsNearEvening,
   dailyNotificationPayload,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
@@ -9,6 +11,7 @@ import {
   selectBroadcastTokens,
   userAllowsNotifications,
   userAllowsRoomActivityNotifications,
+  userAllowsRoomNudges,
 } from "../src/notifications";
 
 describe("Daily notification payloads", () => {
@@ -145,6 +148,40 @@ describe("Room activity notification targeting", () => {
     expect(userAllowsRoomActivityNotifications({
       roomActivityNotifications: false,
     })).toBe(false);
+  });
+
+  it("keeps room nudges enabled until their dedicated future opt-out is set", () => {
+    expect(userAllowsRoomNudges({ dailyReminder: false })).toBe(true);
+    expect(userAllowsRoomNudges({ roomNudges: false })).toBe(false);
+  });
+});
+
+describe("Evening unanswered reminders", () => {
+  const eightPmNewYork = new Date("2026-07-18T00:05:00.000Z");
+
+  it("is due around 8 PM local for opted-in members", () => {
+    expect(eveningUnansweredReminderIsDue({
+      dailyReminder: true,
+      dailyReminderMinutes: 8 * 60,
+      dailyReminderTimeZone: "America/New_York",
+    }, eightPmNewYork)).toBe(true);
+  });
+
+  it("skips members whose regular reminder is already near 8 PM", () => {
+    expect(regularReminderIsNearEvening({ dailyReminderMinutes: 19 * 60 })).toBe(true);
+    expect(eveningUnansweredReminderIsDue({
+      dailyReminder: true,
+      dailyReminderMinutes: (19 * 60) + 30,
+      dailyReminderTimeZone: "America/New_York",
+    }, eightPmNewYork)).toBe(false);
+  });
+
+  it("requires the existing daily notification opt-in", () => {
+    expect(eveningUnansweredReminderIsDue({
+      dailyReminder: false,
+      dailyReminderMinutes: 8 * 60,
+      dailyReminderTimeZone: "America/New_York",
+    }, eightPmNewYork)).toBe(false);
   });
 });
 

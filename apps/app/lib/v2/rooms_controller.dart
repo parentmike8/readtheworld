@@ -1787,6 +1787,37 @@ class RoomsController extends ChangeNotifier {
               ..sort((a, b) => b.roomScore.compareTo(a.roomScore)),
       );
 
+  Future<RoomNudgeStatus?> getRoomNudgeStatus(
+    String roomId,
+    String targetUid,
+  ) async {
+    lastError = null;
+    try {
+      final result = await _callable(
+        'getRoomNudgeStatus',
+      ).call({'roomId': roomId, 'targetUid': targetUid});
+      return RoomNudgeStatus.fromData(
+        Map<String, dynamic>.from(result.data as Map),
+      );
+    } catch (error) {
+      lastError = _callableMessage(error);
+      return null;
+    }
+  }
+
+  Future<bool> sendRoomNudge(String roomId, String targetUid) async {
+    lastError = null;
+    try {
+      await _callable(
+        'sendRoomNudge',
+      ).call({'roomId': roomId, 'targetUid': targetUid});
+      return true;
+    } catch (error) {
+      lastError = _callableMessage(error);
+      return false;
+    }
+  }
+
   Future<bool> _simpleCall(String name, Map<String, dynamic> payload) async {
     submitting = true;
     lastError = null;

@@ -96,13 +96,20 @@ import {
   dailyReminderIsDue,
   dailyReminderMoment,
   dailyNotificationPayload,
+  eveningUnansweredReminderIsDue,
   isAllowedBroadcastRoute,
   normalizeBroadcastAudience,
   selectBroadcastTokens,
   userAllowsNotifications,
   userAllowsRoomActivityNotifications,
+  userAllowsRoomNudges,
   type BroadcastAudience,
 } from "./notifications";
+import {
+  MAX_OUTGOING_ROOM_NUDGES_PER_DAY,
+  roomNudgeBlockReason,
+  type RoomNudgeBlockReason,
+} from "./roomNudges";
 import {
   dailyHabitEmail,
   feedbackEmail,
@@ -1203,6 +1210,201 @@ async function sendDueDailyReminders(now: Date): Promise<{
   };
 }
 
+const EVENING_REMINDER_CLAIM_STALE_MS = 10 * 60 * 1000;
+const RECENT_ROOM_NUDGE_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+async function claimEveningReminder(
+  userRef: DocumentReference,
+  deliveryKey: string,
+  now: Date,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const data = userSnap.data() ?? {};
+    if (data.dailyReminder !== true || data.lastEveningReminderKey === deliveryKey) {
+      return false;
+    }
+    const existingClaimAt = data.eveningReminderClaimAt instanceof Timestamp
+      ? data.eveningReminderClaimAt.toMillis()
+      : 0;
+    if (
+      data.eveningReminderClaimKey === deliveryKey &&
+      existingClaimAt > now.getTime() - EVENING_REMINDER_CLAIM_STALE_MS
+    ) {
+      return false;
+    }
+    tx.set(userRef, {
+      eveningReminderClaimKey: deliveryKey,
+      eveningReminderClaimAt: Timestamp.fromDate(now),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
+
+async function finishEveningReminder(
+  userRef: DocumentReference,
+  deliveryKey: string,
+): Promise<void> {
+  await userRef.set({
+    lastEveningReminderKey: deliveryKey,
+    lastEveningReminderSentAt: FieldValue.serverTimestamp(),
+    eveningReminderClaimKey: FieldValue.delete(),
+    eveningReminderClaimAt: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function releaseEveningReminderClaim(userRef: DocumentReference): Promise<void> {
+  await userRef.set({
+    eveningReminderClaimKey: FieldValue.delete(),
+    eveningReminderClaimAt: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+type UnansweredRoomSummary = { roomId: string; name: string };
+
+async function unansweredRoomsForMember(
+  uid: string,
+): Promise<UnansweredRoomSummary[]> {
+  const membershipsSnap = await db.collection("users").doc(uid)
+    .collection("memberships").get();
+  const roomIds = membershipsSnap.docs
+    .map((doc) => String(doc.data().roomId ?? doc.id))
+    .filter((roomId) => roomId.length > 0)
+    .slice(0, 100);
+  if (roomIds.length === 0) return [];
+
+  const roomRefs = roomIds.map((roomId) => roomRef(roomId));
+  const roomSnaps = await db.getAll(...roomRefs);
+  const eligibleRooms = roomSnaps.filter((roomSnap) => {
+    const room = roomSnap.data() ?? {};
+    return roomSnap.exists &&
+      room.isWorld !== true &&
+      typeof room.currentDailyKey === "string" &&
+      room.currentDailyKey.length > 0;
+  });
+  if (eligibleRooms.length === 0) return [];
+
+  const [memberSnaps, daySnaps] = await Promise.all([
+    db.getAll(...eligibleRooms.map((roomSnap) =>
+      roomSnap.ref.collection("members").doc(uid))),
+    db.getAll(...eligibleRooms.map((roomSnap) =>
+      roomSnap.ref.collection("days").doc(String(roomSnap.data()?.currentDailyKey ?? "")))),
+  ]);
+  return eligibleRooms.flatMap((roomSnap, index) => {
+    const memberSnap = memberSnaps[index];
+    const roomDailyKey = String(roomSnap.data()?.currentDailyKey ?? "");
+    const day = daySnaps[index].data() ?? {};
+    const hasOpenQuestions = day.status === "live" &&
+      Array.isArray(day.questions) &&
+      day.questions.some((question: unknown) =>
+        typeof question === "object" &&
+        question != null &&
+        (question as Record<string, unknown>).pulled !== true);
+    if (
+      !memberSnap.exists ||
+      !hasOpenQuestions ||
+      memberSnap.data()?.lastPlayedDailyKey === roomDailyKey
+    ) {
+      return [];
+    }
+    return [{
+      roomId: roomSnap.id,
+      name: String(roomSnap.data()?.name ?? "your room"),
+    }];
+  });
+}
+
+async function sendDueEveningUnansweredReminders(now: Date): Promise<{
+  matched: number;
+  claimed: number;
+  sent: number;
+  skippedRecentNudge: number;
+  skippedNoToken: number;
+  failed: number;
+}> {
+  let matched = 0;
+  let claimed = 0;
+  let sent = 0;
+  let skippedRecentNudge = 0;
+  let skippedNoToken = 0;
+  let failed = 0;
+
+  let lastDoc: QueryDocumentSnapshot | null = null;
+  while (true) {
+    let query: Query<DocumentData> = db.collection("users")
+      .where("dailyReminder", "==", true)
+      .orderBy(FieldPath.documentId())
+      .limit(1000);
+    if (lastDoc) query = query.startAfter(lastDoc);
+    const usersSnap = await query.get();
+    if (usersSnap.empty) break;
+    lastDoc = usersSnap.docs[usersSnap.docs.length - 1];
+
+    for (const userDoc of usersSnap.docs) {
+      const data = userDoc.data();
+      if (!eveningUnansweredReminderIsDue(data, now)) continue;
+      const moment = dailyReminderMoment(data, now);
+      if (data.lastEveningReminderKey === moment.deliveryKey) continue;
+      const lastNudgeAt = data.lastRoomNudgePushAt instanceof Timestamp
+        ? data.lastRoomNudgePushAt.toMillis()
+        : 0;
+      if (lastNudgeAt > now.getTime() - RECENT_ROOM_NUDGE_WINDOW_MS) {
+        skippedRecentNudge += 1;
+        continue;
+      }
+
+      const unansweredRooms = await unansweredRoomsForMember(userDoc.id);
+      if (unansweredRooms.length === 0) continue;
+      matched += 1;
+      if (!await claimEveningReminder(userDoc.ref, moment.deliveryKey, now)) {
+        continue;
+      }
+      claimed += 1;
+      try {
+        const tokens = await enabledNotificationTokensForUser(userDoc.id);
+        if (tokens.length === 0) {
+          skippedNoToken += 1;
+          await finishEveningReminder(userDoc.ref, moment.deliveryKey);
+          continue;
+        }
+        const oneRoom = unansweredRooms.length === 1;
+        const result = await sendNotificationToTokens(tokens, {
+          title: "Read the World",
+          body: oneRoom
+            ? `You still have today's questions waiting in ${unansweredRooms[0].name}.`
+            : `You still have today's questions waiting in ${unansweredRooms.length} rooms.`,
+          route: oneRoom ? `/rooms/${unansweredRooms[0].roomId}` : "/rooms",
+          type: "evening_unanswered",
+        });
+        if (result.successCount === 0 && result.failureCount > 0) {
+          throw new Error(`All push attempts failed: ${JSON.stringify(result.errorCodes)}`);
+        }
+        sent += 1;
+        await finishEveningReminder(userDoc.ref, moment.deliveryKey);
+      } catch (error) {
+        failed += 1;
+        await releaseEveningReminderClaim(userDoc.ref).catch(() => undefined);
+        logger.warn("Evening unanswered reminder failed", {
+          uid: userDoc.id,
+          error: String(error),
+        });
+      }
+    }
+  }
+
+  return {
+    matched,
+    claimed,
+    sent,
+    skippedRecentNudge,
+    skippedNoToken,
+    failed,
+  };
+}
+
 /**
  * A link shared to a big crowd (e.g. an office of 150) shouldn't storm every
  * existing member with a push each. Above this fan-out we skip the per-join
@@ -2166,6 +2368,7 @@ async function clearUserData(uid: string) {
     categoryStats: await deleteUserSubcollection(uid, "categoryStats"),
     friends: await deleteUserSubcollection(uid, "friends"),
     notificationTokens: await deleteUserSubcollection(uid, "notificationTokens"),
+    roomNudgeDays: await deleteUserSubcollection(uid, "roomNudgeDays"),
     links: shareData.links,
     invitesCreated: shareData.invitesCreated,
     invitesAcceptedUpdated: shareData.invitesAcceptedUpdated,
@@ -2861,8 +3064,15 @@ export const sendDailyNotifications = onSchedule({
   secrets: [postmarkServerToken],
 }, async () => {
   const now = new Date();
-  const result = await sendDueDailyReminders(now);
-  logger.info("Processed local-time daily reminders", { now: now.toISOString(), ...result });
+  const [daily, evening] = await Promise.all([
+    sendDueDailyReminders(now),
+    sendDueEveningUnansweredReminders(now),
+  ]);
+  logger.info("Processed local-time notification schedules", {
+    now: now.toISOString(),
+    daily,
+    evening,
+  });
 });
 
 export const sendRevealReadyNotifications = onSchedule({
@@ -4894,6 +5104,218 @@ export const markRoomRevealSeen = onCall(callableOptions, async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   return { roomId, revealSeenDailyKey: lastClosed };
+});
+
+function roomNudgeAttemptId(senderUid: string, targetUid: string): string {
+  return createHash("sha256").update(`${senderUid}:${targetUid}`).digest("hex");
+}
+
+function roomNudgeError(reason: RoomNudgeBlockReason): HttpsError {
+  switch (reason) {
+  case "self":
+    return new HttpsError("invalid-argument", "You cannot nudge yourself.");
+  case "world":
+    return new HttpsError("failed-precondition", "The World does not support nudges.");
+  case "sender-not-member":
+  case "target-not-member":
+    return new HttpsError("permission-denied", "Both people must still be in this room.");
+  case "already-answered":
+    return new HttpsError("failed-precondition", "This member already answered today.");
+  case "already-nudged":
+    return new HttpsError("already-exists", "You already nudged this member today.");
+  case "daily-limit":
+    return new HttpsError("resource-exhausted", "You have sent five nudges today.");
+  case "target-opted-out":
+    return new HttpsError("failed-precondition", "This member has turned off room nudges.");
+  }
+}
+
+type RoomNudgeState = {
+  roomId: string;
+  roomName: string;
+  dailyKey: string;
+  targetUid: string;
+  targetName: string;
+  nudgeCount: number;
+  alreadyNudged: boolean;
+  outgoingCount: number;
+  blockReason: RoomNudgeBlockReason | null;
+};
+
+async function readRoomNudgeState(
+  senderUid: string,
+  roomId: string,
+  targetUid: string,
+): Promise<RoomNudgeState> {
+  const targetRoomRef = roomRef(roomId);
+  const roomSnap = await targetRoomRef.get();
+  if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+  const room = roomSnap.data() ?? {};
+  const dailyKey = String(room.currentDailyKey ?? "");
+  if (!dailyKey) {
+    throw new HttpsError("failed-precondition", "This room has no open day.");
+  }
+  const dayRef = targetRoomRef.collection("days").doc(dailyKey);
+  const attemptRef = dayRef.collection("nudges")
+    .doc(roomNudgeAttemptId(senderUid, targetUid));
+  const summaryRef = dayRef.collection("nudgeTargets").doc(targetUid);
+  const quotaRef = db.collection("users").doc(senderUid)
+    .collection("roomNudgeDays").doc(dailyKey);
+  const [senderMember, targetMember, targetProfile, attempt, summary, quota] =
+    await Promise.all([
+      targetRoomRef.collection("members").doc(senderUid).get(),
+      targetRoomRef.collection("members").doc(targetUid).get(),
+      db.collection("users").doc(targetUid).get(),
+      attemptRef.get(),
+      summaryRef.get(),
+      quotaRef.get(),
+    ]);
+  const target = targetMember.data() ?? {};
+  const outgoingCount = Number(quota.data()?.outgoingCount ?? 0);
+  const alreadyNudged = attempt.exists;
+  const blockReason = roomNudgeBlockReason({
+    senderUid,
+    targetUid,
+    isWorld: room.isWorld === true,
+    senderIsMember: senderMember.exists,
+    targetIsMember: targetMember.exists,
+    targetAnsweredToday: target.lastPlayedDailyKey === dailyKey,
+    alreadyNudged,
+    outgoingCount,
+    targetAllowsNudges: userAllowsRoomNudges(targetProfile.data() ?? {}),
+  });
+  return {
+    roomId,
+    roomName: String(room.name ?? "Room"),
+    dailyKey,
+    targetUid,
+    targetName: String(target.displayName ?? "Reader"),
+    nudgeCount: Number(summary.data()?.count ?? 0),
+    alreadyNudged,
+    outgoingCount,
+    blockReason,
+  };
+}
+
+export const getRoomNudgeStatus = onCall(callableOptions, async (request) => {
+  const senderUid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const targetUid = assertString(request.data?.targetUid, "targetUid");
+  const state = await readRoomNudgeState(senderUid, roomId, targetUid);
+  return {
+    ...state,
+    canNudge: state.blockReason == null,
+    outgoingRemaining: Math.max(
+      0,
+      MAX_OUTGOING_ROOM_NUDGES_PER_DAY - state.outgoingCount,
+    ),
+  };
+});
+
+export const sendRoomNudge = onCall(callableOptions, async (request) => {
+  const senderUid = requireUid(request.auth);
+  const roomId = assertRoomId(request.data?.roomId);
+  const targetUid = assertString(request.data?.targetUid, "targetUid");
+  const senderName = await displayNameForUid(senderUid);
+  const targetRoomRef = roomRef(roomId);
+
+  const committed = await db.runTransaction(async (tx) => {
+    const roomSnap = await tx.get(targetRoomRef);
+    if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found.");
+    const room = roomSnap.data() ?? {};
+    const dailyKey = String(room.currentDailyKey ?? "");
+    if (!dailyKey) {
+      throw new HttpsError("failed-precondition", "This room has no open day.");
+    }
+    const dayRef = targetRoomRef.collection("days").doc(dailyKey);
+    const attemptRef = dayRef.collection("nudges")
+      .doc(roomNudgeAttemptId(senderUid, targetUid));
+    const summaryRef = dayRef.collection("nudgeTargets").doc(targetUid);
+    const quotaRef = db.collection("users").doc(senderUid)
+      .collection("roomNudgeDays").doc(dailyKey);
+    const targetProfileRef = db.collection("users").doc(targetUid);
+    const [senderMember, targetMember, targetProfile, attempt, summary, quota] =
+      await Promise.all([
+        tx.get(targetRoomRef.collection("members").doc(senderUid)),
+        tx.get(targetRoomRef.collection("members").doc(targetUid)),
+        tx.get(targetProfileRef),
+        tx.get(attemptRef),
+        tx.get(summaryRef),
+        tx.get(quotaRef),
+      ]);
+    const target = targetMember.data() ?? {};
+    const outgoingCount = Number(quota.data()?.outgoingCount ?? 0);
+    const reason = roomNudgeBlockReason({
+      senderUid,
+      targetUid,
+      isWorld: room.isWorld === true,
+      senderIsMember: senderMember.exists,
+      targetIsMember: targetMember.exists,
+      targetAnsweredToday: target.lastPlayedDailyKey === dailyKey,
+      alreadyNudged: attempt.exists,
+      outgoingCount,
+      targetAllowsNudges: userAllowsRoomNudges(targetProfile.data() ?? {}),
+    });
+    if (reason != null) throw roomNudgeError(reason);
+
+    tx.set(attemptRef, {
+      senderUid,
+      targetUid,
+      roomId,
+      dailyKey,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(summaryRef, {
+      targetUid,
+      count: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    tx.set(quotaRef, {
+      dailyKey,
+      outgoingCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return {
+      dailyKey,
+      roomName: String(room.name ?? "Room"),
+      targetName: String(target.displayName ?? "Reader"),
+      nudgeCount: Number(summary.data()?.count ?? 0) + 1,
+    };
+  });
+
+  let delivered = false;
+  const tokens = await enabledNotificationTokensForUser(targetUid);
+  if (tokens.length > 0) {
+    const result = await sendNotificationToTokens(tokens, {
+      title: "Read the World",
+      body: `${senderName} nudged you to answer today's questions in ${committed.roomName}.`,
+      route: `/rooms/${roomId}`,
+      type: "room_nudge",
+    });
+    delivered = result.successCount > 0;
+    if (delivered) {
+      await db.collection("users").doc(targetUid).set({
+        lastRoomNudgePushAt: FieldValue.serverTimestamp(),
+        lastRoomNudgeDailyKey: committed.dailyKey,
+        lastRoomNudgeRoomId: roomId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    logger.info("Processed room nudge push", {
+      roomId,
+      senderUid,
+      targetUid,
+      attempted: result.attempted,
+      succeeded: result.successCount,
+      failed: result.failureCount,
+    });
+  }
+  return {
+    sent: true,
+    delivered,
+    targetName: committed.targetName,
+    nudgeCount: committed.nudgeCount,
+  };
 });
 
 /**

@@ -891,6 +891,21 @@ class _LeaderboardState extends State<_Leaderboard> {
   );
   String? _actionError;
 
+  Future<void> _showNudge(RtwRoomMember member) async {
+    final sent = await showV2Sheet<bool>(
+      context,
+      (_) => _NudgeMemberSheet(
+        rooms: widget.rooms,
+        roomId: widget.roomId,
+        member: member,
+      ),
+    );
+    if (sent != true || !mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Nudge sent')));
+  }
+
   Future<void> _leaveRoom() async {
     final confirmed = await confirmLeaveRoom(
       context,
@@ -1016,32 +1031,13 @@ class _LeaderboardState extends State<_Leaderboard> {
                               style: v2Mono(13, letterSpacing: 0),
                             ),
                           ),
-                          Semantics(
-                            label: answeredToday
-                                ? '${member.displayName} answered today'
-                                : '${member.displayName} has not answered today',
-                            child: Tooltip(
-                              message: answeredToday
-                                  ? 'Answered today'
-                                  : 'Not answered yet',
-                              child: Container(
-                                key: ValueKey(
-                                  answeredToday
-                                      ? 'member-answered-today-${member.uid}'
-                                      : 'member-not-answered-today-${member.uid}',
-                                ),
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: answeredToday
-                                      ? RtwV2Colors.blue
-                                      : const Color(0xFFD8D2C5),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
+                          _MemberAnswerDot(
+                            member: member,
+                            answeredToday: answeredToday,
+                            canNudge:
+                                !answeredToday && member.uid != widget.myUid,
+                            onNudge: () => _showNudge(member),
                           ),
-                          const SizedBox(width: 11),
                           Expanded(
                             child: Text(
                               member.uid == widget.myUid
@@ -1134,6 +1130,209 @@ class _LeaderboardState extends State<_Leaderboard> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MemberAnswerDot extends StatelessWidget {
+  const _MemberAnswerDot({
+    required this.member,
+    required this.answeredToday,
+    required this.canNudge,
+    required this.onNudge,
+  });
+
+  final RtwRoomMember member;
+  final bool answeredToday;
+  final bool canNudge;
+  final VoidCallback onNudge;
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = Container(
+      key: ValueKey(
+        answeredToday
+            ? 'member-answered-today-${member.uid}'
+            : 'member-not-answered-today-${member.uid}',
+      ),
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: answeredToday ? RtwV2Colors.blue : const Color(0xFFD8D2C5),
+        shape: BoxShape.circle,
+      ),
+    );
+    return Semantics(
+      button: canNudge,
+      label: answeredToday
+          ? '${member.displayName} answered today'
+          : canNudge
+          ? 'Nudge ${member.displayName}. They have not answered today.'
+          : '${member.displayName} has not answered today',
+      child: Tooltip(
+        message: answeredToday
+            ? 'Answered today'
+            : canNudge
+            ? 'Nudge ${member.displayName}'
+            : 'Not answered yet',
+        child: InkResponse(
+          onTap: canNudge ? onNudge : null,
+          radius: 22,
+          child: SizedBox(width: 28, height: 40, child: Center(child: dot)),
+        ),
+      ),
+    );
+  }
+}
+
+class _NudgeMemberSheet extends StatefulWidget {
+  const _NudgeMemberSheet({
+    required this.rooms,
+    required this.roomId,
+    required this.member,
+  });
+
+  final RoomsController rooms;
+  final String roomId;
+  final RtwRoomMember member;
+
+  @override
+  State<_NudgeMemberSheet> createState() => _NudgeMemberSheetState();
+}
+
+class _NudgeMemberSheetState extends State<_NudgeMemberSheet> {
+  RoomNudgeStatus? status;
+  bool loading = true;
+  bool sending = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final next = await widget.rooms.getRoomNudgeStatus(
+      widget.roomId,
+      widget.member.uid,
+    );
+    if (!mounted) return;
+    setState(() {
+      status = next;
+      loading = false;
+      error = next == null
+          ? widget.rooms.lastError ?? 'Could not check this nudge.'
+          : null;
+    });
+  }
+
+  Future<void> _send() async {
+    if (sending || status?.canNudge != true) return;
+    setState(() {
+      sending = true;
+      error = null;
+    });
+    final sent = await widget.rooms.sendRoomNudge(
+      widget.roomId,
+      widget.member.uid,
+    );
+    if (!mounted) return;
+    if (sent) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      sending = false;
+      error = widget.rooms.lastError ?? 'Could not send this nudge.';
+    });
+  }
+
+  String? get _blockedMessage {
+    final current = status;
+    if (current == null) return null;
+    if (current.alreadyNudged || current.blockReason == 'already-nudged') {
+      return 'You nudged ${current.targetName} today';
+    }
+    return switch (current.blockReason) {
+      'already-answered' => '${current.targetName} already answered today.',
+      'daily-limit' => 'You’ve sent five nudges today.',
+      'target-opted-out' => '${current.targetName} has turned off room nudges.',
+      'target-not-member' => '${current.targetName} is no longer in this room.',
+      'sender-not-member' => 'You are no longer in this room.',
+      'world' => 'The World does not support nudges.',
+      'self' => 'You can’t nudge yourself.',
+      _ => null,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = status;
+    final name = current?.targetName ?? widget.member.displayName;
+    final count = current?.nudgeCount ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const V2Eyebrow('Room nudge', size: 11, letterSpacing: 1.6),
+        const SizedBox(height: 8),
+        Text('Nudge $name?', style: v2Serif(29)),
+        const SizedBox(height: 10),
+        Text(
+          '$name hasn’t answered today.',
+          style: v2Sans(14, color: RtwV2Colors.subText, height: 1.5),
+        ),
+        if (loading) ...[
+          const SizedBox(height: 18),
+          const Center(child: CircularProgressIndicator()),
+        ] else if (current != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            count == 1
+                ? '1 person has nudged $name today'
+                : '$count people have nudged $name today',
+            style: v2Sans(13, color: RtwV2Colors.muted),
+          ),
+          if (_blockedMessage != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _blockedMessage!,
+              style: v2Sans(
+                13,
+                color: RtwV2Colors.clay,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          V2Button(
+            sending ? 'Sending…' : 'Send nudge',
+            key: const ValueKey('send-room-nudge'),
+            onPressed: current.canNudge && !sending ? _send : null,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            radius: 16,
+          ),
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 12),
+          Text(error!, style: v2Sans(13, color: RtwV2Colors.danger)),
+        ],
+        const SizedBox(height: 8),
+        Center(
+          child: TextButton(
+            onPressed: sending ? null : () => Navigator.of(context).pop(false),
+            child: Text(
+              'Not now',
+              style: v2Sans(
+                14,
+                color: RtwV2Colors.subText,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

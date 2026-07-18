@@ -104,6 +104,35 @@ class RtwRoomMember {
   bool get isCreator => role == 'creator';
 }
 
+class RoomNudgeStatus {
+  const RoomNudgeStatus({
+    required this.targetName,
+    required this.nudgeCount,
+    required this.alreadyNudged,
+    required this.canNudge,
+    required this.outgoingRemaining,
+    this.blockReason,
+  });
+
+  final String targetName;
+  final int nudgeCount;
+  final bool alreadyNudged;
+  final bool canNudge;
+  final int outgoingRemaining;
+  final String? blockReason;
+
+  factory RoomNudgeStatus.fromData(Map<String, dynamic> data) {
+    return RoomNudgeStatus(
+      targetName: data['targetName']?.toString() ?? 'Reader',
+      nudgeCount: (data['nudgeCount'] as num?)?.toInt() ?? 0,
+      alreadyNudged: data['alreadyNudged'] == true,
+      canNudge: data['canNudge'] == true,
+      outgoingRemaining: (data['outgoingRemaining'] as num?)?.toInt() ?? 0,
+      blockReason: data['blockReason']?.toString(),
+    );
+  }
+}
+
 class RoomDayQuestion {
   const RoomDayQuestion({
     required this.qid,
