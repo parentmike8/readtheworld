@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'main.dart';
 import 'theme/tokens.dart';
+import 'v2/deferred_invite.dart';
 import 'widgets.dart';
 
 final Uri _marketingSiteUri = Uri.parse('https://readtheworld.today');
@@ -50,6 +51,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool obscure = true;
   bool authBusy = false;
   bool handoffFailed = false;
+  bool deferredInviteAvailable = false;
+  bool deferredInviteBusy = false;
+  bool deferredInviteInvalid = false;
+  String? deferredInviteCode;
   String? handoffCode;
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
@@ -78,6 +83,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       handoffCode = nextHandoffCode;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _redeemHandoff();
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_checkDeferredInvite());
       });
     }
   }
@@ -144,6 +153,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       handoffFailed = route == null;
     });
     if (route != null) context.go(route);
+  }
+
+  Future<void> _checkDeferredInvite() async {
+    final check = await checkDeferredInvite();
+    if (!mounted || !check.available) return;
+    final code = check.code;
+    if (code != null) {
+      ref.read(rtwControllerProvider).stashPendingInviteCode(code);
+    }
+    setState(() {
+      deferredInviteAvailable = true;
+      deferredInviteCode = code;
+    });
+  }
+
+  Future<void> _pasteDeferredInvite() async {
+    if (deferredInviteBusy) return;
+    setState(() {
+      deferredInviteBusy = true;
+      deferredInviteInvalid = false;
+    });
+    final code = await readDeferredInvite();
+    if (!mounted) return;
+    if (code == null) {
+      setState(() {
+        deferredInviteBusy = false;
+        deferredInviteInvalid = true;
+      });
+      return;
+    }
+    ref.read(rtwControllerProvider).stashPendingInviteCode(code);
+    setState(() {
+      deferredInviteBusy = false;
+      deferredInviteCode = code;
+    });
   }
 
   void _showSignIn() {
@@ -216,6 +260,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         onForgotPassword: () => ref
             .read(rtwControllerProvider)
             .sendPasswordReset(emailController.text),
+        invitePrompt: deferredInviteAvailable
+            ? _DeferredInvitePrompt(
+                saved: deferredInviteCode != null,
+                busy: deferredInviteBusy,
+                invalid: deferredInviteInvalid,
+                onPaste: () => unawaited(_pasteDeferredInvite()),
+              )
+            : null,
       );
     }
 
@@ -597,6 +649,7 @@ class _AuthForm extends StatelessWidget {
     required this.onGoogle,
     required this.onApple,
     required this.onForgotPassword,
+    this.invitePrompt,
     this.mobile = false,
   });
 
@@ -621,6 +674,7 @@ class _AuthForm extends StatelessWidget {
   final VoidCallback onGoogle;
   final VoidCallback onApple;
   final VoidCallback onForgotPassword;
+  final Widget? invitePrompt;
   final bool mobile;
 
   @override
@@ -652,6 +706,10 @@ class _AuthForm extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+        if (invitePrompt != null) ...[
+          const SizedBox(height: 18),
+          invitePrompt!,
+        ],
         const SizedBox(height: 24),
         _AuthMethodTabs(
           phoneMode: phoneMode,
@@ -849,6 +907,73 @@ class _AuthForm extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DeferredInvitePrompt extends StatelessWidget {
+  const _DeferredInvitePrompt({
+    required this.saved,
+    required this.busy,
+    required this.invalid,
+    required this.onPaste,
+  });
+
+  final bool saved;
+  final bool busy;
+  final bool invalid;
+  final VoidCallback onPaste;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: RtwColors.blue.withValues(alpha: 0.08),
+        border: Border.all(color: RtwColors.blue.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            saved ? 'Room invite saved' : 'Finish your room invite',
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+              color: RtwColors.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            saved
+                ? 'Sign in or create an account. We’ll take you to the room next.'
+                : 'Paste the invite you opened before installing the app.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium!.copyWith(fontSize: 13, height: 1.4),
+          ),
+          if (!saved) ...[
+            const SizedBox(height: 9),
+            TextButton(
+              onPressed: busy ? null : onPaste,
+              style: _authTextButtonStyle(),
+              child: Text(busy ? 'Checking invite…' : 'Paste invite'),
+            ),
+          ],
+          if (invalid) ...[
+            const SizedBox(height: 5),
+            Text(
+              'That copied link is not a Read the World room invite.',
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                color: RtwColors.clay,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -100,6 +100,7 @@ import {
   normalizeBroadcastAudience,
   selectBroadcastTokens,
   userAllowsNotifications,
+  userAllowsRoomActivityNotifications,
   type BroadcastAudience,
 } from "./notifications";
 import {
@@ -1244,10 +1245,15 @@ async function notifyMembersOfJoin(input: {
     answeredUids = new Set(answersSnap.docs.map((doc) => doc.id));
   }
 
+  let attempted = 0;
+  let succeeded = 0;
+  let failed = 0;
+  let withoutToken = 0;
+
   for (const uid of recipientUids) {
     const userSnap = await db.collection("users").doc(uid).get();
     const profile = userSnap.data() ?? {};
-    if (profile.dailyReminder === false) continue;
+    if (!userAllowsRoomActivityNotifications(profile)) continue;
 
     const canUpdate = answeredUids.has(uid);
     const payload = {
@@ -1263,9 +1269,13 @@ async function notifyMembersOfJoin(input: {
 
     const tokens = await enabledNotificationTokensForUser(uid);
     if (tokens.length > 0) {
-      await sendNotificationToTokens(tokens, payload);
+      const result = await sendNotificationToTokens(tokens, payload);
+      attempted += result.attempted;
+      succeeded += result.successCount;
+      failed += result.failureCount;
       continue;
     }
+    withoutToken += 1;
 
     // Email fallback keeps the prior creator-only behavior for push-less users.
     if (uid !== input.creatorUid) continue;
@@ -1279,6 +1289,18 @@ async function notifyMembersOfJoin(input: {
       roomName: input.roomName,
       roomUrl: `${APP_URL}/rooms/${input.roomId}`,
     }));
+  }
+
+  logger.info("Processed room join notifications", {
+    roomId: input.roomId,
+    recipients: recipientUids.length,
+    attempted,
+    succeeded,
+    failed,
+    withoutToken,
+  });
+  if (attempted > 0 && succeeded === 0 && failed > 0) {
+    throw new Error(`All ${attempted} room join push attempts failed.`);
   }
 }
 

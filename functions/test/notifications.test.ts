@@ -8,6 +8,7 @@ import {
   notificationAudienceMatchesUser,
   selectBroadcastTokens,
   userAllowsNotifications,
+  userAllowsRoomActivityNotifications,
 } from "../src/notifications";
 
 describe("Daily notification payloads", () => {
@@ -130,6 +131,20 @@ describe("Admin notification targeting", () => {
       "2026-06-28",
       "2026-06-21",
     )).toBe(true);
+  });
+});
+
+describe("Room activity notification targeting", () => {
+  it("does not confuse the daily reminder preference with room activity", () => {
+    expect(userAllowsRoomActivityNotifications({ dailyReminder: false })).toBe(true);
+    expect(userAllowsRoomActivityNotifications({ dailyReminder: true })).toBe(true);
+    expect(userAllowsRoomActivityNotifications({})).toBe(true);
+  });
+
+  it("respects a dedicated room activity opt-out", () => {
+    expect(userAllowsRoomActivityNotifications({
+      roomActivityNotifications: false,
+    })).toBe(false);
   });
 });
 

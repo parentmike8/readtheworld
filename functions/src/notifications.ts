@@ -99,6 +99,17 @@ export function userAllowsNotifications(user: Record<string, unknown>): boolean 
   return user.dailyReminder !== false;
 }
 
+/**
+ * Room activity is transactional, not the optional daily habit reminder.
+ * Keep it enabled for any device token the reader has authorized unless they
+ * explicitly opt out of room activity in a future preference surface.
+ */
+export function userAllowsRoomActivityNotifications(
+  user: Record<string, unknown>,
+): boolean {
+  return user.roomActivityNotifications !== false;
+}
+
 export function normalizeDailyReminderMinutes(value: unknown): number {
   const minutes = Number(value);
   if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {

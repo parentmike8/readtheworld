@@ -388,7 +388,10 @@ class RtwController extends ChangeNotifier {
         dailyReminderTimeZone =
             _nonEmptyString(data['dailyReminderTimeZone']) ??
             dailyReminderTimeZone;
-        if (dailyReminder && !_notificationTokenSynced) {
+        // An authorized token also powers transactional room activity alerts.
+        // The daily reminder preference controls only the scheduled habit
+        // reminder, so sync the token even when that separate toggle is off.
+        if (!_notificationTokenSynced) {
           _notificationTokenSynced = true;
           unawaited(_syncNotificationTokenIfAuthorized());
         }
@@ -1692,7 +1695,6 @@ class RtwController extends ChangeNotifier {
     if (!next) {
       dailyReminder = false;
       notifyListeners();
-      await _setCurrentNotificationTokenEnabled(false);
       await _writeUserProfile({'dailyReminder': false});
       unawaited(_logEvent('notification_opt_out'));
       return;
@@ -1754,11 +1756,11 @@ class RtwController extends ChangeNotifier {
     }
   }
 
-  /// Startup/auth-ready re-registration: when the reminder is on and the OS
-  /// permission is already granted, re-write the current token so rotation
-  /// between launches never orphans the reminder. Never prompts or changes
-  /// the account-level reminder time zone. A different device should not
-  /// silently move the shared reminder just because it opened the app.
+  /// Startup/auth-ready re-registration: when OS permission is already
+  /// granted, re-write the current token so rotation between launches never
+  /// orphans room activity alerts or an enabled daily reminder. Never prompts
+  /// or changes the account-level reminder time zone. A different device
+  /// should not silently move the shared reminder just because it opened.
   Future<void> _syncNotificationTokenIfAuthorized() async {
     if (!firebaseReady) return;
     try {
@@ -1840,19 +1842,6 @@ class RtwController extends ChangeNotifier {
         'minutes_after_midnight': normalized,
       }),
     );
-  }
-
-  Future<void> _setCurrentNotificationTokenEnabled(bool enabled) async {
-    if (!firebaseReady) return;
-    try {
-      const webVapidKey = String.fromEnvironment('RTW_WEB_PUSH_VAPID_KEY');
-      final token = await FirebaseMessaging.instance.getToken(
-        vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
-      );
-      await _writeNotificationToken(token: token, enabled: enabled);
-    } catch (_) {
-      // Opt-out state is also stored on the user profile; token cleanup is best-effort.
-    }
   }
 
   Future<void> _writeNotificationToken({

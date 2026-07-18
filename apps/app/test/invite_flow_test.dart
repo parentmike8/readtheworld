@@ -7,6 +7,7 @@ import 'package:read_the_world/app_settings.dart';
 import 'package:read_the_world/app_state.dart';
 import 'package:read_the_world/main.dart';
 import 'package:read_the_world/screens.dart';
+import 'package:read_the_world/v2/deferred_invite.dart';
 import 'package:read_the_world/v2/rooms_controller.dart';
 import 'package:read_the_world/v2/screens/join_screen.dart';
 import 'package:read_the_world/v2/screens/profile_screen.dart';
@@ -93,6 +94,30 @@ void main() {
 
       expect(router.routeInformationProvider.value.uri.path, '/join/ROOM42');
       expect(profile.pendingInviteCode, isNull);
+    });
+  });
+
+  group('Deferred invite parsing', () {
+    test('accepts short links, app join links, and bare room codes', () {
+      expect(
+        roomInviteCodeFromDeferredText('https://rtw.codes/studio-7f2'),
+        'STUDIO-7F2',
+      );
+      expect(
+        roomInviteCodeFromDeferredText(
+          'https://app.readtheworld.today/join/room42',
+        ),
+        'ROOM42',
+      );
+      expect(roomInviteCodeFromDeferredText(' room42 '), 'ROOM42');
+    });
+
+    test('rejects unrelated clipboard text and URLs', () {
+      expect(roomInviteCodeFromDeferredText('hello world'), isNull);
+      expect(
+        roomInviteCodeFromDeferredText('https://example.com/room42'),
+        isNull,
+      );
     });
   });
 

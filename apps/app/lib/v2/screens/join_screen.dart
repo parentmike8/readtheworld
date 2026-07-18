@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../main.dart';
+import '../deferred_invite.dart';
 import '../models_v2.dart';
 import '../sheets/room_sheets.dart' show showMatureConfirmSheet;
 import '../tokens_v2.dart';
@@ -48,6 +52,21 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
   bool busy = false;
   bool needsAuth = false;
   String? error;
+
+  bool get _canDownloadApp =>
+      kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
+
+  Uri get _storeUri {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return Uri.https('play.google.com', '/store/apps/details', {
+        'id': 'today.readtheworld.app',
+        'referrer': 'invite=${widget.code.toUpperCase()}',
+      });
+    }
+    return Uri.parse('https://apps.apple.com/app/id6785243794');
+  }
 
   @override
   void initState() {
@@ -114,7 +133,34 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
       });
       return;
     }
+    unawaited(markDeferredInviteConsumed(widget.code));
     context.go('/rooms/$roomId');
+  }
+
+  Future<void> _downloadApp() async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await Clipboard.setData(
+        ClipboardData(text: 'https://rtw.codes/${widget.code.toUpperCase()}'),
+      );
+      final opened = await launchUrl(
+        _storeUri,
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_self',
+      );
+      if (!opened) throw StateError('The app store could not be opened.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        error =
+            'Could not open the app store. Keep invite code ${widget.code.toUpperCase()} handy.';
+      });
+    }
   }
 
   @override
@@ -229,7 +275,36 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 ),
               ),
             ],
-            if (error == null && needsAuth) ...[
+            if (error == null && needsAuth && _canDownloadApp) ...[
+              const SizedBox(height: 18),
+              V2Button(
+                busy ? 'Opening app store…' : 'Get the app →',
+                onPressed: busy ? null : () => unawaited(_downloadApp()),
+                padding: const EdgeInsets.symmetric(vertical: 17),
+                radius: 16,
+                fontSize: 16,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your invite will be saved so you can finish joining after installation.',
+                textAlign: TextAlign.center,
+                style: v2Sans(12.5, color: RtwV2Colors.muted, height: 1.4),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: TextButton(
+                  onPressed: busy ? null : () => context.go('/auth'),
+                  child: Text(
+                    'Continue on the web',
+                    style: v2Sans(
+                      14,
+                      color: RtwV2Colors.subText,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ] else if (error == null && needsAuth) ...[
               const SizedBox(height: 18),
               V2Button(
                 'Sign in to join →',
@@ -249,7 +324,10 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 onPressed: busy
                     ? null
                     : alreadyMember
-                    ? () => context.go('/rooms/${preview!['roomId']}')
+                    ? () {
+                        unawaited(markDeferredInviteConsumed(widget.code));
+                        context.go('/rooms/${preview!['roomId']}');
+                      }
                     : _join,
                 padding: const EdgeInsets.symmetric(vertical: 17),
                 radius: 16,
@@ -265,6 +343,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                     // doesn't detour through a room they passed on.
                     ref.read(rtwControllerProvider).consumePendingInviteCode();
                   }
+                  unawaited(markDeferredInviteConsumed(widget.code));
                   context.go('/rooms');
                 },
                 child: Text(

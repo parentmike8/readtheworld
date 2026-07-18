@@ -24,6 +24,7 @@ import 'app_state.dart';
 import 'v2/rooms_controller.dart';
 import 'firebase_options.dart';
 import 'screens.dart';
+import 'v2/deferred_invite.dart';
 import 'v2/screens/join_screen.dart';
 import 'v2/screens/onboarding_screen.dart';
 import 'v2/screens/party_screen.dart';
@@ -161,7 +162,9 @@ Future<AppSettings> _configureFirebaseServices() async {
     // switches and flag flips still apply to this session on a healthy
     // connection. If it misses the window it keeps running for next launch.
     await remoteConfig.activate();
-    final freshFetch = remoteConfig.fetchAndActivate().catchError((Object error) {
+    final freshFetch = remoteConfig.fetchAndActivate().catchError((
+      Object error,
+    ) {
       debugPrint('Firebase Remote Config fetch failed: $error');
       return false;
     });
@@ -217,8 +220,12 @@ final rtwControllerProvider = ChangeNotifierProvider<RtwController>((ref) {
 /// v2 rooms state (docs/v2-implementation-spec.md). Lives alongside the v1
 /// controller during the rebuild; v1 retires when the v2 routes take over.
 final roomsControllerProvider = ChangeNotifierProvider<RoomsController>((ref) {
-  final controller = RoomsController(firebaseReady: ref.watch(firebaseReadyProvider));
-  controller.worldPredictionsUnlocked = ref.watch(appSettingsProvider).worldRoomUnlocked;
+  final controller = RoomsController(
+    firebaseReady: ref.watch(firebaseReadyProvider),
+  );
+  controller.worldPredictionsUnlocked = ref
+      .watch(appSettingsProvider)
+      .worldRoomUnlocked;
   return controller;
 });
 
@@ -295,10 +302,7 @@ class _RtwCupertinoPage extends Page<void> {
 
   @override
   Route<void> createRoute(BuildContext context) {
-    return CupertinoPageRoute<void>(
-      settings: this,
-      builder: (_) => child,
-    );
+    return CupertinoPageRoute<void>(settings: this, builder: (_) => child);
   }
 }
 
@@ -344,8 +348,9 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       // Anonymous sessions never count as signed in — the app has no anonymous
       // flow, so an anonymous user is always a stale/leftover session and must
       // be sent back to auth to sign in with a real account [Mike].
-      final currentUser =
-          firebaseReady ? FirebaseAuth.instance.currentUser : null;
+      final currentUser = firebaseReady
+          ? FirebaseAuth.instance.currentUser
+          : null;
       final signedOut =
           firebaseReady && (currentUser == null || currentUser.isAnonymous);
       final path = state.uri.path;
@@ -366,7 +371,8 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       // First run: the default tabs hand off to the intro demo. Deep links
       // (join codes, room links, auth) stay untouched.
       const gatedTabs = {'/today', '/rooms', '/party'};
-      if (gatedTabs.contains(state.uri.path) && roomsController.needsOnboarding) {
+      if (gatedTabs.contains(state.uri.path) &&
+          roomsController.needsOnboarding) {
         return '/onboarding';
       }
       // A join link that arrived signed out resumes once the reader is signed
@@ -404,7 +410,8 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
       _appRoute(
         '/reveal/:questionId',
         (_, state) => ShortLinkScreen(
-          code: state.uri.queryParameters['code'] ??
+          code:
+              state.uri.queryParameters['code'] ??
               state.pathParameters['questionId'] ??
               '',
           unsupported: true,
@@ -457,7 +464,11 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         (_, _) => const WorldLeaderboardScreen(),
         mobileSlide: true,
       ),
-      _appRoute('/profile', (_, _) => const ProfileScreenV2(), mobileSlide: true),
+      _appRoute(
+        '/profile',
+        (_, _) => const ProfileScreenV2(),
+        mobileSlide: true,
+      ),
       _appRoute(
         '/join/:code',
         (_, state) => JoinRoomScreen(code: state.pathParameters['code'] ?? ''),
@@ -482,13 +493,16 @@ class ReadTheWorldApp extends ConsumerStatefulWidget {
 class _ReadTheWorldAppState extends ConsumerState<ReadTheWorldApp> {
   StreamSubscription<RemoteMessage>? _notificationOpenSub;
   bool _notificationRoutingStarted = false;
+  bool _deferredInviteCheckStarted = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _startNotificationRouting(ref.read(rtwRouterProvider));
+      final router = ref.read(rtwRouterProvider);
+      _startNotificationRouting(router);
+      unawaited(_resumeDeferredInviteForSignedInUser(router));
     });
   }
 
@@ -527,6 +541,28 @@ class _ReadTheWorldAppState extends ConsumerState<ReadTheWorldApp> {
     final route = _notificationRouteFromData(message.data);
     if (route == null) return;
     router.go(route);
+  }
+
+  Future<void> _resumeDeferredInviteForSignedInUser(GoRouter router) async {
+    if (_deferredInviteCheckStarted ||
+        kIsWeb ||
+        !ref.read(firebaseReadyProvider)) {
+      return;
+    }
+    _deferredInviteCheckStarted = true;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) {
+      // AuthScreen owns the signed-out prompt and preserves the invite across
+      // account creation and onboarding.
+      return;
+    }
+    final check = await checkDeferredInvite();
+    if (!mounted || !check.available) return;
+    // Android supplies the code through Play Install Referrer. On iOS this
+    // read presents the operating system's paste permission prompt.
+    final code = check.code ?? await readDeferredInvite();
+    if (!mounted || code == null) return;
+    router.go('/join/$code');
   }
 
   @override

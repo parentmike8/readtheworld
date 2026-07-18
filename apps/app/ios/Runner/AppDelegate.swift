@@ -7,6 +7,7 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var pushRegistrationChannel: FlutterMethodChannel?
   private var reviewEnvironmentChannel: FlutterMethodChannel?
+  private var deferredInviteChannel: FlutterMethodChannel?
   private var lastPushRegistrationError: String?
   private var lastPushRegistrationSucceededAt: TimeInterval?
 
@@ -49,6 +50,49 @@ import UIKit
       }
       self.resolveTestFlightEnvironment(flutterResult)
     }
+
+    let inviteChannel = FlutterMethodChannel(
+      name: "today.readtheworld.app/deferred_invite",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    deferredInviteChannel = inviteChannel
+    inviteChannel.setMethodCallHandler { call, flutterResult in
+      switch call.method {
+      case "hasInvite":
+        self.hasProbableInvite(flutterResult)
+      case "readClipboardInvite":
+        let pasteboard = UIPasteboard.general
+        flutterResult(pasteboard.url?.absoluteString ?? pasteboard.string)
+      case "markConsumed":
+        let arguments = call.arguments as? [String: Any]
+        let code = (arguments?["code"] as? String)?.uppercased() ?? ""
+        let pasteboard = UIPasteboard.general
+        let value = (pasteboard.url?.absoluteString ?? pasteboard.string ?? "").uppercased()
+        if !code.isEmpty && value.contains(code) {
+          pasteboard.items = []
+        }
+        flutterResult(nil)
+      default:
+        flutterResult(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func hasProbableInvite(_ flutterResult: @escaping FlutterResult) {
+    if #available(iOS 15.0, *) {
+      UIPasteboard.general.detectPatterns(for: [.probableWebURL]) { result in
+        DispatchQueue.main.async {
+          switch result {
+          case .success(let patterns):
+            flutterResult(patterns.contains(.probableWebURL))
+          case .failure:
+            flutterResult(false)
+          }
+        }
+      }
+      return
+    }
+    flutterResult(UIPasteboard.general.hasURLs)
   }
 
   private func resolveTestFlightEnvironment(_ flutterResult: @escaping FlutterResult) {
