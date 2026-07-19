@@ -21,6 +21,7 @@ import 'package:read_the_world/v2/screens/party_screen.dart';
 import 'package:read_the_world/v2/screens/play_surface.dart';
 import 'package:read_the_world/v2/screens/profile_screen.dart';
 import 'package:read_the_world/v2/screens/room_detail.dart';
+import 'package:read_the_world/v2/screens/room_reveal.dart';
 import 'package:read_the_world/v2/screens/rooms_home.dart';
 import 'package:read_the_world/v2/sheets/room_sheets.dart';
 import 'package:read_the_world/v2/tokens_v2.dart';
@@ -1049,6 +1050,144 @@ void main() {
         appSettingsProvider.overrideWithValue(AppSettings.defaults),
       ],
       child: const ReadTheWorldApp(),
+    );
+
+    test('room reveal stagger always reaches the exact final result', () {
+      expect(roomRevealRowProgress(0, 0), 0);
+      expect(roomRevealRowProgress(0.62, 2), 0);
+      expect(roomRevealRowProgress(1, 0), 1);
+      expect(roomRevealRowProgress(1, 1), 1);
+      expect(roomRevealRowProgress(1, 2), 1);
+    });
+
+    testWidgets(
+      'room reveal is immersive and a 100 percent result fills every row',
+      (tester) async {
+        // Keep the test under the 820 px mobile-shell breakpoint while giving
+        // Flutter's deterministic test font enough width to avoid false text
+        // overflows that do not occur with the bundled production fonts.
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        const questions = [
+          RoomDayQuestion(
+            qid: 'q1',
+            prompt: 'First prompt?',
+            optA: 'Yes',
+            optB: 'No',
+            tag: 'Social',
+            shape: 'TASTE',
+            custom: false,
+          ),
+          RoomDayQuestion(
+            qid: 'q2',
+            prompt: 'Second prompt?',
+            optA: 'Yes',
+            optB: 'No',
+            tag: 'Social',
+            shape: 'TASTE',
+            custom: false,
+          ),
+          RoomDayQuestion(
+            qid: 'q3',
+            prompt: 'Third prompt?',
+            optA: 'Yes',
+            optB: 'No',
+            tag: 'Social',
+            shape: 'TASTE',
+            custom: false,
+          ),
+        ];
+        const revealDay = RoomDay(
+          dailyKey: '2026-07-18',
+          status: 'closed',
+          questions: questions,
+          results: [
+            RoomDayQuestionResult(
+              qid: 'q1',
+              answers: 2,
+              aCount: 2,
+              bCount: 0,
+              aPct: 100,
+            ),
+            RoomDayQuestionResult(
+              qid: 'q2',
+              answers: 2,
+              aCount: 2,
+              bCount: 0,
+              aPct: 100,
+            ),
+            RoomDayQuestionResult(
+              qid: 'q3',
+              answers: 2,
+              aCount: 2,
+              bCount: 0,
+              aPct: 100,
+            ),
+          ],
+        );
+        const answer = RoomAnswer(
+          picks: [
+            RoomPick(qid: 'q1', side: 'a', prediction: 50),
+            RoomPick(qid: 'q2', side: 'a', prediction: 50),
+            RoomPick(qid: 'q3', side: 'a', prediction: 50),
+          ],
+          answerOnly: false,
+        );
+        final binding = _binding(
+          id: 'family',
+          name: 'Family',
+          lastClosedDailyKey: revealDay.dailyKey,
+        );
+        final rooms = _TestRoomsController()
+          ..testReveal = const RoomRevealData(
+            dailyKey: '2026-07-18',
+            day: revealDay,
+            myAnswer: answer,
+          )
+          ..loadingRooms = false;
+        final container = ProviderContainer(
+          overrides: [
+            firebaseReadyProvider.overrideWithValue(false),
+            appSettingsProvider.overrideWithValue(AppSettings.defaults),
+            roomsControllerProvider.overrideWith(
+              (_) => rooms,
+              disposeNotifier: false,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const ReadTheWorldApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(V2BottomNav), findsOneWidget);
+
+        // Add the room only after the initial shell has rendered so this test
+        // remains focused on the reveal route rather than Today intro cards.
+        rooms.bindings['family'] = binding;
+        rooms.roomOrder = ['family'];
+        container.read(rtwRouterProvider).go('/rooms/family/reveal');
+        await tester.pumpAndSettle();
+
+        expect(find.byType(V2BottomNav), findsNothing);
+        expect(find.text('Room 100%'), findsNWidgets(3));
+        for (final question in questions) {
+          final track = tester.getSize(
+            find.byKey(ValueKey('room-reveal-track-${question.qid}')),
+          );
+          final fill = tester.getSize(
+            find.byKey(ValueKey('room-reveal-fill-${question.qid}')),
+          );
+          expect(fill.width, closeTo(track.width, 0.01));
+        }
+      },
     );
 
     testWidgets('today shows the caught-up state with no rooms', (

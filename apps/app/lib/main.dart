@@ -432,6 +432,17 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
         ),
         mobileSlide: true,
       ),
+      // The room reveal is an immersive, full-screen result. Keep it above
+      // the authenticated shell so the persistent bottom navigation does not
+      // remain mounted beneath the dark reveal surface.
+      _appRoute(
+        '/rooms/:roomId/reveal',
+        (_, state) => RoomRevealScreen(
+          roomId: state.pathParameters['roomId'] ?? '',
+          fromToday: state.uri.queryParameters['from'] == 'today',
+        ),
+        mainFade: true,
+      ),
       // Authenticated routes share one mobile navigation shell. Pages still
       // own their surfaces, while the tab bar is mounted once outside the
       // nested Navigator so it never participates in page transitions.
@@ -466,14 +477,6 @@ final rtwRouterProvider = Provider<GoRouter>((ref) {
             (_, state) =>
                 RoomHistoryScreen(roomId: state.pathParameters['roomId'] ?? ''),
             mobileSlide: true,
-          ),
-          _appRoute(
-            '/rooms/:roomId/reveal',
-            (_, state) => RoomRevealScreen(
-              roomId: state.pathParameters['roomId'] ?? '',
-              fromToday: state.uri.queryParameters['from'] == 'today',
-            ),
-            mainFade: true,
           ),
           _appRoute('/today/play', (_, _) => const RoomPlayScreen()),
           _appRoute(

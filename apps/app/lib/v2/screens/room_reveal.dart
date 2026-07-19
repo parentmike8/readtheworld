@@ -11,6 +11,22 @@ import '../tokens_v2.dart';
 import '../widgets_v2.dart';
 import 'play_surface.dart' show revealLabelFor;
 
+/// Maps the shared reveal timeline onto one question row.
+///
+/// Rows retain the prototype's stagger and nominal 400 ms fill window. When a
+/// later row has less timeline remaining, its window is shortened so every
+/// result still reaches its exact final percentage when the reveal completes.
+double roomRevealRowProgress(double timeline, int index) {
+  assert(index >= 0);
+  final normalized = timeline.clamp(0.0, 1.0).toDouble();
+  final start = 0.35 + index * 0.14;
+  if (normalized <= start) return 0;
+  final remaining = 1.0 - start;
+  if (remaining <= 0) return normalized >= 1 ? 1 : 0;
+  final duration = remaining < 0.4 ? remaining : 0.4;
+  return ((normalized - start) / duration).clamp(0.0, 1.0).toDouble();
+}
+
 /// ROOM REVEAL — one-time animated score reveal on first open after close
 /// (prototype lines 114-151; 1500ms ease-out-cubic, staggered rows).
 class RoomRevealScreen extends ConsumerStatefulWidget {
@@ -231,11 +247,7 @@ class _RoomRevealScreenState extends ConsumerState<RoomRevealScreen>
                           question: question,
                           day: data.day,
                           answer: data.myAnswer,
-                          // Stagger: local = clamp((t - 0.35 - i*0.14) / 0.4, 0, 1)
-                          local: ((t - 0.35 - index * 0.14) / 0.4).clamp(
-                            0.0,
-                            1.0,
-                          ),
+                          local: roomRevealRowProgress(t, index),
                         ),
                         const SizedBox(height: 10),
                       ],
@@ -421,6 +433,7 @@ class _RevealQuestionRow extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ClipRRect(
+            key: ValueKey('room-reveal-track-${question.qid}'),
             borderRadius: BorderRadius.circular(4),
             child: SizedBox(
               height: 8,
@@ -431,7 +444,10 @@ class _RevealQuestionRow extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: FractionallySizedBox(
                       widthFactor: ((roomPct * local) / 100).clamp(0.0, 1.0),
-                      child: Container(color: RtwV2Colors.clay),
+                      child: Container(
+                        key: ValueKey('room-reveal-fill-${question.qid}'),
+                        color: RtwV2Colors.clay,
+                      ),
                     ),
                   ),
                   if (guess != null)
